@@ -24,7 +24,7 @@ app.add_middleware(
 )
 
 # Registrando as Rotas
-app.include_router(uplink.router, tags=["Uplink"])     # Webhook Globalstar
+# app.include_router(uplink.router, tags=["Uplink"])     # Webhook Globalstar
 app.include_router(auth.router, prefix="/api", tags=["Auth"]) # Autenticação
 app.include_router(devices.router, prefix="/api", tags=["Devices"]) # Gestão de Devices
 app.include_router(readings.router, prefix="/api", tags=["Leituras"]) # <--- Nova rota do gráfico

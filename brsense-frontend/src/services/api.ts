@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Configuração do Axios
 export const api = axios.create({
-  baseURL: 'http://localhost:8000', // URL do seu FastAPI
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
 });
 
 // --- Interfaces de Resposta (Tipagem) ---
