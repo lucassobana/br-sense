@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     CORS_ALLOW_HEADERS: list[str] = ["*"]
 
     # ---- Database ----
-    DATABASE_URL: PostgresDsn | str = "postgresql+psycopg2://postgres:postgres@localhost:5432/soilprobe"
+    DATABASE_URL: PostgresDsn | str = "postgresql+psycopg2://postgres:admin@localhost:5432/satellite_db"
 
     # Alembic expects this key if you want to template it into alembic.ini
     ALEMBIC_DB_URL: Optional[str] = None

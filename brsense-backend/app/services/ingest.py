@@ -1,78 +1,131 @@
-import xml.etree.ElementTree as ET
-from datetime import datetime
+# app/services/ingest.py
+import logging
 from sqlalchemy.orm import Session
+from datetime import datetime
+from typing import Any, Dict, List
+
 from app.models.device import Device
 from app.models.reading import Reading
-# Se você tiver um decodificador específico, importe aqui, ex:
-# from app.decoders.smartone_c import decode_type0
+from app.decoders.smartone_c import decode_soil_payload
 
-def process_globalstar_data(db: Session, data_dict: dict) -> bool:
-    """
-    Processa dados extraídos (dicionário) e atualiza o Device correspondente.
-    Adaptado de 'lucassobana/br-sense'.
-    """
-    try:
-        # 1. Extrair o ESN (No novo modelo chama-se 'esn', no antigo era 'identifier')
-        # Tenta pegar 'esn' ou 'id' ou 'stuId' (comum em XML da Globalstar)
-        esn = data_dict.get('esn') or data_dict.get('id') or data_dict.get('stuId')
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+def _ensure_device(db: Session, esn: str) -> Device:
+    device = db.query(Device).filter(Device.esn == esn).first()
+    if not device:
+        logger.info(f"Novo dispositivo detectado: {esn}")
+        device = Device(esn=esn, name=f"Sonda {esn}")
+        db.add(device)
+        db.flush()
+    return device
+
+def _extract_messages_from_dict(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Extrai mensagens de um dicionário (já parseado de XML ou JSON).
+    """
+    messages = []
+    
+    # Tenta encontrar a raiz das mensagens
+    root = payload.get("stuMessages", payload)
+    
+    # Extrai lista de itens
+    items = root.get("stuMessage", [])
+    
+    # Se for um único item (dict), transforma em lista
+    if isinstance(items, dict):
+        items = [items]
+    elif not isinstance(items, list):
+        # Fallback para JSON simples que não segue estrutura stuMessage
+        items = [payload]
+
+    for item in items:
+        # Normalização de chaves (Case Insensitive safety)
+        # XML converte atributos e tags, JSON é direto.
+        
+        # Helper para buscar chave ignorando case
+        def get_val(obj, keys):
+            for k in keys:
+                if k in obj: return obj[k]
+                # xmltodict usa @ para atributos
+                if f"@{k}" in obj: return obj[f"@{k}"] 
+            return None
+
+        esn = get_val(item, ["esn", "ESN", "id", "deviceId"])
+        unix_time = get_val(item, ["unixTime", "unix_time", "time"])
+        raw_payload = get_val(item, ["payload", "data", "hexPayload"])
+
+        # XML payload text handling: <payload ...>HEX</payload> -> {'#text': 'HEX'}
+        if isinstance(raw_payload, dict) and "#text" in raw_payload:
+            raw_payload = raw_payload["#text"]
+
+        if esn:
+            messages.append({
+                "esn": esn,
+                "unixTime": unix_time,
+                "payload": raw_payload
+            })
+            
+    return messages
+
+def ingest_envelope(payload: Dict[str, Any], db: Session) -> dict:
+    """
+    Processa o payload (dict) recebido do Router.
+    """
+    msgs = _extract_messages_from_dict(payload)
+    
+    saved_count = 0
+    readings_count = 0
+    
+    for msg in msgs:
+        esn = msg.get("esn")
+        raw_payload = msg.get("payload")
+        
         if not esn:
-            print("Erro: ESN/Identificador não encontrado nos dados.")
-            return False
-
-        # 2. Buscar o dispositivo no banco de dados
-        # No SQLAlchemy novo, usamos query no modelo Device
-        device = db.query(Device).filter(Device.esn == esn).first()
-
-        if not device:
-            print(f"Sonda com ESN {esn} não encontrada. Ignorando.")
-            return False
-
-        # 3. Atualizar dados do Dispositivo (Localização e Status)
-        # Verifica se vieram coordenadas diretas no pacote
-        latitude = data_dict.get('latitude') or data_dict.get('lat')
-        longitude = data_dict.get('longitude') or data_dict.get('lon')
-
-        if latitude and longitude:
-            # O modelo Device tem um campo 'location' (String)
-            device.location = f"{latitude}, {longitude}"
-
-        # Atualiza status/bateria se disponível
-        battery_status = data_dict.get('batteryState')
-        if battery_status:
-            # Você pode salvar isso num campo de status ou log
-            # Como o modelo Device não tem campo 'status' explícito no snippet, 
-            # podemos assumir que pode ir numa descrição ou ignorar por enquanto
-            pass 
-
-        # Atualiza data de modificação
-        device.updated_at = datetime.utcnow()
-
-        # 4. Processar Leituras (Measurements -> Readings)
-        # Se houver lógica de decodificação de sensores (ex: umidade), insira aqui.
-        # Exemplo simples adaptado:
-        # if 'rawPayload' in data_dict:
-        #     readings = decodificar_payload(data_dict['rawPayload'])
-        #     for r in readings:
-        #         new_reading = Reading(device_id=device.id, **r)
-        #         db.add(new_reading)
-
-        # 5. Commit
+            continue
+            
+        try:
+            # 1. Device
+            device = _ensure_device(db, esn)
+            device.updated_at = datetime.utcnow()
+            
+            # 2. Decodificação
+            if raw_payload and isinstance(raw_payload, str):
+                decoded = decode_soil_payload(raw_payload)
+                if decoded:
+                    # Tenta converter timestamp da mensagem
+                    ts = datetime.utcnow()
+                    if msg.get("unixTime"):
+                        try:
+                            ts = datetime.utcfromtimestamp(int(msg["unixTime"]))
+                        except:
+                            pass
+                    
+                    for r in decoded:
+                        reading = Reading(
+                            device_id=device.id,
+                            depth_cm=r["depth_cm"],
+                            moisture_pct=r["moisture_pct"],
+                            temperature_c=r["temperature_c"],
+                            timestamp=ts
+                        )
+                        db.add(reading)
+                        readings_count += 1
+            
+            saved_count += 1
+            
+        except Exception as e:
+            logger.error(f"Erro processando mensagem {esn}: {e}")
+            continue
+            
+    try:
         db.commit()
-        db.refresh(device)
-        print(f"Device {esn} atualizado com sucesso.")
-        return True
-
+        return {
+            "status": "ok", 
+            "messages_processed": saved_count,
+            "readings_saved": readings_count
+        }
     except Exception as e:
         db.rollback()
-        print(f"Erro ao processar dados da Globalstar: {e}")
-        return False
-
-def parse_globalstar_xml(xml_content: str) -> dict:
-    """Helper para converter XML bruto da Globalstar em dicionário."""
-    try:
-        root = ET.fromstring(xml_content)
-        return {child.tag: child.text for child in root.iter()}
-    except Exception as e:
-        print(f"Erro no parse XML: {e}")
-        return {}
+        logger.error(f"Erro DB Commit: {e}")
+        return {"status": "error", "detail": str(e)}

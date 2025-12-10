@@ -1,22 +1,67 @@
 import { useEffect, useState } from 'react';
 import {
-  Box, Grid, Heading, Container, Text,
-  Table, Thead, Tbody, Tr, Th, Td, Badge, Flex, Spinner
+  Box,
+  SimpleGrid,
+  GridItem,
+  Text,
+  Spinner,
+  Flex
 } from '@chakra-ui/react';
-import { getProbes, getLogs } from '../services/api';
-import type { Probe, RequestLog } from '../types';
-import { ProbeCard } from '../components/ProbeCard/ProbeCard';
+// Importamos a interface ReadingHistory do api.ts
+import { getProbes, getDeviceHistory } from '../services/api';
+import type { ReadingHistory } from '../services/api';
+// Importamos a interface Probe do arquivo de tipos (conforme seu projeto)
+import type { Probe } from '../types';
+import { SoilMoistureChart } from '../components/SoilMoistureChart/SoilMoistureChart';
+
+// Interface para os dados formatados do gráfico
+interface ChartDataPoint {
+  time: string;
+  [key: string]: string | number;
+}
+
+// CORREÇÃO 1: Substituímos 'any[]' por 'ReadingHistory[]'
+function processReadingsToChartData(readings: ReadingHistory[]): ChartDataPoint[] {
+  const grouped: Record<string, ChartDataPoint> = {};
+
+  readings.forEach((r) => {
+    const dateObj = new Date(r.timestamp);
+    const timeKey = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    if (!grouped[timeKey]) {
+      grouped[timeKey] = { time: timeKey };
+    }
+
+    const depthKey = `depth${Math.round(r.depth_cm)}`;
+    grouped[timeKey][depthKey] = r.moisture_pct;
+  });
+
+  return Object.values(grouped);
+}
 
 export function Dashboard() {
-  const [probes, setProbes] = useState<Probe[]>([]);
-  const [logs, setLogs] = useState<RequestLog[]>([]);
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // CORREÇÃO 2: Substituímos 'any[]' por 'Probe[]'
+  const [probes, setProbes] = useState<Probe[]>([]);
+
+  // CORREÇÃO 3: Removemos 'logs' e 'setLogs' pois não estavam sendo usados no render
+  // Se futuramente você quiser exibir logs, descomente e use o tipo RequestLog[]
+
+  const SELECTED_ESN = "0-1234567";
 
   const fetchData = async () => {
     try {
-      const [probesData, logsData] = await Promise.all([getProbes(), getLogs()]);
+      // Removemos o getLogs() da chamada para evitar erro de variável não usada
+      const probesData = await getProbes();
       setProbes(probesData);
-      setLogs(logsData);
+
+      const history = await getDeviceHistory(SELECTED_ESN);
+      const formattedChartData = processReadingsToChartData(history);
+
+      setChartData(formattedChartData);
+
     } catch (error) {
       console.error("Erro ao buscar dados:", error);
     } finally {
@@ -26,68 +71,52 @@ export function Dashboard() {
 
   useEffect(() => {
     fetchData();
-    // Atualiza a cada 5 segundos
-    const interval = setInterval(fetchData, 5000);
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, []);
 
   return (
-    <Box minH="100vh" bg="gray.50">
-      {/* Header da Página */}
-      <Box bg="blue.600" py={4} mb={8}>
-        <Container maxW="container.xl">
-          <Heading color="white">🛰️ BRSense - Monitoramento Satelital</Heading>
-          <Text color="blue.100">Painel de Telemetria em Tempo Real</Text>
-        </Container>
-      </Box>
+    <Box p={4}>
+      <SimpleGrid columns={{ base: 1, lg: 12 }} spacing={4}>
 
-      <Container maxW="container.xl">
-        {loading && probes.length === 0 ? (
-          <Flex justify="center" align="center" h="200px"><Spinner size="xl" /></Flex>
-        ) : (
-          <>
-            <Heading size="md" mb={4}>Sondas Ativas ({probes.length})</Heading>
-            <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={6} mb={10}>
-              {probes.map(probe => (
-                <ProbeCard key={probe.id} probe={probe} />
-              ))}
-            </Grid>
-
-            <Heading size="md" mb={4}>Histórico de Requisições (Logs do Satélite)</Heading>
-            <Box overflowX="auto" bg="white" borderRadius="lg" boxShadow="sm" mb={10}>
-              <Table variant="simple" size="sm">
-                <Thead>
-                  <Tr>
-                    <Th>ID</Th>
-                    <Th>Horário</Th>
-                    <Th>Status</Th>
-                    <Th>Mensagem</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {logs.map(log => (
-                    <Tr key={log.id}>
-                      <Td>#{log.id}</Td>
-                      <Td>{new Date(log.timestamp).toLocaleTimeString()}</Td>
-                      <Td>
-                        <Badge
-                          colorScheme={
-                            log.status === 'SUCCESS' ? 'green' :
-                              log.status === 'ERROR' ? 'red' : 'yellow'
-                          }
-                        >
-                          {log.status}
-                        </Badge>
-                      </Td>
-                      <Td maxW="400px" isTruncated>{log.log_message}</Td>
-                    </Tr>
-                  ))}
-                </Tbody>
-              </Table>
+        {/* --- Card do Gráfico (Principal) --- */}
+        <GridItem colSpan={{ base: 1, lg: 8 }}>
+          {loading ? (
+            <Flex justify="center" align="center" h="300px" bg="gray.800" borderRadius="xl">
+              <Spinner color="blue.500" size="xl" />
+            </Flex>
+          ) : (
+            <Box>
+              {chartData.length === 0 ? (
+                <Flex justify="center" align="center" h="300px" bg="gray.800" borderRadius="xl" border="1px solid" borderColor="gray.700">
+                  <Text color="gray.400">Nenhum dado encontrado para o ESN: {SELECTED_ESN}</Text>
+                </Flex>
+              ) : (
+                <SoilMoistureChart />
+              )}
             </Box>
-          </>
-        )}
-      </Container>
+          )}
+        </GridItem>
+
+        {/* --- Coluna Lateral --- */}
+        <GridItem colSpan={{ base: 1, lg: 4 }}>
+          <Box
+            bg="#1C2A3A"
+            border="1px solid"
+            borderColor="rgba(59, 71, 84, 0.5)"
+            borderRadius="xl"
+            h="100%"
+            minH="300px"
+            p={4}
+          >
+            <Text color="white" fontWeight="bold" mb={2}>Status do Sistema</Text>
+            {/* Agora 'probes' é tipado corretamente */}
+            <Text color="gray.300" fontSize="sm">Sondas Ativas: {probes.length}</Text>
+            <Text color="gray.300" fontSize="sm">Última atualização: {new Date().toLocaleTimeString()}</Text>
+          </Box>
+        </GridItem>
+
+      </SimpleGrid>
     </Box>
   );
 }
