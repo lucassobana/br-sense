@@ -9,7 +9,8 @@ from app.db.session import get_db
 from app.services.ingest import ingest_envelope 
 from app.settings import settings
 
-router = APIRouter(prefix="/v1/uplink", tags=["uplink"])
+# router = APIRouter(prefix="/v1/uplink", tags=["uplink"])
+router = APIRouter()
 
 # Lista de IPs da Globalstar (Whitelist)
 GLOBALSTAR_IPS = {

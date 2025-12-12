@@ -26,28 +26,38 @@ def _extract_messages_from_dict(payload: Dict[str, Any]) -> List[Dict[str, Any]]
     """
     messages = []
     
-    # Tenta encontrar a raiz das mensagens
-    root = payload.get("stuMessages", payload)
+    # --- CORREÇÃO PARA GLOBALSTAR (Empty Heartbeat) ---
     
-    # Extrai lista de itens
-    items = root.get("stuMessage", [])
+    # 1. Verifica se existe a chave "stuMessages"
+    if "stuMessages" in payload:
+        root = payload["stuMessages"]
+        
+        # O xmltodict converte <stuMessages /> (tag vazia) em None.
+        # Se for None, significa que é um heartbeat vazio da Globalstar.
+        if root is None:
+            return [] # Retorna lista vazia, processamento segue sem erro
+            
+        # Se não for None, pegamos os itens internos
+        items = root.get("stuMessage", [])
+    else:
+        # Fallback para JSON simples que não segue estrutura XML
+        # Assume que o próprio payload é a raiz ou a mensagem
+        items = payload.get("stuMessage", payload)
+
+    # --------------------------------------------------
     
-    # Se for um único item (dict), transforma em lista
+    # Se for um único item (dict), transforma em lista para iterar
     if isinstance(items, dict):
         items = [items]
     elif not isinstance(items, list):
-        # Fallback para JSON simples que não segue estrutura stuMessage
-        items = [payload]
+        items = []
 
     for item in items:
-        # Normalização de chaves (Case Insensitive safety)
-        # XML converte atributos e tags, JSON é direto.
-        
         # Helper para buscar chave ignorando case
         def get_val(obj, keys):
             for k in keys:
                 if k in obj: return obj[k]
-                # xmltodict usa @ para atributos
+                # xmltodict usa @ para atributos (ex: <payload encoding="hex">)
                 if f"@{k}" in obj: return obj[f"@{k}"] 
             return None
 
@@ -72,11 +82,13 @@ def ingest_envelope(payload: Dict[str, Any], db: Session) -> dict:
     """
     Processa o payload (dict) recebido do Router.
     """
+    # Extrai as mensagens (agora seguro contra None)
     msgs = _extract_messages_from_dict(payload)
     
     saved_count = 0
     readings_count = 0
     
+    # Se a lista estiver vazia (heartbeat), o loop não roda e retorna OK.
     for msg in msgs:
         esn = msg.get("esn")
         raw_payload = msg.get("payload")
@@ -120,6 +132,7 @@ def ingest_envelope(payload: Dict[str, Any], db: Session) -> dict:
             
     try:
         db.commit()
+        # Retorna estrutura que será convertida em XML/JSON na resposta
         return {
             "status": "ok", 
             "messages_processed": saved_count,

@@ -1,7 +1,7 @@
 # fly.toml app configuration file
 # Configurado para brsense-backend (Produção)
 
-app = 'soilprobe-api-floral-sound-9539'
+app = 'brsense-api-dev'
 primary_region = 'gru'
 
 [build]
@@ -11,7 +11,7 @@ primary_region = 'gru'
 [env]
   # Define variáveis básicas (as senhas ficam nos Secrets)
   LOG_LEVEL = "INFO"
-  ENV = "prod"
+  ENV = "dev"
 
 [http_service]
   internal_port = 8000
@@ -30,4 +30,4 @@ primary_region = 'gru'
 [[vm]]
   memory = '1gb'
   cpu_kind = 'shared'
-  cpus = 1  
+  cpus = 1
