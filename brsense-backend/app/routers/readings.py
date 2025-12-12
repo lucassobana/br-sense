@@ -1,9 +1,10 @@
 # app/routers/readings.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
+
 
 from app.db.session import get_db
 from app.models.reading import Reading
@@ -15,8 +16,8 @@ router = APIRouter()
 class ReadingResponse(BaseModel):
     timestamp: datetime
     depth_cm: float
-    moisture_pct: float
-    temperature_c: float
+    moisture_pct: Optional[float] = None
+    temperature_c: Optional[float] = None
     
     class Config:
         from_attributes = True

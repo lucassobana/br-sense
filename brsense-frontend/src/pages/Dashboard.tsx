@@ -42,38 +42,55 @@ function processReadingsToChartData(readings: ReadingHistory[]): ChartDataPoint[
 export function Dashboard() {
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // CORREÇÃO 2: Substituímos 'any[]' por 'Probe[]'
   const [probes, setProbes] = useState<Probe[]>([]);
+
+  const [selectedEsn, setSelectedEsn] = useState<string>("");
+  // CORREÇÃO 2: Substituímos 'any[]' por 'Probe[]'
 
   // CORREÇÃO 3: Removemos 'logs' e 'setLogs' pois não estavam sendo usados no render
   // Se futuramente você quiser exibir logs, descomente e use o tipo RequestLog[]
 
-  const SELECTED_ESN = "0-1234567";
-
-  const fetchData = async () => {
-    try {
-      // Removemos o getLogs() da chamada para evitar erro de variável não usada
-      const probesData = await getProbes();
-      setProbes(probesData);
-
-      const history = await getDeviceHistory(SELECTED_ESN);
-      const formattedChartData = processReadingsToChartData(history);
-
-      setChartData(formattedChartData);
-
-    } catch (error) {
-      console.error("Erro ao buscar dados:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+
+    const fetchData = async () => {
+      try {
+        // 1. Busca lista de dispositivos
+        const probesData = await getProbes();
+        setProbes(probesData);
+
+        // 2. Lógica para selecionar o ESN automaticamente se nenhum estiver selecionado
+        let targetEsn = selectedEsn;
+
+        // Se não temos um ESN selecionado e a lista não está vazia, pega o primeiro
+        if (!targetEsn && probesData.length > 0) {
+          targetEsn = probesData[0].esn; // Agora o TS não vai reclamar, pois corrigimos o types.ts
+          setSelectedEsn(targetEsn);
+        }
+
+        // 3. Se tivermos um alvo, busca o histórico dele
+        if (targetEsn) {
+          const history = await getDeviceHistory(targetEsn);
+          const formattedChartData = processReadingsToChartData(history);
+          setChartData(formattedChartData);
+        }
+
+      } catch (error) {
+        console.error("Erro ao buscar dados:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Chama imediatamente
     fetchData();
+
+    // Configura o intervalo de 10 segundos
     const interval = setInterval(fetchData, 10000);
+
+    // Limpa o intervalo ao desmontar
     return () => clearInterval(interval);
-  }, []);
+
+  }, [selectedEsn]); // Executa apenas uma vez ao montar
 
   return (
     <Box p={4}>
@@ -89,7 +106,7 @@ export function Dashboard() {
             <Box>
               {chartData.length === 0 ? (
                 <Flex justify="center" align="center" h="300px" bg="gray.800" borderRadius="xl" border="1px solid" borderColor="gray.700">
-                  <Text color="gray.400">Nenhum dado encontrado para o ESN: {SELECTED_ESN}</Text>
+                  <Text color="gray.400">Nenhum dado encontrado para o ESN: {selectedEsn}</Text>
                 </Flex>
               ) : (
                 <SoilMoistureChart />

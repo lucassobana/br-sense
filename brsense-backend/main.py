@@ -27,7 +27,7 @@ app.add_middleware(
 app.include_router(uplink.router, prefix="/v1/uplink", tags=["Uplink"])     # Webhook Globalstar
 app.include_router(auth.router, prefix="/api", tags=["Auth"]) # Autenticação
 app.include_router(devices.router, prefix="/api", tags=["Devices"]) # Gestão de Devices
-app.include_router(readings.router, prefix="/api", tags=["Leituras"]) # <--- Nova rota do gráfico
+app.include_router(readings.router, prefix="/api", tags=["Readings"]) # <--- Nova rota do gráfico
 
 # Rota de teste simples
 @app.get("/")

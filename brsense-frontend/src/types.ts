@@ -7,7 +7,7 @@ export interface Measurement {
 
 export interface Probe {
   id: number;
-  identifier: string; // ESN
+  esn: string; // ESN
   name: string;
   location: string;
   status: string;

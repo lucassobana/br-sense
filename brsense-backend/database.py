@@ -1,22 +1,43 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+import sys
 import os
-from dotenv import load_dotenv
+from sqlalchemy import text
 
-load_dotenv()
+# Setup para importar o app
+sys.path.append(os.getcwd())
+from app.db.session import SessionLocal, engine
+from app.settings import settings
 
-# Pega a URL do .env ou usa um padrão local
-SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/satellite_db')
-
-engine = create_engine(SQLALCHEMY_DATABASE_URI)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base = declarative_base()
-
-# Dependência para injetar a sessão do banco nas rotas
-def get_db():
+def checar_banco():
+    print(f"--- DIAGNÓSTICO DE BANCO DE DADOS ---")
+    
+    # 1. Mostrar qual URL está sendo usada (Mascarada por segurança)
+    url = str(settings.DATABASE_URL)
+    masked_url = url.replace(url.split(":")[2].split("@")[0], "****") if "@" in url else url
+    print(f"🔌 Conectando em: {masked_url}")
+    
     db = SessionLocal()
     try:
-        yield db
+        # 2. Testar conexão simples
+        db.execute(text("SELECT 1"))
+        print("✅ Conexão SQL: OK")
+        
+        # 3. Contar dados
+        device_count = db.execute(text("SELECT COUNT(*) FROM device")).scalar()
+        reading_count = db.execute(text("SELECT COUNT(*) FROM reading")).scalar()
+        
+        print(f"\n📊 Estatísticas encontradas:")
+        print(f"   - Dispositivos: {device_count}")
+        print(f"   - Leituras:     {reading_count}")
+        
+        if device_count == 0:
+            print("\n❌ O BANCO ESTÁ VAZIO! O seed não rodou neste banco.")
+        else:
+            print("\n✅ DADOS ENCONTRADOS! Se a API não mostra, ela está usando outra URL.")
+            
+    except Exception as e:
+        print(f"\n❌ ERRO DE CONEXÃO: {e}")
     finally:
         db.close()
+
+if __name__ == "__main__":
+    checar_banco()
