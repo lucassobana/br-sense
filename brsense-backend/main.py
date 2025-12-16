@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.settings import settings
 
 # Importando as rotas
-from app.routers import uplink, auth, devices, readings # <--- Adicionado readings
+from app.routers import uplink, auth, devices, readings, farms # <--- Adicionado readings
 
 app = FastAPI(title=settings.APP_NAME)
 
@@ -28,6 +28,7 @@ app.include_router(uplink.router, prefix="/v1/uplink", tags=["Uplink"])     # We
 app.include_router(auth.router, prefix="/api", tags=["Auth"]) # Autenticação
 app.include_router(devices.router, prefix="/api", tags=["Devices"]) # Gestão de Devices
 app.include_router(readings.router, prefix="/api", tags=["Readings"]) # <--- Nova rota do gráfico
+app.include_router(farms.router, prefix="/api", tags=["Farms"]) # <--- Nova rota do gráfico
 
 # Rota de teste simples
 @app.get("/")

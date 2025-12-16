@@ -1,3 +1,4 @@
+// brsense-frontend/src/pages/Login.tsx
 import { useState } from 'react';
 import {
     Box,
@@ -13,12 +14,12 @@ import {
     Icon,
     VStack,
     Container,
-    useToast
+    useToast,
+    Image // Importando Image do Chakra para o logo
 } from '@chakra-ui/react';
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
 import { useNavigate } from 'react-router-dom';
-
-// Importe as funções da API (certifique-se que o caminho está correto)
+import { AxiosError } from 'axios';
 import { login } from '../services/api';
 import brsenseLogo from '../assets/BRSense_logo.png';
 
@@ -30,12 +31,10 @@ export function Login() {
     const [showPassword, setShowPassword] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-
     const [isLoading, setIsLoading] = useState(false);
 
     const handleTogglePassword = () => setShowPassword(!showPassword);
 
-    // --- LÓGICA DE LOGIN ---
     const handleLogin = async () => {
         if (!email || !password) {
             toast({ title: 'Preencha todos os campos', status: 'warning', position: 'top' });
@@ -45,20 +44,21 @@ export function Login() {
         try {
             setIsLoading(true);
             await login(email, password);
-
             toast({ title: 'Login realizado com sucesso!', status: 'success', position: 'top' });
             navigate('/');
         } catch (error: unknown) {
             let msg = 'Erro ao conectar com o servidor';
 
-            // Verifica se error é um objeto
-            if (typeof error === 'object' && error !== null) {
-                // Se tiver a propriedade response e data
-                // @ts-expect-error TS não consegue inferir, mas é seguro
-                msg = error.response?.data?.detail || msg;
+            if (error instanceof AxiosError) {
+                msg = error.response?.data?.detail ?? msg;
             }
 
-            toast({ title: 'Erro no Login', description: msg, status: 'error', position: 'top' });
+            toast({
+                title: 'Erro no Login',
+                description: msg,
+                status: 'error',
+                position: 'top'
+            });
         } finally {
             setIsLoading(false);
         }
@@ -71,6 +71,22 @@ export function Login() {
         textMain: '#F5F5F5',
         textPlaceholder: '#9aabbc',
         iconBg: '#2D2D2D',
+        cardBg: '#111111' // Adicionado para combinar com a tela de Admin
+    };
+
+    const inputStyle = {
+        height: "56px",
+        bg: colors.backgroundDark,
+        borderColor: colors.inputBorder,
+        color: colors.textMain,
+        borderRadius: "lg",
+        fontSize: "16px",
+        _placeholder: { color: colors.textPlaceholder },
+        _hover: { borderColor: colors.primary },
+        _focus: {
+            borderColor: colors.primary,
+            boxShadow: `0 0 0 1px ${colors.primary}`,
+        }
     };
 
     return (
@@ -80,127 +96,115 @@ export function Login() {
             bg={colors.backgroundDark}
             direction="column"
             fontFamily="'Inter', sans-serif"
+            justify="center" // Centraliza verticalmente
+            align="center"   // Centraliza horizontalmente
         >
-            <Container maxW="container.sm" h="100vh" display="flex" flexDirection="column" p={6}>
-                {/* Área Principal Centralizada */}
-                <Flex flex="1" direction="column" justify="center" align="center" w="100%">
-                    {/* Logo / Ícone */}
-                    <Flex
-                        justify="center"
-                        align="center"
-                        bg={colors.iconBg}
-                        w="120px"
-                        h="120px"
-                        borderRadius="2xl"
-                        mb={8}
-                    >
-                        <img src={brsenseLogo} alt="BR Sense Logo" style={{ width: '100px', height: '100px' }} />
-                    </Flex>
+            <Container maxW="container.sm" p={4}>
+                {/* --- AQUI ESTÁ O BOX (CARD) --- */}
+                <Box
+                    bg={colors.cardBg}
+                    p={8}
+                    borderRadius="2xl"
+                    border="1px solid"
+                    borderColor={colors.inputBorder}
+                    boxShadow="xl"
+                    w="100%"
+                >
+                    <Flex direction="column" justify="center" align="center" w="100%">
 
-                    {/* Título */}
-                    <Heading
-                        as="h1"
-                        color={colors.textMain}
-                        fontSize="32px"
-                        fontWeight="bold"
-                        textAlign="center"
-                        mb={8}
-                        lineHeight="tight"
-                    >
-                        Bem-Vindo a BR Sense
-                    </Heading>
+                        {/* Logo */}
+                        <Flex
+                            justify="center"
+                            align="center"
+                            bg={colors.iconBg}
+                            w="100px"
+                            h="100px"
+                            borderRadius="2xl"
+                            mb={6}
+                            boxShadow="md"
+                        >
+                            <Image src={brsenseLogo} alt="BR Sense Logo" w="70px" h="70px" objectFit="contain" />
+                        </Flex>
 
-                    {/* Formulário de Login */}
-                    <VStack spacing={4} w="100%" maxW="480px">
-                        {/* Campo de Email */}
-                        <FormControl>
-                            <FormLabel color={colors.textMain} fontSize="16px" fontWeight="medium" mb={2}>
-                                Login
-                            </FormLabel>
-                            <Input
-                                type="email"
-                                placeholder="Entre com seu login"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                height="56px"
-                                bg={colors.backgroundDark}
-                                borderColor={colors.inputBorder}
-                                color={colors.textMain}
-                                _placeholder={{ color: colors.textPlaceholder }}
-                                borderRadius="lg"
-                                fontSize="16px"
-                                _hover={{ borderColor: colors.primary }}
-                                _focus={{
-                                    borderColor: colors.primary,
-                                    boxShadow: `0 0 0 1px ${colors.primary}`,
-                                }}
-                            />
-                        </FormControl>
+                        {/* Título */}
+                        <Heading
+                            as="h1"
+                            color={colors.textMain}
+                            fontSize="28px"
+                            fontWeight="bold"
+                            textAlign="center"
+                            mb={8}
+                        >
+                            Bem-Vindo a BR Sense
+                        </Heading>
 
-                        {/* Campo de Senha */}
-                        <FormControl>
-                            <FormLabel color={colors.textMain} fontSize="16px" fontWeight="medium" mb={2}>
-                                Senha
-                            </FormLabel>
-                            <InputGroup size="lg">
+                        {/* Formulário */}
+                        <VStack spacing={5} w="100%">
+                            <FormControl>
+                                <FormLabel color={colors.textMain} fontSize="14px" fontWeight="medium">
+                                    Login
+                                </FormLabel>
                                 <Input
-                                    type={showPassword ? 'text' : 'password'}
-                                    placeholder="Entre com sua senha"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    height="56px"
-                                    bg={colors.backgroundDark}
-                                    borderColor={colors.inputBorder}
-                                    color={colors.textMain}
-                                    _placeholder={{ color: colors.textPlaceholder }}
-                                    borderRadius="lg"
-                                    fontSize="16px"
-                                    _hover={{ borderColor: colors.primary }}
-                                    _focus={{
-                                        borderColor: colors.primary,
-                                        boxShadow: `0 0 0 1px ${colors.primary}`,
-                                    }}
+                                    type="email"
+                                    placeholder="Entre com seu login"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    {...inputStyle}
                                 />
-                                <InputRightElement height="56px" width="3.5rem">
-                                    <Box
-                                        as="button"
-                                        onClick={handleTogglePassword}
-                                        color={colors.textPlaceholder}
-                                        _hover={{ color: colors.textMain }}
-                                        display="flex"
-                                        alignItems="center"
-                                        justifyContent="center"
-                                    >
-                                        <Icon as={showPassword ? MdVisibilityOff : MdVisibility} boxSize={6} />
-                                    </Box>
-                                </InputRightElement>
-                            </InputGroup>
-                        </FormControl>
+                            </FormControl>
 
-                        {/* Botão de Login */}
-                        <Box w="100%" pt={2}>
-                            <Button
-                                w="100%"
-                                height="48px"
-                                bg={colors.primary}
-                                color="white"
-                                fontSize="16px"
-                                fontWeight="bold"
-                                borderRadius="lg"
-                                _hover={{ bg: '#002a52' }}
-                                _active={{ bg: '#001a33' }}
-                                onClick={handleLogin}
-                                isLoading={isLoading}
-                                loadingText="Entrando..."
-                            >
-                                Login
-                            </Button>
-                        </Box>
-                    </VStack>
-                </Flex>
+                            <FormControl>
+                                <FormLabel color={colors.textMain} fontSize="14px" fontWeight="medium">
+                                    Senha
+                                </FormLabel>
+                                <InputGroup size="lg">
+                                    <Input
+                                        type={showPassword ? 'text' : 'password'}
+                                        placeholder="Entre com sua senha"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        {...inputStyle}
+                                    />
+                                    <InputRightElement height="56px" width="3.5rem">
+                                        <Box
+                                            as="button"
+                                            onClick={handleTogglePassword}
+                                            color={colors.textPlaceholder}
+                                            _hover={{ color: colors.textMain }}
+                                            display="flex"
+                                            alignItems="center"
+                                            justifyContent="center"
+                                        >
+                                            <Icon as={showPassword ? MdVisibilityOff : MdVisibility} boxSize={6} />
+                                        </Box>
+                                    </InputRightElement>
+                                </InputGroup>
+                            </FormControl>
 
-                {/* Footer */}
-                <Flex justify="center" pb={4} pt={8}>
+                            <Box w="100%" pt={4}>
+                                <Button
+                                    w="100%"
+                                    height="48px"
+                                    bg={colors.primary}
+                                    color="white"
+                                    fontSize="16px"
+                                    fontWeight="bold"
+                                    borderRadius="lg"
+                                    _hover={{ bg: '#002a52' }}
+                                    _active={{ bg: '#001a33' }}
+                                    onClick={handleLogin}
+                                    isLoading={isLoading}
+                                    loadingText="Entrando..."
+                                >
+                                    Login
+                                </Button>
+                            </Box>
+                        </VStack>
+                    </Flex>
+                </Box>
+
+                {/* Footer (Fora do Box para ficar discreto) */}
+                <Flex justify="center" pt={6}>
                     <Text fontSize="xs" color={colors.textPlaceholder}>
                         Powered by BR Sense - Soil & Climate Intelligence.
                     </Text>

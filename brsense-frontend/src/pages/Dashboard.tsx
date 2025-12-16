@@ -5,12 +5,11 @@ import {
   GridItem,
   Text,
   Spinner,
-  Flex
+  Flex,
+  Select // Componente de seleção do Chakra UI
 } from '@chakra-ui/react';
-// Importamos a interface ReadingHistory do api.ts
 import { getProbes, getDeviceHistory } from '../services/api';
 import type { ReadingHistory } from '../services/api';
-// Importamos a interface Probe do arquivo de tipos (conforme seu projeto)
 import type { Probe } from '../types';
 import { SoilMoistureChart } from '../components/SoilMoistureChart/SoilMoistureChart';
 
@@ -20,18 +19,20 @@ interface ChartDataPoint {
   [key: string]: string | number;
 }
 
-// CORREÇÃO 1: Substituímos 'any[]' por 'ReadingHistory[]'
+// Função auxiliar para processar dados brutos da API para o formato do Recharts
 function processReadingsToChartData(readings: ReadingHistory[]): ChartDataPoint[] {
   const grouped: Record<string, ChartDataPoint> = {};
 
   readings.forEach((r) => {
     const dateObj = new Date(r.timestamp);
+    // Formata a data (Ex: 15/12 14:00)
     const timeKey = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     if (!grouped[timeKey]) {
       grouped[timeKey] = { time: timeKey };
     }
 
+    // Cria chaves como "depth10", "depth30" baseadas na profundidade
     const depthKey = `depth${Math.round(r.depth_cm)}`;
     grouped[timeKey][depthKey] = r.moisture_pct;
   });
@@ -43,79 +44,122 @@ export function Dashboard() {
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [probes, setProbes] = useState<Probe[]>([]);
-
+  
+  // Estado para armazenar qual sonda o usuário está visualizando
   const [selectedEsn, setSelectedEsn] = useState<string>("");
-  // CORREÇÃO 2: Substituímos 'any[]' por 'Probe[]'
 
-  // CORREÇÃO 3: Removemos 'logs' e 'setLogs' pois não estavam sendo usados no render
-  // Se futuramente você quiser exibir logs, descomente e use o tipo RequestLog[]
-
+  // --- EFEITO 1: Busca Inicial de Dispositivos (Executa apenas 1 vez) ---
   useEffect(() => {
-
-    const fetchData = async () => {
+    const fetchProbes = async () => {
       try {
-        // 1. Busca lista de dispositivos
         const probesData = await getProbes();
         setProbes(probesData);
 
-        // 2. Lógica para selecionar o ESN automaticamente se nenhum estiver selecionado
-        let targetEsn = selectedEsn;
-
-        // Se não temos um ESN selecionado e a lista não está vazia, pega o primeiro
-        if (!targetEsn && probesData.length > 0) {
-          targetEsn = probesData[0].esn; // Agora o TS não vai reclamar, pois corrigimos o types.ts
-          setSelectedEsn(targetEsn);
+        // Lógica de seleção automática inicial
+        if (probesData.length > 0) {
+           // Tenta encontrar a sonda de teste com dados, senão pega a primeira
+           const preferred = probesData.find(p => p.esn === "TEST-GRAPH-01");
+           setSelectedEsn(preferred ? preferred.esn : probesData[0].esn);
         }
-
-        // 3. Se tivermos um alvo, busca o histórico dele
-        if (targetEsn) {
-          const history = await getDeviceHistory(targetEsn);
-          const formattedChartData = processReadingsToChartData(history);
-          setChartData(formattedChartData);
-        }
-
       } catch (error) {
-        console.error("Erro ao buscar dados:", error);
-      } finally {
-        setLoading(false);
+        console.error("Erro ao buscar lista de dispositivos:", error);
       }
     };
 
-    // Chama imediatamente
-    fetchData();
+    fetchProbes();
+  }, []); // Array vazio garante execução única na montagem
 
-    // Configura o intervalo de 10 segundos
-    const interval = setInterval(fetchData, 10000);
+  // --- EFEITO 2: Busca de Histórico (Executa ao mudar a sonda ou a cada 10s) ---
+  useEffect(() => {
+    // Se não tiver sonda selecionada, não faz nada
+    if (!selectedEsn) return;
 
-    // Limpa o intervalo ao desmontar
+    const fetchHistory = async () => {
+      // Opcional: setLoading(true) se quiser mostrar loading a cada atualização
+      try {
+        const history = await getDeviceHistory(selectedEsn);
+        const formattedChartData = processReadingsToChartData(history);
+        setChartData(formattedChartData);
+      } catch (error) {
+        console.error(`Erro ao buscar histórico para ${selectedEsn}:`, error);
+        setChartData([]); // Limpa o gráfico em caso de erro
+      } finally {
+        setLoading(false); // Remove o estado de carregamento inicial
+      }
+    };
+
+    // 1. Chama imediatamente ao selecionar
+    fetchHistory();
+
+    // 2. Configura o intervalo de atualização (apenas para o histórico)
+    const interval = setInterval(fetchHistory, 10000); // 10 segundos
+
+    // Limpa o intervalo se o componente desmontar ou se mudar a sonda
     return () => clearInterval(interval);
 
-  }, [selectedEsn]); // Executa apenas uma vez ao montar
+  }, [selectedEsn]); // Dependência: recria o efeito se selectedEsn mudar
 
   return (
     <Box p={4}>
+      {/* --- Cabeçalho com Título e Seletor --- */}
+      <Flex 
+        direction={{ base: 'column', md: 'row' }} 
+        justify="space-between" 
+        align={{ base: 'start', md: 'center' }} 
+        mb={6} 
+        gap={4}
+      >
+        <Text fontSize="2xl" fontWeight="bold" color="white">
+          Monitoramento de Solo
+        </Text>
+        
+        <Box w={{ base: "100%", md: "300px" }}>
+            <Select 
+                bg="gray.700" 
+                color="white" 
+                borderColor="gray.600"
+                value={selectedEsn}
+                onChange={(e) => {
+                    setLoading(true); // Mostra loading ao trocar manualmente
+                    setSelectedEsn(e.target.value);
+                }}
+                _hover={{ borderColor: "blue.400" }}
+            >
+                {probes.map((probe) => (
+                    // O style color: black é necessário porque o option herda o branco do select
+                    <option key={probe.id} value={probe.esn} style={{ color: 'black' }}>
+                        {probe.name || `Sonda ${probe.esn}`}
+                    </option>
+                ))}
+            </Select>
+        </Box>
+      </Flex>
+
       <SimpleGrid columns={{ base: 1, lg: 12 }} spacing={4}>
 
         {/* --- Card do Gráfico (Principal) --- */}
         <GridItem colSpan={{ base: 1, lg: 8 }}>
-          {loading ? (
+          {loading && chartData.length === 0 ? (
+            // Estado de Carregamento
             <Flex justify="center" align="center" h="300px" bg="gray.800" borderRadius="xl">
-              <Spinner color="blue.500" size="xl" />
+              <Spinner color="blue.500" size="xl" thickness="4px" />
             </Flex>
           ) : (
+            // Área do Gráfico
             <Box>
               {chartData.length === 0 ? (
                 <Flex justify="center" align="center" h="300px" bg="gray.800" borderRadius="xl" border="1px solid" borderColor="gray.700">
-                  <Text color="gray.400">Nenhum dado encontrado para o ESN: {selectedEsn}</Text>
+                  <Text color="gray.400">Nenhum dado encontrado para a sonda: {selectedEsn}</Text>
                 </Flex>
               ) : (
+                // Passamos os dados reais para o componente do gráfico
                 <SoilMoistureChart />
               )}
             </Box>
           )}
         </GridItem>
 
-        {/* --- Coluna Lateral --- */}
+        {/* --- Coluna Lateral de Status --- */}
         <GridItem colSpan={{ base: 1, lg: 4 }}>
           <Box
             bg="#1C2A3A"
@@ -124,12 +168,28 @@ export function Dashboard() {
             borderRadius="xl"
             h="100%"
             minH="300px"
-            p={4}
+            p={6}
           >
-            <Text color="white" fontWeight="bold" mb={2}>Status do Sistema</Text>
-            {/* Agora 'probes' é tipado corretamente */}
-            <Text color="gray.300" fontSize="sm">Sondas Ativas: {probes.length}</Text>
-            <Text color="gray.300" fontSize="sm">Última atualização: {new Date().toLocaleTimeString()}</Text>
+            <Text color="white" fontWeight="bold" fontSize="lg" mb={4}>Status do Sistema</Text>
+            
+            <Flex direction="column" gap={3}>
+                <Box>
+                    <Text color="gray.400" fontSize="xs" textTransform="uppercase" letterSpacing="wide">Sonda Ativa</Text>
+                    <Text color="white" fontSize="md" fontWeight="medium">{selectedEsn || "-"}</Text>
+                </Box>
+                
+                <Box>
+                    <Text color="gray.400" fontSize="xs" textTransform="uppercase" letterSpacing="wide">Localização</Text>
+                    <Text color="white" fontSize="md">
+                        {probes.find(p => p.esn === selectedEsn)?.location || "Não definida"}
+                    </Text>
+                </Box>
+
+                <Box pt={4} borderTop="1px solid" borderColor="gray.700">
+                    <Text color="gray.400" fontSize="sm">Total de Sondas: {probes.length}</Text>
+                    <Text color="gray.400" fontSize="sm">Última atualização: {new Date().toLocaleTimeString()}</Text>
+                </Box>
+            </Flex>
           </Box>
         </GridItem>
 

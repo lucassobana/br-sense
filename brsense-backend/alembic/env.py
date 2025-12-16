@@ -18,7 +18,7 @@ from app.db.base import Base
 
 # Importar todos os modelos aqui para garantir que o Alembic detecte as tabelas
 # (Se criar novos modelos no futuro, importe-os aqui também)
-from app.models import device, reading, device_config, user, request_log
+from app.models import device, reading, device_config, user, request_log, farm
 # -------------------------------------------------------------------------
 
 # this is the Alembic Config object, which provides

@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Layout } from './components/Layout/Layout';
+import { AdminUserCreate } from './pages/AdminUserCreate';
 
 export function App() {
   return (
@@ -19,6 +20,8 @@ export function App() {
         />
         {/* Rota sem Header */}
         <Route path="/login" element={<Login />} />
+
+        <Route path="admin/users/new" element={<AdminUserCreate />} />
       </Routes>
     </ChakraProvider>
   );

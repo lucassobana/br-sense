@@ -1,13 +1,13 @@
 # app/models/device.py
 from datetime import datetime
-from sqlalchemy import String, DateTime
+from typing import TYPE_CHECKING, Optional
+from sqlalchemy import String, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.models.device_config import DeviceConfig
 
-
-# Importante: Usamos string "DeviceConfig" para evitar import circular
-# ou TYPE_CHECKING se preferir tipagem estrita
+if TYPE_CHECKING:
+    from app.models.farm import Farm # Importação para tipagem
 
 class Device(Base):
     """Representa uma sonda física (vinculada ao ESN da Globalstar)."""
@@ -18,13 +18,14 @@ class Device(Base):
     name: Mapped[str] = mapped_column(String(64), nullable=True)
     location: Mapped[str] = mapped_column(String(128), nullable=True)
     
+    # ADICIONAR: Chave Estrangeira para Fazenda
+    farm_id: Mapped[Optional[int]] = mapped_column(ForeignKey("farm.id"), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    # Relacionamento com as leituras (1 Device -> N Readings)
     readings = relationship("Reading", back_populates="device", cascade="all, delete-orphan")
-
-    # --- CORREÇÃO AQUI ---
-    # Relacionamento com a configuração (1 Device -> 1 Config)
-    # uselist=False indica que é Um-para-Um
     config = relationship("DeviceConfig", back_populates="device", uselist=False, cascade="all, delete-orphan")
+    
+    # ADICIONAR: Relacionamento com Farm
+    farm: Mapped["Farm"] = relationship("Farm", back_populates="devices")

@@ -5,7 +5,12 @@ export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
 });
 
-// --- Interfaces de Resposta (Tipagem) ---
+export interface CreateUserDTO {
+    name: string;
+    login: string;
+    password: string;
+    role: 'ADMIN' | 'FAZENDEIRO' | 'PIVOZEIRO';
+}
 
 export interface AuthResponse {
   status: string;
@@ -35,6 +40,11 @@ export const login = async (email: string, password: string) => {
     password: password
   });
   return response.data;
+};
+
+export const createUser = async (userData: CreateUserDTO) => {
+    const response = await api.post('/api/register', userData);
+    return response.data;
 };
 
 // --- Funções de Dados (Dashboard) ---
