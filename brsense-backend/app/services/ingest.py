@@ -32,16 +32,14 @@ def _extract_messages_from_dict(payload: Dict[str, Any]) -> List[Dict[str, Any]]
     if "stuMessages" in payload:
         root = payload["stuMessages"]
         
-        # O xmltodict converte <stuMessages /> (tag vazia) em None.
-        # Se for None, significa que é um heartbeat vazio da Globalstar.
+        # IMPORTANTE: Trata Empty Heartbeat da Globalstar
+        # <stuMessages ... /> vem como None ou dict apenas com atributos
         if root is None:
-            return [] # Retorna lista vazia, processamento segue sem erro
+            return [] 
             
-        # Se não for None, pegamos os itens internos
         items = root.get("stuMessage", [])
     else:
-        # Fallback para JSON simples que não segue estrutura XML
-        # Assume que o próprio payload é a raiz ou a mensagem
+        # Fallback
         items = payload.get("stuMessage", payload)
 
     # --------------------------------------------------
