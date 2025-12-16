@@ -15,7 +15,7 @@ import {
     VStack,
     Container,
     useToast,
-    Image // Importando Image do Chakra para o logo
+    Image
 } from '@chakra-ui/react';
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
 import { useNavigate } from 'react-router-dom';
@@ -43,7 +43,18 @@ export function Login() {
 
         try {
             setIsLoading(true);
-            await login(email, password);
+            // --- ALTERAÇÃO: Captura a resposta do login ---
+            const response = await login(email, password);
+
+            // Salva dados essenciais no LocalStorage
+            if (response.user) {
+                localStorage.setItem('user_id', response.user.id.toString()); // Salva o ID!
+                localStorage.setItem('name', response.user.name);
+                localStorage.setItem('user_role', response.user.role);
+                localStorage.setItem('token', 'logged_in');
+            }
+            // ----------------------------------------------
+
             toast({ title: 'Login realizado com sucesso!', status: 'success', position: 'top' });
             navigate('/');
         } catch (error: unknown) {
@@ -71,7 +82,7 @@ export function Login() {
         textMain: '#F5F5F5',
         textPlaceholder: '#9aabbc',
         iconBg: '#2D2D2D',
-        cardBg: '#111111' // Adicionado para combinar com a tela de Admin
+        cardBg: '#111111'
     };
 
     const inputStyle = {
@@ -96,11 +107,10 @@ export function Login() {
             bg={colors.backgroundDark}
             direction="column"
             fontFamily="'Inter', sans-serif"
-            justify="center" // Centraliza verticalmente
-            align="center"   // Centraliza horizontalmente
+            justify="center"
+            align="center"
         >
             <Container maxW="container.sm" p={4}>
-                {/* --- AQUI ESTÁ O BOX (CARD) --- */}
                 <Box
                     bg={colors.cardBg}
                     p={8}
@@ -112,7 +122,6 @@ export function Login() {
                 >
                     <Flex direction="column" justify="center" align="center" w="100%">
 
-                        {/* Logo */}
                         <Flex
                             justify="center"
                             align="center"
@@ -126,7 +135,6 @@ export function Login() {
                             <Image src={brsenseLogo} alt="BR Sense Logo" w="70px" h="70px" objectFit="contain" />
                         </Flex>
 
-                        {/* Título */}
                         <Heading
                             as="h1"
                             color={colors.textMain}
@@ -138,7 +146,6 @@ export function Login() {
                             Bem-Vindo a BR Sense
                         </Heading>
 
-                        {/* Formulário */}
                         <VStack spacing={5} w="100%">
                             <FormControl>
                                 <FormLabel color={colors.textMain} fontSize="14px" fontWeight="medium">
@@ -203,7 +210,6 @@ export function Login() {
                     </Flex>
                 </Box>
 
-                {/* Footer (Fora do Box para ficar discreto) */}
                 <Flex justify="center" pt={6}>
                     <Text fontSize="xs" color={colors.textPlaceholder}>
                         Powered by BR Sense - Soil & Climate Intelligence.

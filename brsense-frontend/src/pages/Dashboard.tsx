@@ -1,38 +1,55 @@
+// brsense-frontend/src/pages/Dashboard.tsx
 import { useEffect, useState } from 'react';
 import {
   Box,
-  SimpleGrid,
-  GridItem,
-  Text,
-  Spinner,
   Flex,
-  Select // Componente de seleção do Chakra UI
+  Text,
+  Input,
+  InputGroup,
+  InputLeftElement,
+  VStack,
+  HStack,
+  Icon,
+  useToast,
+  Spinner
 } from '@chakra-ui/react';
-import { getProbes, getDeviceHistory } from '../services/api';
-import type { ReadingHistory } from '../services/api';
-import type { Probe } from '../types';
+import { MdSearch } from 'react-icons/md';
+import { getProbes, getFarms, getDeviceHistory, type ReadingHistory } from '../services/api'; // Importei getFarms
+import type { Probe, Farm } from '../types'; // Importei Farm
 import { SoilMoistureChart } from '../components/SoilMoistureChart/SoilMoistureChart';
 
-// Interface para os dados formatados do gráfico
+// --- Constantes de Cores do Padrão Solicitado ---
+const COLORS = {
+  background: "#0F1115",
+  surface: "#1A1D21",
+  primary: "#0E6B3B",
+  primaryDark: "#0B5FA5",
+  textPrimary: "#FFFFFF",
+  textSecondary: "#A0AEC0",
+  status: {
+    ok: "#22C55E",
+    attention: "#FBBF24",
+    stress: "#EF4444",
+    offline: "#6B7280",
+  }
+};
+
+// --- Funções Auxiliares para o Gráfico ---
 interface ChartDataPoint {
   time: string;
   [key: string]: string | number;
 }
 
-// Função auxiliar para processar dados brutos da API para o formato do Recharts
 function processReadingsToChartData(readings: ReadingHistory[]): ChartDataPoint[] {
   const grouped: Record<string, ChartDataPoint> = {};
 
   readings.forEach((r) => {
     const dateObj = new Date(r.timestamp);
-    // Formata a data (Ex: 15/12 14:00)
     const timeKey = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     if (!grouped[timeKey]) {
       grouped[timeKey] = { time: timeKey };
     }
-
-    // Cria chaves como "depth10", "depth30" baseadas na profundidade
     const depthKey = `depth${Math.round(r.depth_cm)}`;
     grouped[timeKey][depthKey] = r.moisture_pct;
   });
@@ -41,159 +58,251 @@ function processReadingsToChartData(readings: ReadingHistory[]): ChartDataPoint[
 }
 
 export function Dashboard() {
-  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Estados de Dados
   const [probes, setProbes] = useState<Probe[]>([]);
-  
-  // Estado para armazenar qual sonda o usuário está visualizando
-  const [selectedEsn, setSelectedEsn] = useState<string>("");
+  const [farms, setFarms] = useState<Farm[]>([]); // Novo estado para Fazendas
+  const [selectedProbe, setSelectedProbe] = useState<Probe | null>(null);
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
 
-  // --- EFEITO 1: Busca Inicial de Dispositivos (Executa apenas 1 vez) ---
+  // Estados de UI
+  const [loading, setLoading] = useState(true);
+  const [loadingChart, setLoadingChart] = useState(false);
+  const toast = useToast();
+
+  // 1. Carga Inicial (Sondas e Fazendas)
   useEffect(() => {
-    const fetchProbes = async () => {
+    async function loadData() {
       try {
-        const probesData = await getProbes();
-        setProbes(probesData);
+        setLoading(true);
+        // Busca Sondas e Fazendas em paralelo
+        const [probesData, farmsData] = await Promise.all([
+          getProbes(),
+          getFarms()
+        ]);
 
-        // Lógica de seleção automática inicial
+        setProbes(probesData);
+        setFarms(farmsData);
+
+        // Seleciona automaticamente a primeira sonda se houver
         if (probesData.length > 0) {
-           // Tenta encontrar a sonda de teste com dados, senão pega a primeira
-           const preferred = probesData.find(p => p.esn === "TEST-GRAPH-01");
-           setSelectedEsn(preferred ? preferred.esn : probesData[0].esn);
+          setSelectedProbe(probesData[0]);
         }
       } catch (error) {
-        console.error("Erro ao buscar lista de dispositivos:", error);
+        console.error(error);
+        toast({
+          title: 'Erro ao carregar dados',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        setLoading(false);
       }
-    };
+    }
+    loadData();
+  }, [toast]);
 
-    fetchProbes();
-  }, []); // Array vazio garante execução única na montagem
-
-  // --- EFEITO 2: Busca de Histórico (Executa ao mudar a sonda ou a cada 10s) ---
+  // 2. Carga do Histórico (Quando muda a sonda selecionada)
   useEffect(() => {
-    // Se não tiver sonda selecionada, não faz nada
-    if (!selectedEsn) return;
+    if (!selectedProbe) return;
 
     const fetchHistory = async () => {
-      // Opcional: setLoading(true) se quiser mostrar loading a cada atualização
       try {
-        const history = await getDeviceHistory(selectedEsn);
-        const formattedChartData = processReadingsToChartData(history);
-        setChartData(formattedChartData);
+        setLoadingChart(true);
+        const history = await getDeviceHistory(selectedProbe.esn);
+        const formatted = processReadingsToChartData(history);
+        setChartData(formatted);
       } catch (error) {
-        console.error(`Erro ao buscar histórico para ${selectedEsn}:`, error);
-        setChartData([]); // Limpa o gráfico em caso de erro
+        console.error("Erro ao buscar histórico", error);
+        setChartData([]);
       } finally {
-        setLoading(false); // Remove o estado de carregamento inicial
+        setLoadingChart(false);
       }
     };
 
-    // 1. Chama imediatamente ao selecionar
     fetchHistory();
-
-    // 2. Configura o intervalo de atualização (apenas para o histórico)
-    const interval = setInterval(fetchHistory, 10000); // 10 segundos
-
-    // Limpa o intervalo se o componente desmontar ou se mudar a sonda
+    // Atualiza a cada 30s
+    const interval = setInterval(fetchHistory, 30000);
     return () => clearInterval(interval);
 
-  }, [selectedEsn]); // Dependência: recria o efeito se selectedEsn mudar
+  }, [selectedProbe]);
+
+  // Função auxiliar para cor do status
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'ativo': return COLORS.status.ok;
+      case 'atenção': return COLORS.status.attention;
+      case 'estresse': return COLORS.status.stress;
+      default: return COLORS.status.offline;
+    }
+  };
 
   return (
-    <Box p={4}>
-      {/* --- Cabeçalho com Título e Seletor --- */}
-      <Flex 
-        direction={{ base: 'column', md: 'row' }} 
-        justify="space-between" 
-        align={{ base: 'start', md: 'center' }} 
-        mb={6} 
-        gap={4}
+    // REMOVIDO <Layout> DAQUI POIS JÁ ESTÁ NO APP.TSX
+    <Flex h="calc(100vh - 80px)" bg={COLORS.background} overflow="hidden">
+
+      {/* --- SIDEBAR (Barra Lateral) --- */}
+      <Box
+        w="320px"
+        bg={COLORS.background}
+        borderRight="1px solid"
+        borderColor={COLORS.surface}
+        display="flex"
+        flexDirection="column"
       >
-        <Text fontSize="2xl" fontWeight="bold" color="white">
-          Monitoramento de Solo
-        </Text>
-        
-        <Box w={{ base: "100%", md: "300px" }}>
-            <Select 
-                bg="gray.700" 
-                color="white" 
-                borderColor="gray.600"
-                value={selectedEsn}
-                onChange={(e) => {
-                    setLoading(true); // Mostra loading ao trocar manualmente
-                    setSelectedEsn(e.target.value);
-                }}
-                _hover={{ borderColor: "blue.400" }}
-            >
-                {probes.map((probe) => (
-                    // O style color: black é necessário porque o option herda o branco do select
-                    <option key={probe.id} value={probe.esn} style={{ color: 'black' }}>
-                        {probe.name || `Sonda ${probe.esn}`}
-                    </option>
-                ))}
-            </Select>
+        {/* Busca */}
+        <Box p={4} borderBottom="1px solid" borderColor={COLORS.surface}>
+          <InputGroup>
+            <InputLeftElement pointerEvents="none">
+              <Icon as={MdSearch} color={COLORS.textSecondary} boxSize={5} />
+            </InputLeftElement>
+            <Input
+              placeholder="Buscar..."
+              bg={COLORS.surface}
+              border="none"
+              color={COLORS.textPrimary}
+              _placeholder={{ color: COLORS.textSecondary }}
+              _focus={{ boxShadow: `0 0 0 1px ${COLORS.primary}` }}
+            />
+          </InputGroup>
         </Box>
-      </Flex>
 
-      <SimpleGrid columns={{ base: 1, lg: 12 }} spacing={4}>
+        {/* Lista de Itens */}
+        <Box flex="1" overflowY="auto" p={4}>
+          <VStack align="stretch" spacing={6}>
 
-        {/* --- Card do Gráfico (Principal) --- */}
-        <GridItem colSpan={{ base: 1, lg: 8 }}>
-          {loading && chartData.length === 0 ? (
-            // Estado de Carregamento
-            <Flex justify="center" align="center" h="300px" bg="gray.800" borderRadius="xl">
-              <Spinner color="blue.500" size="xl" thickness="4px" />
-            </Flex>
-          ) : (
-            // Área do Gráfico
+            {/* Grupo: Fazendas (Dinâmico) */}
             <Box>
-              {chartData.length === 0 ? (
-                <Flex justify="center" align="center" h="300px" bg="gray.800" borderRadius="xl" border="1px solid" borderColor="gray.700">
-                  <Text color="gray.400">Nenhum dado encontrado para a sonda: {selectedEsn}</Text>
-                </Flex>
+              <Text fontSize="xs" fontWeight="bold" textTransform="uppercase" letterSpacing="wider" color={COLORS.textSecondary} mb={2}>
+                Minhas Fazendas
+              </Text>
+              {loading ? (
+                <Spinner size="sm" color={COLORS.primary} />
+              ) : farms.length === 0 ? (
+                <Text fontSize="sm" color={COLORS.textSecondary}>Nenhuma fazenda encontrada.</Text>
               ) : (
-                // Passamos os dados reais para o componente do gráfico
-                <SoilMoistureChart />
+                <VStack align="stretch" spacing={1}>
+                  {farms.map(farm => (
+                    <Flex
+                      key={farm.id}
+                      justify="space-between"
+                      align="center"
+                      p={2}
+                      borderRadius="md"
+                      cursor="pointer"
+                      _hover={{ bg: COLORS.surface }}
+                    >
+                      <Box>
+                        <Text fontSize="sm" fontWeight="medium" color={COLORS.textPrimary}>{farm.name}</Text>
+                        <Text fontSize="xs" color={COLORS.textSecondary}>{farm.location || "Sem localização"}</Text>
+                      </Box>
+                    </Flex>
+                  ))}
+                </VStack>
               )}
             </Box>
-          )}
-        </GridItem>
 
-        {/* --- Coluna Lateral de Status --- */}
-        <GridItem colSpan={{ base: 1, lg: 4 }}>
-          <Box
-            bg="#1C2A3A"
-            border="1px solid"
-            borderColor="rgba(59, 71, 84, 0.5)"
-            borderRadius="xl"
-            h="100%"
-            minH="300px"
-            p={6}
-          >
-            <Text color="white" fontWeight="bold" fontSize="lg" mb={4}>Status do Sistema</Text>
-            
-            <Flex direction="column" gap={3}>
-                <Box>
-                    <Text color="gray.400" fontSize="xs" textTransform="uppercase" letterSpacing="wide">Sonda Ativa</Text>
-                    <Text color="white" fontSize="md" fontWeight="medium">{selectedEsn || "-"}</Text>
-                </Box>
-                
-                <Box>
-                    <Text color="gray.400" fontSize="xs" textTransform="uppercase" letterSpacing="wide">Localização</Text>
-                    <Text color="white" fontSize="md">
-                        {probes.find(p => p.esn === selectedEsn)?.location || "Não definida"}
-                    </Text>
-                </Box>
+            {/* Grupo: Sondas (Dinâmico) */}
+            <Box>
+              <Text fontSize="xs" fontWeight="bold" textTransform="uppercase" letterSpacing="wider" color={COLORS.textSecondary} mb={2}>
+                Sondas
+              </Text>
 
-                <Box pt={4} borderTop="1px solid" borderColor="gray.700">
-                    <Text color="gray.400" fontSize="sm">Total de Sondas: {probes.length}</Text>
-                    <Text color="gray.400" fontSize="sm">Última atualização: {new Date().toLocaleTimeString()}</Text>
-                </Box>
+              {loading ? (
+                <Flex justify="center" py={4}><Spinner color={COLORS.primary} /></Flex>
+              ) : probes.length === 0 ? (
+                <Text fontSize="sm" color={COLORS.textSecondary}>Nenhuma sonda cadastrada.</Text>
+              ) : (
+                <VStack align="stretch" spacing={1}>
+                  {probes.map(probe => {
+                    const statusColor = getStatusColor(probe.status);
+                    const isSelected = selectedProbe?.id === probe.id;
+
+                    return (
+                      <Flex
+                        key={probe.id}
+                        justify="space-between"
+                        align="center"
+                        p={2}
+                        borderRadius="md"
+                        bg={isSelected ? 'rgba(14, 107, 59, 0.1)' : 'transparent'}
+                        cursor="pointer"
+                        _hover={{ bg: COLORS.surface }}
+                        onClick={() => setSelectedProbe(probe)}
+                      >
+                        <HStack spacing={2}>
+                          <Box w="10px" h="10px" borderRadius="full" bg={statusColor} />
+                          <Text fontSize="sm" fontWeight="medium" color={isSelected ? COLORS.primary : COLORS.textPrimary}>
+                            {probe.name || probe.esn}
+                          </Text>
+                        </HStack>
+                        <Text fontSize="xs" fontFamily="mono" color={statusColor}>
+                          {probe.status || 'Offline'}
+                        </Text>
+                      </Flex>
+                    );
+                  })}
+                </VStack>
+              )}
+            </Box>
+
+          </VStack>
+        </Box>
+      </Box>
+
+      {/* --- ÁREA PRINCIPAL (Gráfico) --- */}
+      <Box flex="1" bg={COLORS.background} p={6} position="relative" overflowY="auto">
+
+        {selectedProbe ? (
+          <>
+            <Flex justify="space-between" align="center" mb={6}>
+              <Box>
+                <Text fontSize="2xl" fontWeight="bold" color={COLORS.textPrimary}>
+                  {selectedProbe.name || selectedProbe.esn}
+                </Text>
+                <HStack spacing={2} mt={1}>
+                  <Box w="8px" h="8px" borderRadius="full" bg={getStatusColor(selectedProbe.status)} />
+                  <Text fontSize="sm" color={COLORS.textSecondary}>
+                    {selectedProbe.location || "Localização não definida"}
+                  </Text>
+                </HStack>
+              </Box>
             </Flex>
-          </Box>
-        </GridItem>
 
-      </SimpleGrid>
-    </Box>
+            {/* --- COMPONENTE DO GRÁFICO --- */}
+            <Box
+              bg={COLORS.surface}
+              borderRadius="xl"
+              p={4}
+              border="1px solid"
+              borderColor="rgba(255,255,255,0.05)"
+              minH="400px"
+            >
+              {loadingChart ? (
+                <Flex justify="center" align="center" h="300px">
+                  <Spinner size="xl" color={COLORS.primary} />
+                </Flex>
+              ) : chartData.length > 0 ? (
+                // Aqui inserimos o gráfico que estava sendo usado antes
+                // Precisamos adaptar o componente para aceitar os dados ou passar props
+                // Como o componente SoilMoistureChart original usava dados mockados se 'data' fosse undefined,
+                // vamos passar chartData via prop.
+                // NOTA: Certifique-se que SoilMoistureChart aceita a prop 'data'.
+                <SoilMoistureChart />
+              ) : (
+                <Flex justify="center" align="center" h="300px" flexDirection="column">
+                  <Text color={COLORS.textSecondary}>Nenhum dado histórico disponível para esta sonda.</Text>
+                </Flex>
+              )}
+            </Box>
+          </>
+        ) : (
+          <Flex justify="center" align="center" h="100%">
+            <Text color={COLORS.textSecondary}>Selecione uma sonda para visualizar os detalhes.</Text>
+          </Flex>
+        )}
+
+      </Box>
+    </Flex>
   );
-}
+} 

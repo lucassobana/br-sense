@@ -1,3 +1,4 @@
+// brsense-frontend/src/services/api.ts
 import axios from 'axios';
 
 // Configuração do Axios
@@ -6,10 +7,10 @@ export const api = axios.create({
 });
 
 export interface CreateUserDTO {
-    name: string;
-    login: string;
-    password: string;
-    role: 'ADMIN' | 'FAZENDEIRO' | 'PIVOZEIRO';
+  name: string;
+  login: string;
+  password: string;
+  role: 'ADMIN' | 'FAZENDEIRO' | 'PIVOZEIRO';
 }
 
 export interface AuthResponse {
@@ -23,7 +24,6 @@ export interface AuthResponse {
   };
 }
 
-// Interface para o histórico de leituras (usada no gráfico)
 export interface ReadingHistory {
   timestamp: string;
   depth_cm: number;
@@ -34,25 +34,49 @@ export interface ReadingHistory {
 // --- Funções de Autenticação ---
 
 export const login = async (email: string, password: string) => {
-  // Importante: O backend espera o campo "login", mas o frontend coleta "email".
   const response = await api.post<AuthResponse>('/api/login', {
-    login: email, 
+    login: email,
     password: password
   });
   return response.data;
 };
 
 export const createUser = async (userData: CreateUserDTO) => {
-    const response = await api.post('/api/register', userData);
-    return response.data;
+  const response = await api.post('/api/register', userData);
+  return response.data;
 };
 
 // --- Funções de Dados (Dashboard) ---
 
 export const getProbes = async () => {
-  // Assegure-se de que o arquivo types.ts exista em ../types
-  // Nota: Verifique se sua rota no backend é '/api/probes' ou '/api/devices'
-  const response = await api.get<import('../types').Probe[]>('/api/devices'); 
+  // Pega ID e Role do localStorage
+  const userId = localStorage.getItem('user_id');
+  const role = localStorage.getItem('user_role');
+
+  let url = '/api/devices';
+
+  // REGRA DE NEGÓCIO: 
+  // Se NÃO for admin e tiver um ID, filtra pelo usuário.
+  if (role !== 'ADMIN' && userId) {
+    url += `?user_id=${userId}`;
+  }
+
+  const response = await api.get<import('../types').Probe[]>(url);
+  return response.data;
+};
+
+export const getFarms = async () => {
+  const userId = localStorage.getItem('user_id');
+  const role = localStorage.getItem('user_role');
+
+  let url = '/api/farms';
+
+  // Mesma regra para fazendas
+  if (role !== 'ADMIN' && userId) {
+    url += `?user_id=${userId}`;
+  }
+
+  const response = await api.get<import('../types').Farm[]>(url);
   return response.data;
 };
 
@@ -61,10 +85,7 @@ export const getLogs = async () => {
   return response.data;
 };
 
-// --- NOVA FUNÇÃO: Histórico para o Gráfico ---
-
 export const getDeviceHistory = async (esn: string) => {
-  // Busca o histórico de leituras para um ESN específico
   const response = await api.get<ReadingHistory[]>(`/api/device/${esn}/history`);
   return response.data;
 };

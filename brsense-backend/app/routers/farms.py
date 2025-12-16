@@ -1,7 +1,7 @@
 # brsense-backend/app/routers/farms.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from app.db.session import get_db
 from app.models.farm import Farm
@@ -34,6 +34,17 @@ def create_farm(farm: FarmCreate, user_id: int, db: Session = Depends(get_db)):
 
 # 2. Listar Fazendas
 @router.get("/farms", response_model=List[FarmRead])
-def read_farms(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    farms = db.query(Farm).offset(skip).limit(limit).all()
+def read_farms(
+    skip: int = 0, 
+    limit: int = 100, 
+    user_id: Optional[int] = Query(None, description="Filtrar pelo ID do usuário"), 
+    db: Session = Depends(get_db)
+):
+    query = db.query(Farm)
+
+    # REGRA DE NEGÓCIO: Se um user_id for passado, traz apenas as fazendas dele
+    if user_id:
+        query = query.filter(Farm.user_id == user_id)
+
+    farms = query.offset(skip).limit(limit).all()
     return farms

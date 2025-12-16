@@ -21,7 +21,7 @@ export function App() {
         {/* Rota sem Header */}
         <Route path="/login" element={<Login />} />
 
-        <Route path="admin/users/new" element={<AdminUserCreate />} />
+        <Route path="register" element={<AdminUserCreate />} />
       </Routes>
     </ChakraProvider>
   );

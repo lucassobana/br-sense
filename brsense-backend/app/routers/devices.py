@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List,Optional
 
 from app.db.session import get_db
 from app.models.farm import Farm
@@ -10,22 +10,24 @@ from app.schemas.device import DeviceRead, DeviceUpdate
 router = APIRouter()
 
 @router.get("/devices", response_model=List[DeviceRead])
-def read_devices(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def read_devices(
+    skip: int = 0, 
+    limit: int = 100, 
+    user_id: Optional[int] = Query(None, description="Filtrar sondas pelo dono da fazenda"),
+    db: Session = Depends(get_db)
+):
     """
-    Retorna a lista de todas as sondas cadastradas.
+    Retorna a lista de sondas.
+    Se user_id for informado, retorna apenas as sondas das fazendas desse usuário.
     """
-    devices = db.query(Device).offset(skip).limit(limit).all()
-    return devices
+    query = db.query(Device)
 
-@router.get("/devices/{esn}", response_model=DeviceRead)
-def read_device_by_esn(esn: str, db: Session = Depends(get_db)):
-    """
-    Busca uma sonda específica pelo ESN (Ex: TEST-01).
-    """
-    device = db.query(Device).filter(Device.esn == esn).first()
-    if device is None:
-        raise HTTPException(status_code=404, detail="Sonda não encontrada")
-    return device
+    # REGRA DE NEGÓCIO: Join com Farm para filtrar pelo user_id do dono
+    if user_id:
+        query = query.join(Farm).filter(Farm.user_id == user_id)
+
+    devices = query.offset(skip).limit(limit).all()
+    return devices
 
 @router.patch("/devices/{esn}", response_model=DeviceRead)
 def update_device(esn: str, device_update: DeviceUpdate, db: Session = Depends(get_db)):
