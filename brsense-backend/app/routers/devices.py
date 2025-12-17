@@ -59,3 +59,26 @@ def update_device(esn: str, device_update: DeviceUpdate, db: Session = Depends(g
     db.refresh(db_device)
     
     return db_device
+
+@router.post("/associate")
+def associate_device_to_farm(
+    esn: str, 
+    farm_id: int, 
+    db: Session = Depends(get_db)
+):
+    # 1. Busca se o dispositivo já existe (criado pelo Uplink)
+    device = db.query(Device).filter(Device.esn == esn).first()
+
+    if device:
+        # Cenário 1: O Uplink já criou o device. Atualizamos a fazenda.
+        if device.farm_id is not None and device.farm_id != farm_id:
+             raise HTTPException(status_code=400, detail="Dispositivo já pertence a outra fazenda.")
+        device.farm_id = farm_id
+        device.name = f"Sonda {esn}" # Ou um nome que o usuário deu
+    else:
+        # Cenário 2: Pré-provisionamento (Usuário cadastra antes do primeiro dado chegar)
+        device = Device(esn=esn, farm_id=farm_id, name=f"Sonda {esn}")
+        db.add(device)
+    
+    db.commit()
+    return {"status": "success", "device_id": device.id}

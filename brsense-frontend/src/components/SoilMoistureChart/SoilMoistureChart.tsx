@@ -4,7 +4,6 @@ import {
     Flex,
     Text,
     Checkbox,
-    Button,
     HStack,
     VStack,
 } from '@chakra-ui/react';
@@ -22,27 +21,15 @@ import {
 // CORREÇÃO 1: Importar tipos separadamente usando 'import type'
 import type { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
 
-// Configuração das cores baseadas no design original
-const DEPTH_COLORS = {
-    depth10: "#82aaff", // 10cm
-    depth20: "#79e2c6", // 20cm
-    depth30: "#ffc98a", // 30cm
-    depth40: "#c7a9ff", // 40cm
-    depth50: "#ffa9a9", // 50cm
-    depth60: "#ff7070", // 60cm
-};
+import { COLORS, DEPTH_COLORS } from '../../colors/colors';
+
 
 // Interface para os dados do gráfico
-interface SoilData {
+export interface SoilData {
     time: string;
-    depth10: number;
-    depth20: number;
-    depth30: number;
-    depth40: number;
-    depth50: number;
-    depth60: number;
-    [key: string]: string | number;
+    [key: string]: number | string | undefined;
 }
+
 
 // Dados Mockados
 const MOCK_DATA: SoilData[] = Array.from({ length: 30 }, (_, i) => ({
@@ -73,7 +60,7 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
         return (
             <Box
-                bg="#1C2A3A" // Cor sólida original do design (sem transparência)
+                bg={COLORS.surface} // Cor sólida original do design (sem transparência)
                 borderColor="rgba(59, 71, 84, 0.5)"
                 borderWidth="1px"
                 p={3}
@@ -85,10 +72,10 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
                 {payload.map((entry) => (
                     <HStack key={entry.dataKey} spacing={2} fontSize="xs">
                         <Box w="8px" h="8px" borderRadius="full" bg={entry.color} />
-                        <Text color="white" textTransform="capitalize">
+                        <Text color={COLORS.textSecondary} textTransform="capitalize">
                             {String(entry.name).replace('depth', '')}cm:
                         </Text>
-                        <Text color="white" fontWeight="bold">
+                        <Text color={COLORS.textSecondary} fontWeight="bold">
                             {Number(entry.value).toFixed(1)}%
                         </Text>
                     </HStack>
@@ -119,7 +106,7 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
 
     return (
         <Box
-            bg="#171d24"
+            bg={COLORS.surface}
             borderColor="rgba(59, 71, 84, 0.5)"
             borderWidth="1px"
             borderRadius="xl"
@@ -220,7 +207,7 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
                         );
                     })}
                 </Flex>
-
+                {/* implementar se necessário no futuro
                 <HStack spacing={2} w="100%">
                     <Button
                         flex={1}
@@ -246,6 +233,7 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
                         View Root Activity
                     </Button>
                 </HStack>
+                */}
             </Flex>
         </Box>
     );

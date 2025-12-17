@@ -4,6 +4,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Layout } from './components/Layout/Layout';
 import { AdminUserCreate } from './pages/AdminUserCreate';
+import { MyFarms } from './pages/MyFarms';
 
 export function App() {
   return (
@@ -18,9 +19,16 @@ export function App() {
             </Layout>
           }
         />
+        <Route
+          path="/farms"
+          element={
+            <Layout>
+              <MyFarms />
+            </Layout>
+          }
+        />
         {/* Rota sem Header */}
         <Route path="/login" element={<Login />} />
-
         <Route path="register" element={<AdminUserCreate />} />
       </Routes>
     </ChakraProvider>

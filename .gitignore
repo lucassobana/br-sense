@@ -189,3 +189,5 @@ thumb
 sketch
 .vscode
 # End of https://www.toptal.com/developers/gitignore/api/react,python
+
+brsense-backend/scripts/email_poller.py

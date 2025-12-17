@@ -48,3 +48,21 @@ def read_farms(
 
     farms = query.offset(skip).limit(limit).all()
     return farms
+
+@router.get("/farms/user/{user_id}", response_model=List[FarmRead])
+def read_user_farms(
+    user_id: int,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """
+    Retorna exclusivamente as fazendas pertencentes ao usuário informado.
+    """
+    # Verifica se o usuário existe (opcional, mas recomendado)
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+    farms = db.query(Farm).filter(Farm.user_id == user_id).offset(skip).limit(limit).all()
+    return farms

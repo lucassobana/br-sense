@@ -55,7 +55,7 @@ export function Login() {
             }
             // ----------------------------------------------
 
-            toast({ title: 'Login realizado com sucesso!', status: 'success', position: 'top' });
+            toast({ title: 'Login realizado com sucesso!', status: 'success', position: 'top', duration: 2000, isClosable: true });
             navigate('/');
         } catch (error: unknown) {
             let msg = 'Erro ao conectar com o servidor';
