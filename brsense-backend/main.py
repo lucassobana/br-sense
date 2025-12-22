@@ -6,7 +6,14 @@ from app.settings import settings
 # Importando as rotas
 from app.routers import uplink, auth, devices, readings, farms # <--- Adicionado readings
 
-app = FastAPI(title=settings.APP_NAME)
+app = FastAPI(
+    title=settings.APP_NAME,
+    swagger_ui_init_oauth={
+        "clientId": "brsense-frontend",  # Preenche automático
+        "appName": "BRSense API",
+        "usePkceWithAuthorizationCodeGrant": True,
+    },
+)
 
 # Configuração de CORS
 origins = [

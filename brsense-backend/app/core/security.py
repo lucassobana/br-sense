@@ -1,7 +1,7 @@
 # brsense-backend/app/core/security.py
 import requests
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2AuthorizationCodeBearer
+from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from app.models.user import User
 from sqlalchemy.orm import Session
@@ -13,11 +13,11 @@ REALM = "br-sense"
 KEYCLOAK_ISSUER = f"{KEYCLOAK_URL}/realms/{REALM}"
 JWKS_URL = f"{KEYCLOAK_ISSUER}/protocol/openid-connect/certs"
 CLIENT_ID = "brsense-frontend" # Para validar audience se necessário
+token_url = "http://localhost:8080/realms/br-sense/protocol/openid-connect/token"
 
 # Define o esquema de segurança para o Swagger UI funcionar
-oauth2_scheme = OAuth2AuthorizationCodeBearer(
-    authorizationUrl=f"{KEYCLOAK_ISSUER}/protocol/openid-connect/auth",
-    tokenUrl=f"{KEYCLOAK_ISSUER}/protocol/openid-connect/token"
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl=token_url
 )
 
 def get_current_user_token(token: str = Depends(oauth2_scheme)):
