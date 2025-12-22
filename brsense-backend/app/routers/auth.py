@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.user import User # Vamos precisar criar este modelo abaixo
 from pydantic import BaseModel
+from app.services.keycloak_admin import create_keycloak_user
+from app.core.security import get_current_user_token
 from typing import Optional
 
 router = APIRouter()
@@ -18,29 +20,20 @@ class UserLogin(BaseModel):
     login: str
     password: str
 
-@router.post("/register", status_code=status.HTTP_201_CREATED)
-def register_user(data: UserCreate, db: Session = Depends(get_db)):
+@router.post("/register")
+def register_user(user: UserCreate):
     """
     Cria um novo usuário. 
     NOTA: Em um cenário real, você deve verificar aqui se quem está chamando 
     essa rota possui o token de ADMIN.
     """
-    user_exists = db.query(User).filter(User.login == data.login).first()
-    if user_exists:
-        raise HTTPException(status_code=400, detail="Login já cadastrado.")
-
-    new_user = User(
-        name=data.name,
-        login=data.login,
-        password=data.password, 
-        role=data.role # Agora usamos o role enviado pelo Admin
+    keycloak_id = create_keycloak_user(
+        username=user.login,
+        email=user.login,
+        password=user.password,
+        role=user.role.lower() # Garanta que a role 'fazendeiro' exista no Keycloak (Realm Roles)
     )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return {"status": "success", "user_id": new_user.id, "role": new_user.role}
-
-
+    return {"msg": "Usuário criado com sucesso", "id": keycloak_id}
 
 @router.post("/login")
 def login_user(data: UserLogin, db: Session = Depends(get_db)):
@@ -54,7 +47,21 @@ def login_user(data: UserLogin, db: Session = Depends(get_db)):
     }
     
 @router.get("/users")
-def list_users(db: Session = Depends(get_db)):
+def list_users(
+    db: Session = Depends(get_db),
+    token_payload: dict = Depends(get_current_user_token) # Exige login
+):
+    """
+    Lista usuários. Apenas ADMINs podem acessar.
+    """
+    # 1. Verifica se o usuário tem a role 'admin' no Keycloak
+    roles = token_payload.get("realm_access", {}).get("roles", [])
+    if "admin" not in roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Acesso negado. Apenas administradores podem listar usuários."
+        )
+
     users = db.query(User).all()
     return {
         "status": "success",

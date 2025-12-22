@@ -7,25 +7,20 @@ export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
 });
 
-// --- Interfaces de DTO (Data Transfer Objects) ---
+api.interceptors.request.use(
+  async (config) => {
+    // Busca o token salvo manualmente pelo Login.tsx no LocalStorage
+    const token = localStorage.getItem('access_token');
 
-export interface CreateUserDTO {
-  name: string;
-  login: string;
-  password: string;
-  role: 'ADMIN' | 'FAZENDEIRO' | 'PIVOZEIRO';
-}
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
-export interface AuthResponse {
-  status: string;
-  message?: string;
-  user?: {
-    id: number;
-    name: string;
-    login: string;
-    role: string;
-  };
-}
+// --- Interfaces de DTO ---
 
 export interface ReadingHistory {
   timestamp: string;
@@ -39,92 +34,40 @@ export interface CreateFarmDTO {
   location: string;
 }
 
-export interface AssociateDeviceDTO {
+export interface CreateDeviceDTO {
+  name: string;
   esn: string;
   farm_id: number;
-  name?: string;
 }
 
-// --- Funções de Autenticação ---
-
-export const login = async (email: string, password: string) => {
-  const response = await api.post<AuthResponse>('/api/login', {
-    login: email,
-    password: password
-  });
-  return response.data;
-};
-
-export const createUser = async (userData: CreateUserDTO) => {
-  const response = await api.post('/api/register', userData);
-  return response.data;
-};
+// Nota: AuthResponse e CreateUserDTO foram removidos pois 
+// o login e criação de usuários agora são gerenciados pelo Keycloak.
 
 // --- Funções de Dados (Dashboard) ---
 
 export const getProbes = async () => {
-  const userId = localStorage.getItem('user_id');
-  const role = localStorage.getItem('user_role');
-
-  let url = '/api/devices';
-
-  // Se NÃO for admin e tiver um ID, filtra pelo usuário
-  if (role !== 'ADMIN' && userId) {
-    url += `?user_id=${userId}`;
-  }
-
-  const response = await api.get<Probe[]>(url);
+  // O backend agora filtra automaticamente as probes baseadas no Token do usuário
+  // Se for ADMIN, o backend decide se retorna tudo ou filtra.
+  const response = await api.get<Probe[]>('/api/devices');
   return response.data;
 };
 
 export const getFarms = async () => {
-  const userId = localStorage.getItem('user_id');
-  const role = localStorage.getItem('user_role');
-
-  let url = '/api/farms';
-
-  // Mesma regra para fazendas: filtra pelo usuário logado
-  if (role !== 'ADMIN' && userId) {
-    url += `?user_id=${userId}`;
-  }
-
-  const response = await api.get<Farm[]>(url);
+  // O backend identifica o usuário pelo Token Bearer e retorna apenas as fazendas dele
+  const response = await api.get<Farm[]>('/api/farms');
   return response.data;
 };
 
-// --- NOVAS FUNÇÕES (Para suportar o fluxo de cadastro) ---
-
-export const getUserFarms = async () => {
-  const userId = localStorage.getItem('user_id');
-
-  if (!userId) {
-    throw new Error("Usuário não autenticado.");
-  }
-
-  // Chama a nova rota exclusiva criada no backend
-  const response = await api.get<import('../types').Farm[]>(`/api/farms/user/${userId}`);
-  return response.data;
-};
+// --- Funções de Ação ---
 
 export const createFarm = async (data: CreateFarmDTO) => {
-  // Pega o ID do usuário logado para vincular a fazenda a ele
-  const userId = localStorage.getItem('user_id');
-
-  if (!userId) {
-    throw new Error("Usuário não autenticado.");
-  }
-
-  const response = await api.post('/api/farms', {
-    ...data,
-    user_id: parseInt(userId) // Envia o ID do dono
-  });
+  // NÃO enviamos mais user_id. O backend pega do token.
+  const response = await api.post('/api/farms', data);
   return response.data;
 };
 
-export const associateDevice = async (data: AssociateDeviceDTO) => {
-  // Chama a rota de associação criada no backend (devices.py)
-  // Assume-se que a rota está em /api/devices/associate
-  const response = await api.post('/api/devices/associate', data);
+export const createDevice = async (data: CreateDeviceDTO) => {
+  const response = await api.post('/api/devices', data);
   return response.data;
 };
 
@@ -140,13 +83,12 @@ export const getDeviceHistory = async (esn: string) => {
   return response.data;
 };
 
-export const getUserProbes = async () => {
-  const userId = localStorage.getItem('user_id');
+// --- Funções Específicas (Admin ou Legado) ---
 
-  if (!userId) {
-    throw new Error("Usuário não autenticado.");
-  }
-
-  const response = await api.get<import('../types').Probe[]>(`/api/devices/user/${userId}`);
+// Esta função torna-se redundante se getFarms já traz as fazendas do usuário,
+// mas mantive caso você queira um endpoint explícito ou para uso de Admin filtrando outro user.
+export const getUserFarms = async () => {
+  // Chama a rota padrão. O backend deve filtrar pelo usuário do token.
+  const response = await api.get<import('../types').Farm[]>('/api/farms');
   return response.data;
 };

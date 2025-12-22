@@ -1,5 +1,6 @@
 // brsense-frontend/src/pages/Login.tsx
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Box,
     Flex,
@@ -18,19 +19,17 @@ import {
     Image
 } from '@chakra-ui/react';
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
-import { useNavigate } from 'react-router-dom';
-import { AxiosError } from 'axios';
-import { login } from '../services/api';
+import { loginKeycloak, parseJwt } from '../services/auth'; // Certifique-se de ter criado este arquivo
 import brsenseLogo from '../assets/BRSense_logo.png';
 
 export function Login() {
     const navigate = useNavigate();
     const toast = useToast();
 
-    // Estados de Login
-    const [showPassword, setShowPassword] = useState(false);
+    // Estados do Formulário
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
     const handleTogglePassword = () => setShowPassword(!showPassword);
@@ -43,25 +42,46 @@ export function Login() {
 
         try {
             setIsLoading(true);
-            // --- ALTERAÇÃO: Captura a resposta do login ---
-            const response = await login(email, password);
 
-            // Salva dados essenciais no LocalStorage
-            if (response.user) {
-                localStorage.setItem('user_id', response.user.id.toString()); // Salva o ID!
-                localStorage.setItem('name', response.user.name);
-                localStorage.setItem('user_role', response.user.role);
-                localStorage.setItem('token', 'logged_in');
+            // 1. Autentica diretamente no Keycloak via ROPC (Direct Grant)
+            const data = await loginKeycloak(email, password);
+
+            // 2. Salva os tokens no LocalStorage
+            localStorage.setItem('access_token', data.access_token);
+            localStorage.setItem('refresh_token', data.refresh_token);
+
+            // 3. Extrai dados do usuário do token para exibir na UI ou usar depois
+            const userPayload = parseJwt(data.access_token);
+            if (userPayload) {
+                // Tenta pegar o nome de vários campos possíveis do Keycloak
+                const nameToSave = userPayload.name || userPayload.given_name || userPayload.preferred_username || email;
+                localStorage.setItem('user_name', nameToSave); // Chave usada no Header
+
+                // Salvar roles se necessário
+                // const roles = userPayload.realm_access?.roles || [];
+                // localStorage.setItem('user_role', roles.includes('admin') ? 'Administrador' : 'Fazendeiro');
+            } else {
+                // Fallback caso o payload falhe
+                localStorage.setItem('user_name', email);
             }
-            // ----------------------------------------------
 
-            toast({ title: 'Login realizado com sucesso!', status: 'success', position: 'top', duration: 2000, isClosable: true });
+            toast({
+                title: 'Login realizado com sucesso!',
+                status: 'success',
+                position: 'top',
+                duration: 2000
+            });
+
+            // 4. Redireciona para o Dashboard
             navigate('/');
+
         } catch (error: unknown) {
+            console.error(error);
+
             let msg = 'Erro ao conectar com o servidor';
 
-            if (error instanceof AxiosError) {
-                msg = error.response?.data?.detail ?? msg;
+            if (error instanceof Error) {
+                msg = error.message;
             }
 
             toast({
@@ -75,6 +95,7 @@ export function Login() {
         }
     };
 
+    // --- Estilização ---
     const colors = {
         backgroundDark: '#0A0A0A',
         primary: '#003d7a',
@@ -105,10 +126,9 @@ export function Login() {
             minH="100vh"
             w="100%"
             bg={colors.backgroundDark}
-            direction="column"
-            fontFamily="'Inter', sans-serif"
             justify="center"
             align="center"
+            fontFamily="'Inter', sans-serif"
         >
             <Container maxW="container.sm" p={4}>
                 <Box
@@ -122,6 +142,7 @@ export function Login() {
                 >
                     <Flex direction="column" justify="center" align="center" w="100%">
 
+                        {/* Logo */}
                         <Flex
                             justify="center"
                             align="center"
@@ -147,19 +168,21 @@ export function Login() {
                         </Heading>
 
                         <VStack spacing={5} w="100%">
+                            {/* Input de Login */}
                             <FormControl>
                                 <FormLabel color={colors.textMain} fontSize="14px" fontWeight="medium">
                                     Login
                                 </FormLabel>
                                 <Input
-                                    type="email"
-                                    placeholder="Entre com seu login"
+                                    type="text" // Pode ser 'email' se seu Keycloak exigir email
+                                    placeholder="Entre com seu usuário ou email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     {...inputStyle}
                                 />
                             </FormControl>
 
+                            {/* Input de Senha */}
                             <FormControl>
                                 <FormLabel color={colors.textMain} fontSize="14px" fontWeight="medium">
                                     Senha
@@ -188,6 +211,7 @@ export function Login() {
                                 </InputGroup>
                             </FormControl>
 
+                            {/* Botão de Login */}
                             <Box w="100%" pt={4}>
                                 <Button
                                     w="100%"

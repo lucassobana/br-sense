@@ -11,7 +11,7 @@ import {
     Text
 } from '@chakra-ui/react';
 import { MdAdd } from 'react-icons/md';
-import { getUserProbes, getFarms } from '../services/api'; // Import getFarms para o modal precisar
+import { getProbes, getFarms } from '../services/api'; // Import getFarms para o modal precisar
 import { ProbeList } from '../components/ProbeList/ProbeList';
 import { AddDeviceModal } from '../components/AddDeviceModal/AddDeviceModal';
 import { COLORS } from '../colors/colors';
@@ -29,7 +29,7 @@ export function MyProbes() {
     const loadData = useCallback(async () => {
         try {
             setLoading(true);
-            const [probesData, farmsData] = await Promise.all([getUserProbes(), getFarms()]);
+            const [probesData, farmsData] = await Promise.all([getProbes(), getFarms()]);
             setProbes(probesData);
             setFarms(farmsData);
         } catch (error) {

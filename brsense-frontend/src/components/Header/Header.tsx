@@ -21,18 +21,21 @@ export function Header() {
     const location = useLocation();
 
     // Tenta pegar o nome do usuário salvo
-    const name = localStorage.getItem('name') || 'Usuário';
+    const userName = localStorage.getItem('user_name') || 'Usuário';
+
+    const handleLogout = () => {
+        // Limpa a sessão manual
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user_name');
+        localStorage.removeItem('user_role');
+
+        navigate('/login');
+    };
 
     // Configuração de Cores dos Botões
     const activeColor = "#003d7a";
     const inactiveColor = "white";
-
-    const handleLogout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('name'); // Corrigido para remover 'name' em vez de 'user_name'
-        localStorage.removeItem('user_role');
-        navigate('/login');
-    };
 
     // Função auxiliar para estilo dos botões
     const getButtonStyle = (path: string) => {
@@ -107,9 +110,9 @@ export function Header() {
                 >
                     <HStack spacing={3}>
                         <Text fontWeight="medium" display={{ base: 'none', md: 'block' }}>
-                            {name}
+                            {userName}
                         </Text>
-                        <Avatar size="sm" name={name} bg="blue.600" color="white" />
+                        <Avatar size="sm" name={userName} bg="blue.600" color="white" />
                     </HStack>
                 </MenuButton>
 

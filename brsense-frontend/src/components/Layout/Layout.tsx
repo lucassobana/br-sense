@@ -14,20 +14,20 @@ export function Layout({ children }: LayoutProps) {
   useEffect(() => {
     // REGRA DE SEGURANÇA:
     // Verifica se o usuário tem o token de acesso.
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('access_token') || localStorage.getItem('token');
 
     if (!token) {
       // Se não estiver logado, redireciona imediatamente para o login
-      navigate('/');
+      navigate('/login'); // Garanta que a rota de login é '/login'
     }
   }, [navigate]);
 
   return (
     <Flex direction="column" minH="100vh" bg="#0A0A0A">
-      {/* O Header sempre aparece no topo */}
+      {/* Removemos o 'onOpen={...}' pois o Header não precisa mais dele */}
       <Header />
-      
-      {/* O conteúdo da página (Dashboard, etc) vai aqui */}
+
+      {/* O conteúdo da página */}
       <Box flex="1" p={{ base: 4, md: 6 }}>
         {children}
       </Box>

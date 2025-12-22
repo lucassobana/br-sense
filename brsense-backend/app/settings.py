@@ -36,6 +36,7 @@ class Settings(BaseSettings):
 
     # Optional shared token if Globalstar → API needs a header guard
     UPLINK_SHARED_TOKEN: Optional[str] = None  # set in .env: UPLINK_SHARED_TOKEN="xyz"
+    CLIENT_SECRET_BACKEND: Optional[str] = None  # set in .env: CLIENT_SECRET_BACKEND="xyz"
 
     # ---- CORS ----
     CORS_ALLOW_ORIGINS: list[str] = ["*"]

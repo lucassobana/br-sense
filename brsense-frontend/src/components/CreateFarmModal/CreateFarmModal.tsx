@@ -57,12 +57,12 @@ export function CreateFarmModal({ isOpen, onClose, onSuccess }: CreateFarmModalP
         <Modal isOpen={isOpen} onClose={onClose} isCentered>
             <ModalOverlay />
             <ModalContent bg={COLORS.surface} color="white">
-                <ModalHeader>Nova Fazenda</ModalHeader>
+                <ModalHeader borderBottomWidth="1px">Nova Fazenda</ModalHeader>
                 <ModalCloseButton />
                 <ModalBody>
                     <VStack spacing={4}>
                         <FormControl>
-                            <FormLabel>Nome da Fazenda</FormLabel>
+                            <FormLabel>Nome</FormLabel>
                             <Input
                                 placeholder="Ex: Fazenda Santa Maria"
                                 value={name}
@@ -83,11 +83,17 @@ export function CreateFarmModal({ isOpen, onClose, onSuccess }: CreateFarmModalP
                         </FormControl>
                     </VStack>
                 </ModalBody>
-                <ModalFooter>
+                <ModalFooter borderTopWidth="1px">
                     <Button variant="ghost" mr={3} onClick={onClose} color={COLORS.textSecondary} _hover={{ bg: "whiteAlpha.100" }}>
                         Cancelar
                     </Button>
-                    <Button bg={COLORS.primaryDark} onClick={handleCreate} isLoading={loading}>
+                    <Button 
+                        bg={COLORS.primary}
+                        onClick={handleCreate}
+                        isLoading={loading}
+                        color="white"
+                        _hover={{ bg: COLORS.primaryDark }}
+                    >
                         Criar
                     </Button>
                 </ModalFooter>

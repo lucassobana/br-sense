@@ -21,3 +21,8 @@ class DeviceRead(BaseModel):
 class DeviceUpdate(BaseModel):
     name: Optional[str] = None
     farm_id: Optional[int] = None
+    
+class DeviceCreate(BaseModel):
+    esn: str
+    farm_id: int
+    name: str

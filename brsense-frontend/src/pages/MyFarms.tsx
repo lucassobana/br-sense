@@ -21,6 +21,7 @@ export function MyFarms() {
     const [farms, setFarms] = useState<Farm[]>([]);
     const [loading, setLoading] = useState(true);
     const toast = useToast();
+    const toastId = 'farm-error-toast';
 
     // 3. ATIVAR O HOOK DO MODAL
     const { isOpen, onOpen, onClose } = useDisclosure();
@@ -32,13 +33,17 @@ export function MyFarms() {
             setFarms(data);
         } catch (error) {
             console.error(error);
-            toast({
-                title: 'Erro ao carregar fazendas',
-                description: 'Não foi possível buscar sua lista de fazendas.',
-                status: 'error',
-                duration: 3000,
-                isClosable: true,
-            });
+            // Verifica se o toast já não está ativo para não duplicar
+            if (!toast.isActive(toastId)) {
+                toast({
+                    id: toastId, // Define o ID
+                    title: 'Erro ao carregar fazendas',
+                    description: 'Não foi possível buscar sua lista de fazendas.',
+                    status: 'error',
+                    duration: 3000,
+                    isClosable: true,
+                });
+            }
         } finally {
             setLoading(false);
         }

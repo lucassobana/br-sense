@@ -7,25 +7,61 @@ from app.db.session import get_db
 from app.models.farm import Farm
 from app.models.user import User
 from app.schemas.farm import FarmCreate, FarmRead
+# Importa a dependência que valida o token e extrai os dados do Keycloak
+from app.core.security import get_current_user_token, get_user_and_roles
 
 router = APIRouter()
-
-# 1. Criar Fazenda (Associaremos a um usuário fixo por enquanto ou via ID)
-@router.post("/farms", response_model=FarmRead)
-def create_farm(farm: FarmCreate, user_id: int, db: Session = Depends(get_db)):
+def get_local_user(db: Session, token_payload: dict) -> User:
     """
-    Cria uma nova fazenda vinculada a um usuário.
-    (Em produção, pegue o user_id do token de autenticação)
+    Busca o usuário no banco local. Se não existir, CRIA automaticamente
+    baseado nos dados do Keycloak (Auto-Provisioning).
     """
-    # Verifica se usuário existe
-    user = db.query(User).filter(User.id == user_id).first()
+    # 1. Tenta pegar o login do token (preferred_username ou email)
+    username = token_payload.get("preferred_username") or token_payload.get("email")
+    name = token_payload.get("name") or username
+    
+    if not username:
+        raise HTTPException(status_code=401, detail="Token inválido: identificação do usuário ausente")
+        
+    # 2. Busca no banco local
+    user = db.query(User).filter(User.login == username).first()
+    
+    # 3. SE NÃO EXISTIR -> CRIA AGORA
     if not user:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        print(f"Usuário '{username}' novo detectado via Keycloak. Criando cadastro local...")
+        try:
+            new_user = User(
+                name=name,
+                login=username,
+                password="KEYCLOAK_AUTH", # Senha dummy, pois a real está no Keycloak
+                role="FAZENDEIRO" # Define uma role padrão para novos usuários
+            )
+            db.add(new_user)
+            db.commit()
+            db.refresh(new_user)
+            return new_user
+        except Exception as e:
+            print(f"Erro ao criar usuário automático: {e}")
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Erro ao sincronizar usuário local.")
+        
+    return user
 
+# 1. Criar Fazenda
+@router.post("/farms", response_model=FarmRead)
+def create_farm(
+    farm: FarmCreate, 
+    token_payload: dict = Depends(get_current_user_token),
+    db: Session = Depends(get_db)
+):
+    # 1. Identifica o usuário logado
+    user, is_admin = get_user_and_roles(db, token_payload)
+
+    # 2. Cria a fazenda vinculada a este usuário
     new_farm = Farm(
         name=farm.name,
         location=farm.location,
-        user_id=user_id
+        user_id=user.id # Força o ID do usuário autenticado
     )
     db.add(new_farm)
     db.commit()
@@ -37,32 +73,41 @@ def create_farm(farm: FarmCreate, user_id: int, db: Session = Depends(get_db)):
 def read_farms(
     skip: int = 0, 
     limit: int = 100, 
-    user_id: Optional[int] = Query(None, description="Filtrar pelo ID do usuário"), 
+    token_payload: dict = Depends(get_current_user_token),
     db: Session = Depends(get_db)
 ):
+    # 1. Obter usuário e flag de admin
+    user, is_admin = get_user_and_roles(db, token_payload)
+
     query = db.query(Farm)
 
-    # REGRA DE NEGÓCIO: Se um user_id for passado, traz apenas as fazendas dele
-    if user_id:
-        query = query.filter(Farm.user_id == user_id)
+    # 2. REGRA DE NEGÓCIO
+    if is_admin:
+        # Admin: Sem filtro, vê todas as fazendas do sistema
+        pass 
+    else:
+        # Usuário Comum: Filtra apenas onde user_id bate com o dele
+        query = query.filter(Farm.user_id == user.id)
 
     farms = query.offset(skip).limit(limit).all()
     return farms
 
+# 3. Rota Legada / Específica (Opcional)
 @router.get("/farms/user/{user_id}", response_model=List[FarmRead])
 def read_user_farms(
     user_id: int,
     skip: int = 0,
     limit: int = 100,
+    token_payload: dict = Depends(get_current_user_token),
     db: Session = Depends(get_db)
 ):
     """
-    Retorna exclusivamente as fazendas pertencentes ao usuário informado.
+    Rota administrativa para ver fazendas de um usuário específico.
     """
-    # Verifica se o usuário existe (opcional, mas recomendado)
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    # Apenas admins podem usar essa rota explícita
+    roles = token_payload.get("realm_access", {}).get("roles", [])
+    if "admin" not in roles:
+         raise HTTPException(status_code=403, detail="Acesso restrito a administradores")
 
     farms = db.query(Farm).filter(Farm.user_id == user_id).offset(skip).limit(limit).all()
     return farms

@@ -7,3 +7,6 @@ python-multipart
 xmltodict
 pydantic-settings
 alembic
+python-jose[cryptography]
+requests
+python-keycloak
