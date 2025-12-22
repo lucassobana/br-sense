@@ -29,6 +29,31 @@ def read_devices(
     devices = query.offset(skip).limit(limit).all()
     return devices
 
+@router.get("/devices/user/{user_id}", response_model=List[DeviceRead])
+def read_user_devices(
+    user_id: int,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """
+    Retorna exclusivamente as sondas pertencentes às fazendas do usuário informado.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+    # Faz o Join com Farm para pegar apenas devices de fazendas desse usuário
+    devices = (
+        db.query(Device)
+        .join(Farm)
+        .filter(Farm.user_id == user_id)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return devices
+
 @router.patch("/devices/{esn}", response_model=DeviceRead)
 def update_device(esn: str, device_update: DeviceUpdate, db: Session = Depends(get_db)):
     """

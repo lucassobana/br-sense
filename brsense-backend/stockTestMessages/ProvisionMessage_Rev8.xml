@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding = "UTF-8"?>
+<prvmsgs xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://cody.glpconnect.com/XSD/ProvisionMessage_Rev1_0.xsd" timeStamp="15/12/2016 21:00:00 GMT" prvMessageID="56bdca4808861c048fddba385e1cd5c8">
+<prvmsg>
+<esn>9-99998</esn>
+<provID>1234</provID>
+<tStart> 10:30:00 </tStart>
+<tEnd> 12:30:00 </tEnd>
+<txRetryMinSec> 120 </txRetryMinSec>
+<txRetryMaxSec> 600 </txRetryMaxSec>
+<txRetries>2</txRetries>
+<rfChannel> A </rfChannel>
+</prvmsg>
+<prvmsg>
+<esn>9-99999</esn>
+<provID>2345</provID>
+<tStart> 11:30:00 </tStart>
+<tEnd> 12:30:00 </tEnd>
+<txRetryMinSec> 120 </txRetryMinSec>
+<txRetryMaxSec> 600 </txRetryMaxSec>
+<txRetries>2</txRetries>
+<rfChannel> A </rfChannel>
+</prvmsg>
+</prvmsgs>

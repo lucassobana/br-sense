@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<stuMessages xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://cody.glpconnect.com/XSD/StuMessage_Rev1_0.xsd" timeStamp="15/12/2016 21:00:00 GMT" messageID="5119a9408eb81e058b99e52e4a62b64f">
+  <stuMessage>
+    <esn>0-99990</esn>
+    <unixTime>1034268516</unixTime>
+    <gps>N</gps>
+    <payload length="9" source="pc" encoding="hex">0xC0560D72DA4AB2445A</payload>
+  </stuMessage>
+  <stuMessage>
+    <esn>0-99991</esn>
+    <unixTime>1034268521</unixTime>
+    <gps>N</gps>
+    <payload length="9" source="pc" encoding="hex">0xA14AA1DBDB818F9759</payload>
+  </stuMessage>
+</stuMessages>

@@ -5,6 +5,7 @@ import { Login } from './pages/Login';
 import { Layout } from './components/Layout/Layout';
 import { AdminUserCreate } from './pages/AdminUserCreate';
 import { MyFarms } from './pages/MyFarms';
+import { MyProbes } from './pages/MyProbList';
 
 export function App() {
   return (
@@ -24,6 +25,14 @@ export function App() {
           element={
             <Layout>
               <MyFarms />
+            </Layout>
+          }
+        />
+        <Route
+          path="/probes"
+          element={
+            <Layout>
+              <MyProbes />
             </Layout>
           }
         />

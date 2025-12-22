@@ -2,6 +2,7 @@
 import logging
 import xmltodict
 import json
+import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, Request, HTTPException, Response
 from sqlalchemy.orm import Session
@@ -18,6 +19,7 @@ GLOBALSTAR_IPS = {
     "3.135.136.171",
     "3.133.245.206",
     "127.0.0.1", 
+    "186.193.129.217"
 }
 
 log = logging.getLogger("soilprobe.uplink")
@@ -73,7 +75,6 @@ def _parse_payload(raw: bytes, content_type: str):
 async def receive_uplink(request: Request, db: Session = Depends(get_db)):
     """
     Recebe dados de telemetria e provisionamento.
-    Gera respostas compatíveis com o ICD da Globalstar (GS-01-0777).
     """
     _require_token(request)
 
@@ -85,36 +86,61 @@ async def receive_uplink(request: Request, db: Session = Depends(get_db)):
     payload = _parse_payload(raw, content_type)
 
     # Chama o serviço de ingestão (Processa StuMessages)
-    # ProvisionMessages passarão sem erro (0 processados), o que é esperado
     result_ingest = ingest_envelope(payload, db)
     
     # Se a requisição for XML, a resposta DEVE ser XML no formato específico
     if is_xml and isinstance(payload, dict):
-        response_tag = "response"
-        attributes = {"@result": "pass"}
-        
-        # Data/Hora atual para a resposta (Formato GMT exigido)
+        # Gera timestamp e ID único para a resposta
         timestamp_str = datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S GMT")
-        attributes["@timeStamp"] = timestamp_str
+        response_id = uuid.uuid4().hex
 
-        # 1. Trata StuMessages (Telemetria)
+        # 1. Trata StuMessages (Telemetria) -> Formato <stuResponseMsg>
         if "stuMessages" in payload:
-            response_tag = "stuResponse"
             msgs = payload["stuMessages"]
-            # Captura o messageID da requisição para ecoar na resposta
-            if msgs and isinstance(msgs, dict) and "@messageID" in msgs:
-                attributes["@messageID"] = msgs["@messageID"]
+            # Pega o messageID que ELES enviaram para devolver como correlationID
+            incoming_id = msgs.get("@messageID", "") if isinstance(msgs, dict) else ""
+            
+            response_data = {
+                "stuResponseMsg": {
+                    "@xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+                    "@xsi:noNamespaceSchemaLocation": "http://cody.glpconnect.com/XSD/StuResponse_Rev1_0.xsd",
+                    "@deliveryTimeStamp": timestamp_str,
+                    "@messageID": response_id,      # Nosso ID
+                    "@correlationID": incoming_id,  # O ID deles (MANDATORY)
+                    "state": "pass",                # Elemento filho (MANDATORY)
+                    "stateMessage": "Store OK"      # Elemento filho (Optional)
+                }
+            }
 
-        # 2. Trata ProvisionMessages (Provisionamento)
+        # 2. Trata ProvisionMessages (Provisionamento) -> Formato <prvResponseMsg>
         elif "prvmsgs" in payload:
-            response_tag = "prvResponse"
             msgs = payload["prvmsgs"]
-            # Captura o prvMessageID da requisição
-            if msgs and isinstance(msgs, dict) and "@prvMessageID" in msgs:
-                attributes["@prvMessageID"] = msgs["@prvMessageID"]
+            # Pega o prvMessageID que ELES enviaram
+            incoming_id = msgs.get("@prvMessageID", "") if isinstance(msgs, dict) else ""
+
+            response_data = {
+                "prvResponseMsg": {
+                    "@xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+                    "@xsi:noNamespaceSchemaLocation": "http://cody.glpconnect.com/XSD/ProvisionResponse_Rev1_0.xsd",
+                    "@deliveryTimeStamp": timestamp_str,
+                    # messageID é PROIBIDO na resposta de provisionamento (Ver ICD Pag 19)
+                    "@correlationID": incoming_id,
+                    "state": "PASS",
+                    "stateMessage": "Store OK"
+                }
+            }
+        
+        # 3. Fallback genérico (caso venha algo inesperado, evita erro 500)
+        else:
+            response_data = {
+                "response": {
+                    "@result": "pass",
+                    "@timeStamp": timestamp_str
+                }
+            }
 
         # Monta o XML final
-        xml_content = xmltodict.unparse({response_tag: attributes}, pretty=True)
+        xml_content = xmltodict.unparse(response_data, pretty=True)
         return Response(content=xml_content, media_type="application/xml")
 
     # Fallback para JSON (apenas para testes locais manuais)
@@ -124,47 +150,37 @@ async def receive_uplink(request: Request, db: Session = Depends(get_db)):
 async def provisioning_confirmation(request: Request):
     """
     Endpoint de confirmação de provisionamento.
-    NOTA: A rota /receive já lida com isso automaticamente.
-    Mantenha esta rota apenas se tiver configurado uma URL separada para provisionamento.
     """
     _require_token(request)
-    
-    # 1. Processa o Request
     raw = await request.body()
     content_type = request.headers.get("content-type", "")
     is_xml = _is_xml_request(raw, content_type)
     payload = _parse_payload(raw, content_type)
 
-    # 2. Prepara os dados da resposta padrão Globalstar
-    # Formato de data obrigatório: dd/MM/yyyy HH:mm:ss GMT
-    timestamp_str = datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S GMT")
-    
-    # A resposta padrão para Provisionamento deve ser <prvResponse>
-    response_tag = "prvResponse"
-    attributes = {
-        "@result": "pass",
-        "@timeStamp": timestamp_str
-    }
-
-    # 3. Tenta extrair e ecoar o ID da mensagem (Obrigatório)
+    esn = None
     if isinstance(payload, dict):
-        # Se for mensagem de provisionamento (<prvmsgs>)
-        if "prvmsgs" in payload:
-            msgs = payload["prvmsgs"]
-            if msgs and isinstance(msgs, dict) and "@prvMessageID" in msgs:
-                attributes["@prvMessageID"] = msgs["@prvMessageID"]
-        
-        # Fallback: Se por acaso chegar uma mensagem de telemetria aqui
-        elif "stuMessages" in payload:
-            response_tag = "stuResponse"
-            msgs = payload["stuMessages"]
-            if msgs and isinstance(msgs, dict) and "@messageID" in msgs:
-                attributes["@messageID"] = msgs["@messageID"]
+        for key in ("esn", "ESN", "device_esn", "deviceId"):
+            if key in payload:
+                esn = payload[key]
+                break
+        if not esn:
+            if isinstance(payload.get("stuMessage"), dict):
+                esn = payload["stuMessage"].get("esn")
+            elif isinstance(payload.get("stuMessages"), dict):
+                inner = payload["stuMessages"].get("stuMessage")
+                if isinstance(inner, dict):
+                    esn = inner.get("esn")
 
-    # 4. Retorna a resposta XML correta
+    log.info(f"Provisioning confirmation received for ESN: {esn}")
+
+    result = {
+        "status": "ok",
+        "type": "provisioning_confirmation",
+        "esn": esn,
+        "ack": True,
+    }
+    
     if is_xml:
-        xml_content = xmltodict.unparse({response_tag: attributes}, pretty=True)
-        return Response(content=xml_content, media_type="application/xml")
-
-    # Fallback JSON (apenas para debug manual)
-    return Response(content=json.dumps(attributes), media_type="application/json")
+        return Response(content=xmltodict.unparse({"response": result}, pretty=True), media_type="application/xml")
+        
+    return Response(content=json.dumps(result), media_type="application/json")

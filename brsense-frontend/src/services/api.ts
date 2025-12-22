@@ -139,3 +139,14 @@ export const getDeviceHistory = async (esn: string) => {
   const response = await api.get<ReadingHistory[]>(`/api/device/${esn}/history`);
   return response.data;
 };
+
+export const getUserProbes = async () => {
+  const userId = localStorage.getItem('user_id');
+
+  if (!userId) {
+    throw new Error("Usuário não autenticado.");
+  }
+
+  const response = await api.get<import('../types').Probe[]>(`/api/devices/user/${userId}`);
+  return response.data;
+};
