@@ -22,7 +22,7 @@ export function ProbeCard({ probe }: ProbeCardProps) {
                     <Icon as={FaSatelliteDish} w={6} h={6} color="blue.500" />
                     <VStack align="start" spacing={0}>
                         <Text fontWeight="bold" fontSize="lg">{probe.name}</Text>
-                        <Text fontSize="xs" color="gray.500">ESN: {probe.identifier}</Text>
+                        <Text fontSize="xs" color="gray.500">ESN: {probe.esn}</Text>
                     </VStack>
                 </Flex>
                 <Badge colorScheme={statusColor} fontSize="0.8em" p={1} borderRadius="md">

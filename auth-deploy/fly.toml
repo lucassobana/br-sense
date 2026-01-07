@@ -1,0 +1,61 @@
+# fly.toml - Configuração Manual Robusta
+app = "brsense-auth"
+primary_region = "gru"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # --- BANCO DE DADOS ---
+  KC_DB_POOL_INITIAL_SIZE = "1"
+  KC_DB_POOL_MIN_SIZE = "1"
+  KC_DB_POOL_MAX_SIZE = "5"
+  
+  # --- REDE E PROXY ---
+  # Isso diz ao Keycloak: "Não tente ser esperto com HTTPS, confie no Proxy"
+  KC_PROXY_HEADERS = "xforwarded"
+  KC_HTTP_ENABLED = "true"
+  
+  # 0.0.0.0 é a configuração mais compatível (IPv4 universal)
+  KC_HTTP_HOST = "0.0.0.0"
+  KC_HTTP_PORT = "8080"
+  
+  # Define explicitamente o nome público
+  KC_HOSTNAME = "https://brsense-auth.fly.dev"
+  KC_HOSTNAME_STRICT = "false"
+
+  # --- MEMÓRIA JAVA ---
+  JAVA_OPTS_APPEND = "-Xms64m -Xmx750m -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m"
+
+# --- COMANDO DE INICIALIZAÇÃO ---
+# O Fly executa isso ao iniciar a máquina
+[experimental]
+  cmd = ["start-dev"]
+
+# --- MAPEAMENTO DE PORTAS (A Mágica) ---
+[[services]]
+  protocol = "tcp"
+  internal_port = 8080
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+  
+  # Health Check via TCP (Mais simples e confiável que HTTP)
+  [[services.tcp_checks]]
+    interval = "10s"
+    timeout = "2s"
+    grace_period = "30s"
+
+[[vm]]
+  memory = "1024mb"
+  cpu_kind = "shared"
+  cpus = 1

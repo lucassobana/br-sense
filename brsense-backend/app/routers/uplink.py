@@ -19,7 +19,8 @@ GLOBALSTAR_IPS = {
     "3.135.136.171",
     "3.133.245.206",
     "127.0.0.1", 
-    "186.193.129.217"
+    "186.193.129.217",
+    "200.214.44.100"
 }
 
 log = logging.getLogger("soilprobe.uplink")
@@ -149,38 +150,35 @@ async def receive_uplink(request: Request, db: Session = Depends(get_db)):
 @router.post("/confirmation")
 async def provisioning_confirmation(request: Request):
     """
-    Endpoint de confirmação de provisionamento.
+    Endpoint de confirmação de provisionamento ajustado para o padrão ICD da Globalstar.
     """
     _require_token(request)
     raw = await request.body()
     content_type = request.headers.get("content-type", "")
-    is_xml = _is_xml_request(raw, content_type)
     payload = _parse_payload(raw, content_type)
 
-    esn = None
-    if isinstance(payload, dict):
-        for key in ("esn", "ESN", "device_esn", "deviceId"):
-            if key in payload:
-                esn = payload[key]
-                break
-        if not esn:
-            if isinstance(payload.get("stuMessage"), dict):
-                esn = payload["stuMessage"].get("esn")
-            elif isinstance(payload.get("stuMessages"), dict):
-                inner = payload["stuMessages"].get("stuMessage")
-                if isinstance(inner, dict):
-                    esn = inner.get("esn")
+    # 1. Identificar o ID da mensagem recebida para usar como correlationID
+    incoming_id = ""
+    if isinstance(payload, dict) and "prvmsgs" in payload:
+        msgs = payload["prvmsgs"]
+        if isinstance(msgs, dict):
+            incoming_id = msgs.get("@prvMessageID", "")
 
-    log.info(f"Provisioning confirmation received for ESN: {esn}")
+    # 2. Gerar Timestamp no formato exigido
+    timestamp_str = datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S GMT")
 
-    result = {
-        "status": "ok",
-        "type": "provisioning_confirmation",
-        "esn": esn,
-        "ack": True,
+    # 3. Montar a resposta estritamente conforme o ICD (prvResponseMsg)
+    response_data = {
+        "prvResponseMsg": {
+            "@xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+            "@xsi:noNamespaceSchemaLocation": "http://cody.glpconnect.com/XSD/ProvisionResponse_Rev1_0.xsd",
+            "@deliveryTimeStamp": timestamp_str,
+            "@correlationID": incoming_id,  # Obrigatório: devolve o ID que eles enviaram
+            "state": "PASS",
+            "stateMessage": "Store OK"
+        }
     }
-    
-    if is_xml:
-        return Response(content=xmltodict.unparse({"response": result}, pretty=True), media_type="application/xml")
-        
-    return Response(content=json.dumps(result), media_type="application/json")
+
+    # 4. Gerar e retornar o XML
+    xml_content = xmltodict.unparse(response_data, pretty=True)
+    return Response(content=xml_content, media_type="application/xml")

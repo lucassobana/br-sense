@@ -1,8 +1,14 @@
 // brsense-frontend/src/services/auth.ts
 import axios from 'axios';
 
-const KEYCLOAK_URL = "http://localhost:8080/realms/br-sense/protocol/openid-connect/token";
-const CLIENT_ID = "brsense-frontend";
+// 1. Pega a URL base do .env (ou usa localhost se não encontrar)
+const BASE_URL = import.meta.env.VITE_KEYCLOAK_URL || "http://localhost:8080";
+
+// 2. Monta a URL completa (ATENÇÃO: Confirme se o realm é 'br-sense' ou 'soil-realm')
+// Se você criou como 'soil-realm' no passo anterior, mude 'br-sense' para 'soil-realm' aqui embaixo:
+const KEYCLOAK_URL = `${BASE_URL}/realms/br-sense/protocol/openid-connect/token`;
+
+const CLIENT_ID = "soil-frontend"; // Confirme se o ID do cliente está igual ao Keycloak
 
 interface TokenResponse {
     access_token: string;

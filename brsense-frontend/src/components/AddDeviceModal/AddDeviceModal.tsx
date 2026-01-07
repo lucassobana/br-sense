@@ -25,6 +25,7 @@ interface AddDeviceModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
+    farmId?: number | null;
 }
 
 export function AddDeviceModal({ isOpen, onClose, onSuccess }: AddDeviceModalProps) {
