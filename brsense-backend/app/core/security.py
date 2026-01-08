@@ -8,16 +8,16 @@ from sqlalchemy.orm import Session
 from app.settings import settings # Assumindo que você tem configurações aqui
 
 # Configurações (Idealmente mova para variáveis de ambiente)
-KEYCLOAK_URL = "http://localhost:8080" 
-REALM = "br-sense"
+KEYCLOAK_URL = settings.KEYCLOAK_URL
+REALM = settings.KEYCLOAK_REALM
+CLIENT_ID = settings.KEYCLOAK_CLIENT_ID
 KEYCLOAK_ISSUER = f"{KEYCLOAK_URL}/realms/{REALM}"
 JWKS_URL = f"{KEYCLOAK_ISSUER}/protocol/openid-connect/certs"
-CLIENT_ID = "brsense-frontend" # Para validar audience se necessário
-token_url = "http://localhost:8080/realms/br-sense/protocol/openid-connect/token"
+TOKEN_URL = f"{KEYCLOAK_ISSUER}/protocol/openid-connect/token"
 
 # Define o esquema de segurança para o Swagger UI funcionar
 oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl=token_url
+    tokenUrl=TOKEN_URL
 )
 
 def get_current_user_token(token: str = Depends(oauth2_scheme)):

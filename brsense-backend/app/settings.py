@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     # ---- Parsing / Ingest knobs ----
     MAX_UPLINK_BYTES: int = 64 * 1024  # 64 KB envelope cap
     ALLOW_STALE_TIMESTAMPS: bool = True
+    
+    KEYCLOAK_URL: str = "https://brsense-auth.fly.dev"
+    KEYCLOAK_REALM: str = "br-sense"
+    KEYCLOAK_CLIENT_ID: str = "soil-frontend"
 
     # ---- Irrigation Alerts (v1) ----
     ALERTS_ENABLED: bool = True
@@ -77,10 +81,6 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    s = Settings()
-    if not s.ALEMBIC_DB_URL:
-        s.ALEMBIC_DB_URL = str(s.DATABASE_URL)
-    return s
-
+    return Settings()
 
 settings = get_settings()
