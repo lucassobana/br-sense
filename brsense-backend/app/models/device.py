@@ -1,13 +1,13 @@
 # app/models/device.py
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
-from sqlalchemy import String, DateTime, ForeignKey
+from sqlalchemy import String, DateTime, ForeignKey, Float # <--- Adicionado Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.models.device_config import DeviceConfig
 
 if TYPE_CHECKING:
-    from app.models.farm import Farm # Importação para tipagem
+    from app.models.farm import Farm
 
 class Device(Base):
     """Representa uma sonda física (vinculada ao ESN da Globalstar)."""
@@ -18,7 +18,11 @@ class Device(Base):
     name: Mapped[str] = mapped_column(String(64), nullable=True)
     location: Mapped[str] = mapped_column(String(128), nullable=True)
     
-    # ADICIONAR: Chave Estrangeira para Fazenda
+    # NOVAS COLUNAS (Latitude e Longitude)
+    latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # Chave Estrangeira para Fazenda
     farm_id: Mapped[Optional[int]] = mapped_column(ForeignKey("farm.id"), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
@@ -27,5 +31,4 @@ class Device(Base):
     readings = relationship("Reading", back_populates="device", cascade="all, delete-orphan")
     config = relationship("DeviceConfig", back_populates="device", uselist=False, cascade="all, delete-orphan")
     
-    # ADICIONAR: Relacionamento com Farm
     farm: Mapped["Farm"] = relationship("Farm", back_populates="devices")

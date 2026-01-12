@@ -17,8 +17,8 @@ export function TelemetryChart({ data }: TelemetryChartProps) {
         .slice(-20)
         .map(d => ({
             time: format(parseISO(d.timestamp), 'HH:mm:ss'),
-            value: d.value,
-            sensor: `Sensor ${d.sensor_index}`
+            moisture_pct: d.moisture_pct,
+            sensor: `Sensor ${d.depth_cm}`
         }));
 
     return (
@@ -33,7 +33,7 @@ export function TelemetryChart({ data }: TelemetryChartProps) {
                     <Legend />
                     <Line
                         type="monotone"
-                        dataKey="value"
+                        dataKey="moisture_pct"
                         stroke="#3182ce"
                         activeDot={{ r: 8 }}
                         name="Valor"

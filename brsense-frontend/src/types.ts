@@ -1,10 +1,13 @@
-// brsense-frontend/src/types.ts
-
 export interface Measurement {
-  id: number;
-  sensor_index: number;
-  value: number;
+  id?: number;
+  depth_cm: number;
+  moisture_pct: number;
+  temperature_c?: number;
   timestamp: string;
+
+  // --- Adicione estes campos opcionais para compatibilidade com código antigo ---
+  value?: number;        // O código antigo chamava moisture_pct de value
+  sensor_index?: number; // O código antigo usava index
 }
 
 export interface Probe {
@@ -14,11 +17,20 @@ export interface Probe {
   location: string;
   status: string;
   last_communication: string;
-  measurements: Measurement[];
-  farm_id?: number; // Opcional, caso queira vincular visualmente
+
+  readings: Measurement[];
+
+  // --- Adicione estes campos opcionais ---
+  measurements?: Measurement[]; // O código antigo procura por isso
+  position?: [number, number];  // O mapa antigo procura por isso
+
+  farm_id?: number;
+  latitude?: number;
+  longitude?: number;
 }
 
-// --- NOVO TIPO ---
+// ... (Resto do arquivo Farm, etc)
+
 export interface Farm {
   id: number;
   name: string;

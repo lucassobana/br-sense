@@ -1,6 +1,54 @@
+/* Reset Básico Seguro */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    overflow: hidden;
+    /* REMOVIDO: overflow: hidden; -> Isso quebrava o mapa */
+}
+
+html, body, #root {
+    width: 100%;
+    height: 100%;
+    /* O overflow hidden deve ficar apenas no body/root para evitar scroll da página inteira */
+    /* overflow: hidden;  */
+}
+
+/* --- CORREÇÃO CRÍTICA PARA LEAFLET / GOOGLE MAPS --- */
+/* Garante que o CSS global (ou Chakra UI) não force as imagens do mapa a encolherem */
+.leaflet-pane img, 
+.leaflet-tile-container img {
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important; /* Garante que os tiles apareçam */
+}
+
+/* Garante que o container do mapa ocupe o espaço correto */
+.leaflet-container {
+    width: 100%;
+    height: 100%;
+    z-index: 1; /* Garante que o mapa tenha uma ordem de empilhamento base */
+}
+
+.leaflet-popup-content-wrapper, 
+.leaflet-popup-tip {
+    background-color: #1A202C !important; /* Cor de fundo escura (Chakra Gray.900) */
+    color: white !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5) !important;
+}
+
+.leaflet-popup-content {
+    margin: 12px !important; /* Margem interna menor para ser minimalista */
+    width: 260px !important; /* Largura fixa para manter consistência */
+}
+
+/* Cor do botão de fechar (X) */
+.leaflet-container a.leaflet-popup-close-button {
+    color: #A0AEC0 !important; /* Cinza claro */
+    font-size: 18px !important;
+    padding: 8px !important;
+}
+
+.leaflet-container a.leaflet-popup-close-button:hover {
+    color: white !important;
 }

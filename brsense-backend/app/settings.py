@@ -45,7 +45,8 @@ class Settings(BaseSettings):
     CORS_ALLOW_HEADERS: list[str] = ["*"]
 
     # ---- Database ----
-    DATABASE_URL: PostgresDsn | str = "postgresql+psycopg2://postgres:admin@localhost:5432/satellite_db"
+    # DATABASE_URL: PostgresDsn | str = "postgresql+psycopg2://postgres:admin@localhost:5432/satellite_db"
+    DATABASE_URL: PostgresDsn = os.getenv("DATABASE_URL")
 
     # Alembic expects this key if you want to template it into alembic.ini
     ALEMBIC_DB_URL: Optional[str] = None
@@ -57,6 +58,9 @@ class Settings(BaseSettings):
     KEYCLOAK_URL: str = "https://brsense-auth.fly.dev"
     KEYCLOAK_REALM: str = "br-sense"
     KEYCLOAK_CLIENT_ID: str = "soil-frontend"
+    # KEYCLOAK_URL: str="http://localhost:8080"
+    # KEYCLOAK_REALM: str="br-sense"
+    # KEYCLOAK_CLIENT_ID: str="brsense-frontend"
 
     # ---- Irrigation Alerts (v1) ----
     ALERTS_ENABLED: bool = True

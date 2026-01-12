@@ -88,7 +88,7 @@ export function Header() {
                 transform="translateX(-50%)"
             >
                 <Button as={RouterLink} to="/" {...getButtonStyle('/')}>
-                    Gráficos
+                    Mapa
                 </Button>
                 <Button as={RouterLink} to="/farms" {...getButtonStyle('/farms')}>
                     Fazendas

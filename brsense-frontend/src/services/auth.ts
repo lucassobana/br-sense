@@ -3,12 +3,14 @@ import axios from 'axios';
 
 // 1. Pega a URL base do .env (ou usa localhost se não encontrar)
 const BASE_URL = import.meta.env.VITE_KEYCLOAK_URL || "http://localhost:8080";
+const REALM = import.meta.env.VITE_KEYCLOAK_REALM || "br-sense";
 
 // 2. Monta a URL completa (ATENÇÃO: Confirme se o realm é 'br-sense' ou 'soil-realm')
 // Se você criou como 'soil-realm' no passo anterior, mude 'br-sense' para 'soil-realm' aqui embaixo:
-const KEYCLOAK_URL = `${BASE_URL}/realms/br-sense/protocol/openid-connect/token`;
+const KEYCLOAK_URL = `${BASE_URL}/realms/${REALM}/protocol/openid-connect/token`;
 
-const CLIENT_ID = "soil-frontend"; // Confirme se o ID do cliente está igual ao Keycloak
+const CLIENT_ID = "soil-frontend"; // staging e production
+// const CLIENT_ID = "brsense-frontend"; // local
 
 interface TokenResponse {
     access_token: string;

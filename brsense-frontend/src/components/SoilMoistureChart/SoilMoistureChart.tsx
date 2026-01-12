@@ -52,7 +52,7 @@ const generateMockData = () => {
 
 const MOCK_DATA = generateMockData();
 
-// Interface do Tooltip
+// Tooltip personalizado
 interface CustomTooltipProps {
     active?: boolean;
     payload?: Array<{
@@ -61,10 +61,9 @@ interface CustomTooltipProps {
         color: string;
         dataKey: string | number;
     }>;
-    label?: string | number;
 }
 
-const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
+const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
         return (
             <Box
@@ -76,11 +75,10 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
                 boxShadow="xl"
                 zIndex={10}
             >
-                <Text color="gray.300" fontSize="sm" mb={2}>{label}</Text>
                 {payload.map((entry) => (
                     <HStack key={entry.dataKey} spacing={2} fontSize="xs">
                         <Box w="8px" h="8px" borderRadius="full" bg={entry.color} />
-                        <Text color={COLORS.textSecondary} textTransform="capitalize">
+                        <Text color={COLORS.textSecondary}>
                             {String(entry.name).replace('depth', '')}cm:
                         </Text>
                         <Text color={COLORS.textSecondary} fontWeight="bold">
@@ -95,7 +93,6 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
 };
 
 // --- Helpers ---
-
 const parseDate = (dateStr: string) => {
     try {
         let date = new Date(dateStr);
@@ -113,11 +110,8 @@ const parseDate = (dateStr: string) => {
     }
 };
 
-// Lógica de cálculo extraída para ser usada na inicialização do estado
 const calculateInitialRange = (data: SoilData[]) => {
-    if (!data || data.length === 0) {
-        return { startIndex: 0, endIndex: 0 };
-    }
+    if (!data || data.length === 0) return { startIndex: 0, endIndex: 0 };
 
     const lastItem = data[data.length - 1];
     const lastDate = parseDate(lastItem.time);
@@ -131,9 +125,7 @@ const calculateInitialRange = (data: SoilData[]) => {
             return date && date >= threeDaysAgo;
         });
 
-        if (startIndex !== -1) {
-            return { startIndex, endIndex: data.length - 1 };
-        }
+        if (startIndex !== -1) return { startIndex, endIndex: data.length - 1 };
     }
 
     return { startIndex: 0, endIndex: data.length - 1 };
@@ -148,14 +140,11 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
         depth10: true, depth20: true, depth30: true, depth40: true, depth50: true, depth60: true,
     });
 
-    // CORREÇÃO 1: Inicialização Preguiçosa (Lazy Initialization)
-    // Calcula o range inicial apenas uma vez na montagem, evitando render duplo
     const [range, setRange] = useState(() => calculateInitialRange(data));
-
     const [refAreaLeft, setRefAreaLeft] = useState('');
     const [refAreaRight, setRefAreaRight] = useState('');
+    const [clickedIndex, setClickedIndex] = useState<number | null>(null);
 
-    // Atualiza o range se a prop `data` mudar (ex: troca de sonda)
     useEffect(() => {
         setRange(calculateInitialRange(data));
     }, [data]);
@@ -166,7 +155,7 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
     }, [data, range]);
 
     const toggleLine = (key: string) => {
-        setVisibleLines((prev) => ({ ...prev, [key]: !prev[key] }));
+        setVisibleLines(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
     const zoom = () => {
@@ -191,6 +180,29 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
 
     const zoomOut = () => {
         setRange({ startIndex: 0, endIndex: data.length - 1 });
+    };
+
+    const handleWheelZoom = (e: React.WheelEvent) => {
+        e.preventDefault();
+        if (!displayedData || displayedData.length < 2) return;
+
+        const zoomFactor = 0.1;
+        const rangeSize = range.endIndex - range.startIndex;
+        const zoomAmount = Math.max(1, Math.floor(rangeSize * zoomFactor));
+
+        if (e.deltaY < 0) {
+            // Zoom in
+            setRange(prev => ({
+                startIndex: Math.min(prev.startIndex + zoomAmount, prev.endIndex - 1),
+                endIndex: Math.max(prev.endIndex - zoomAmount, prev.startIndex + 1),
+            }));
+        } else {
+            // Zoom out
+            setRange(prev => ({
+                startIndex: Math.max(0, prev.startIndex - zoomAmount),
+                endIndex: Math.min(data.length - 1, prev.endIndex + zoomAmount),
+            }));
+        }
     };
 
     return (
@@ -226,12 +238,16 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
                 </Button>
             </Flex>
 
-            <Box h="250px" position="relative" w="100%">
+            <Box h="250px" position="relative" w="100%" onWheel={handleWheelZoom}>
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                         data={displayedData}
                         margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
-                        // CORREÇÃO 2: Conversão explícita para String nos eventos do mouse
+                        onClick={(e) => {
+                            if (e && typeof e.activeTooltipIndex === 'number') {
+                                setClickedIndex(e.activeTooltipIndex);
+                            }
+                        }}
                         onMouseDown={(e) => e && e.activeLabel && setRefAreaLeft(String(e.activeLabel))}
                         onMouseMove={(e) => refAreaLeft && e && e.activeLabel && setRefAreaRight(String(e.activeLabel))}
                         onMouseUp={zoom}
@@ -239,7 +255,7 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
                         <CartesianGrid strokeDasharray="3 3" stroke="#3b4754" opacity={0.3} vertical={false} />
                         <XAxis
                             dataKey="time"
-                            hide={false}
+                            tickFormatter={(value: string) => value.split(' ')[0]}
                             tick={{ fill: '#6b7280', fontSize: 10 }}
                             axisLine={false}
                             tickLine={false}
@@ -252,16 +268,21 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
                             tickLine={false}
                         />
 
-                        <Tooltip content={<CustomTooltip />} />
+                        <Tooltip
+                            content={<CustomTooltip />}
+                            active={clickedIndex !== null}
+                            position={{ y: 0 }}
+                            wrapperStyle={{ pointerEvents: 'none' }}
+                        />
 
                         <ReferenceArea y1={80} y2={100} fill="rgba(52,152,219,0.2)" strokeOpacity={0} />
                         <ReferenceArea y1={50} y2={80} fill="rgba(76,175,80,0.2)" strokeOpacity={0} />
                         <ReferenceArea y1={25} y2={50} fill="rgba(255,204,0,0.15)" strokeOpacity={0} />
                         <ReferenceArea y1={0} y2={25} fill="rgba(255,87,87,0.15)" strokeOpacity={0} />
 
-                        {refAreaLeft && refAreaRight ? (
+                        {refAreaLeft && refAreaRight && (
                             <ReferenceArea x1={refAreaLeft} x2={refAreaRight} strokeOpacity={0.3} fill="#137fec" fillOpacity={0.3} />
-                        ) : null}
+                        )}
 
                         {Object.entries(DEPTH_COLORS).map(([key, color]) => (
                             visibleLines[key] && (
@@ -284,47 +305,47 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
 
             <Flex direction="column" gap={4} pt={4}>
                 <Flex gap={4} wrap="wrap">
-                    {Object.entries(DEPTH_COLORS).map(([key, color]) => {
-                        if (key === 'depth60') return null;
-                        const label = `${key.replace('depth', '')}-${parseInt(key.replace('depth', '')) + 10} cm`;
+                    {Object.entries(DEPTH_COLORS)
+                        .filter(([key]) => {
+                            const depth = parseInt(key.replace('depth', ''));
+                            return depth >= 10 && depth <= 60;
+                        })
+                        .sort(([a], [b]) => parseInt(a.replace('depth', '')) - parseInt(b.replace('depth', '')))
+                        .map(([key, color]) => {
+                            const depth = key.replace('depth', '');
+                            const label = `${depth} cm`;
 
-                        return (
-                            <Checkbox
-                                key={key}
-                                isChecked={visibleLines[key]}
-                                onChange={() => toggleLine(key)}
-                                colorScheme="blue"
-                                iconColor="white"
-                                sx={{
-                                    '.chakra-checkbox__control': {
-                                        borderColor: 'gray.600',
-                                        bg: 'gray.700',
-                                        _checked: {
-                                            bg: 'transparent',
+                            return (
+                                <Checkbox
+                                    key={key}
+                                    isChecked={visibleLines[key]}
+                                    onChange={() => toggleLine(key)}
+                                    colorScheme="blue"
+                                    iconColor="white"
+                                    sx={{
+                                        '.chakra-checkbox__control': {
                                             borderColor: 'gray.600',
-                                            color: '#137fec'
+                                            bg: 'gray.700',
+                                            _checked: {
+                                                bg: 'transparent',
+                                                borderColor: 'gray.600',
+                                                color: '#137fec'
+                                            }
+                                        },
+                                        '.chakra-checkbox__label': {
+                                            fontSize: 'sm',
+                                            color: visibleLines[key] ? 'gray.300' : 'gray.600'
                                         }
-                                    },
-                                    '.chakra-checkbox__label': {
-                                        fontSize: 'sm',
-                                        color: visibleLines[key] ? 'gray.300' : 'gray.600'
-                                    }
-                                }}
-                            >
-                                <HStack spacing={2}>
-                                    <Box w="12px" h="12px" borderRadius="full" bg={color} opacity={visibleLines[key] ? 1 : 0.4} />
-                                    <Text>{label}</Text>
-                                </HStack>
-                            </Checkbox>
-                        );
-                    })}
+                                    }}
+                                >
+                                    <HStack spacing={2}>
+                                        <Box w="12px" h="12px" borderRadius="full" bg={color} opacity={visibleLines[key] ? 1 : 0.4} />
+                                        <Text>{label}</Text>
+                                    </HStack>
+                                </Checkbox>
+                            );
+                        })}
                 </Flex>
-
-                <HStack spacing={2} w="100%">
-                    <Text fontSize="xs" color="gray.500" fontStyle="italic">
-                        * Clique e arraste no gráfico para dar zoom.
-                    </Text>
-                </HStack>
             </Flex>
         </Box>
     );

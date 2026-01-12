@@ -48,8 +48,8 @@ export function ProbeCard({ probe }: ProbeCardProps) {
                 </Stat>
             </Flex>
 
-            {probe.measurements && probe.measurements.length > 0 ? (
-                <TelemetryChart data={probe.measurements} />
+            {probe.readings && probe.readings.length > 0 ? (
+                <TelemetryChart data={probe.readings} />
             ) : (
                 <Text fontSize="sm" color="gray.400" mt={4} textAlign="center">
                     Aguardando dados de telemetria...
