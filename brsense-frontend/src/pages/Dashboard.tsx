@@ -1,3 +1,4 @@
+// brsense-frontend/src/pages/Dashboard.tsx
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Box, Flex, Text, useToast, Spinner, Button,
@@ -9,38 +10,72 @@ import { getProbes, getFarms, getDeviceHistory, type ReadingHistory } from '../s
 import type { Probe, Farm } from '../types';
 import { SoilMoistureChart } from '../components/SoilMoistureChart/SoilMoistureChart';
 import { COLORS } from '../colors/colors';
-
-// Importação do Componente de Mapa Satelital
-import { SatelliteMap } from '../components/SatelliteMap/SatelliteMap';
-import type { MapPoint } from '../components/SatelliteMap/SatelliteMap';
+import { SatelliteMap, type MapPoint } from '../components/SatelliteMap/SatelliteMap';
 
 interface ChartDataPoint {
   time: string;
   [key: string]: string | number;
 }
 
-function processReadingsToChartData(readings: ReadingHistory[]): ChartDataPoint[] {
-  const grouped: Record<string, ChartDataPoint> = {};
+// Helper para processar e separar os dados
+function processReadingsToChartData(readings: ReadingHistory[]) {
+  const groupedMoisture: Record<string, ChartDataPoint> = {};
+  const groupedTemp: Record<string, ChartDataPoint> = {};
+
   readings.forEach((r) => {
     const dateObj = new Date(r.timestamp);
+    // Agrupa por minuto para alinhar dados próximos no mesmo ponto do eixo X
     const timeKey = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    if (!grouped[timeKey]) {
-      grouped[timeKey] = { time: timeKey };
-    }
     const depthKey = `depth${Math.round(r.depth_cm)}`;
-    grouped[timeKey][depthKey] = r.moisture_pct;
+
+    // Processa Umidade
+    if (r.moisture_pct !== null && r.moisture_pct !== undefined) {
+      if (!groupedMoisture[timeKey]) {
+        groupedMoisture[timeKey] = { time: timeKey };
+      }
+      groupedMoisture[timeKey][depthKey] = r.moisture_pct;
+    }
+
+    // Processa Temperatura
+    if (r.temperature_c !== null && r.temperature_c !== undefined) {
+      if (!groupedTemp[timeKey]) {
+        groupedTemp[timeKey] = { time: timeKey };
+      }
+      groupedTemp[timeKey][depthKey] = r.temperature_c;
+    }
   });
-  return Object.values(grouped);
+
+  // Função auxiliar para ordenar cronologicamente
+  const sorter = (a: ChartDataPoint, b: ChartDataPoint) => {
+    // Converte "DD/MM/YYYY HH:mm" de volta para comparação
+    const [dateA, timeA] = a.time.split(' ');
+    const [d1, m1, y1] = dateA.split('/').map(Number);
+    const [h1, min1] = timeA.split(':').map(Number);
+
+    const [dateB, timeB] = b.time.split(' ');
+    const [d2, m2, y2] = dateB.split('/').map(Number);
+    const [h2, min2] = timeB.split(':').map(Number);
+
+    return new Date(y1, m1 - 1, d1, h1, min1).getTime() - new Date(y2, m2 - 1, d2, h2, min2).getTime();
+  };
+
+  return {
+    moisture: Object.values(groupedMoisture).sort(sorter),
+    temperature: Object.values(groupedTemp).sort(sorter)
+  };
 }
 
 export function Dashboard() {
   const [probes, setProbes] = useState<Probe[]>([]);
   const [farms, setFarms] = useState<Farm[]>([]);
-  // selectedFarm continuará existindo, mas como removemos o select, ele ficará sempre null (mostrando tudo)
   const [selectedFarm] = useState<Farm | null>(null);
   const [selectedProbe, setSelectedProbe] = useState<Probe | null>(null);
   const [viewMode, setViewMode] = useState<'map' | 'chart'>('map');
-  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+
+  // Estados para os dois gráficos
+  const [moistureData, setMoistureData] = useState<ChartDataPoint[]>([]);
+  const [temperatureData, setTemperatureData] = useState<ChartDataPoint[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [loadingChart, setLoadingChart] = useState(false);
   const toast = useToast();
@@ -70,9 +105,11 @@ export function Dashboard() {
 
       let currentStatusCode = 'status_offline';
       const readings = probe.readings || [];
+      // Tenta achar leitura de superfície (10cm) ou pega a primeira disponível
       let surfaceReading = readings.find(r => r.depth_cm === 10);
       if (!surfaceReading && readings.length > 0) surfaceReading = readings[0];
 
+      // Define status baseado na umidade
       if (surfaceReading && surfaceReading.moisture_pct !== null) {
         const val = Number(surfaceReading.moisture_pct);
         if (val < 25) currentStatusCode = 'status_critical';
@@ -108,16 +145,20 @@ export function Dashboard() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Carrega histórico quando entra no modo gráfico
   useEffect(() => {
     if (!selectedProbe || viewMode !== 'chart') return;
     const fetchHistory = async () => {
       try {
         setLoadingChart(true);
         const history = await getDeviceHistory(selectedProbe.esn);
-        setChartData(processReadingsToChartData(history));
+        const { moisture, temperature } = processReadingsToChartData(history);
+        setMoistureData(moisture);
+        setTemperatureData(temperature);
       } catch (error) {
         console.error("Erro histórico", error);
-        setChartData([]);
+        setMoistureData([]);
+        setTemperatureData([]);
       } finally {
         setLoadingChart(false);
       }
@@ -127,7 +168,8 @@ export function Dashboard() {
 
   const handleBackToMap = () => {
     setSelectedProbe(null);
-    setChartData([]);
+    setMoistureData([]);
+    setTemperatureData([]);
     setViewMode('map');
   };
 
@@ -161,26 +203,12 @@ export function Dashboard() {
       {/* --- MODO MAPA --- */}
       {viewMode === 'map' && (
         <>
-          {/* 1. ÁREA DO MAPA AJUSTADA
-              - Usamos um Container para limitar a largura.
-              - Usamos mt={6} para dar um respiro do topo.
-              - Arredondamos as bordas (borderRadius="xl") para um visual mais moderno.
-          */}
           <Container maxW="container.xl" p={0} mt={6} borderRadius="xl" overflow="hidden" boxShadow="2xl">
-            <Box
-              w="100%"
-              h="80vh" // <--- ALTURA REDUZIDA (era 100vh)
-              position="relative"
-              bg="black"
-            >
-              <SatelliteMap
-                points={mapPoints}
-                onViewGraph={handleMapGraphClick}
-              />
+            <Box w="100%" h="80vh" position="relative" bg="black">
+              <SatelliteMap points={mapPoints} onViewGraph={handleMapGraphClick} />
             </Box>
           </Container>
 
-          {/* 2. LISTAGEM DE SONDAS */}
           <Container maxW="container.xl" mt={8} mb={10}>
             <Heading size="md" mb={6} color="gray.300" borderLeft="4px solid" borderColor="blue.500" pl={3}>
               Monitoramento Detalhado
@@ -256,9 +284,8 @@ export function Dashboard() {
         </>
       )}
 
-      {/* MODO GRÁFICO (Mantido igual) */}
+      {/* --- MODO GRÁFICO DUPLO --- */}
       {viewMode === 'chart' && selectedProbe && (
-        // ... (Conteúdo do modo gráfico sem alterações)
         <Container maxW="container.xl" py={6} minH="100vh">
           <Button
             leftIcon={<MdArrowBack />}
@@ -271,18 +298,53 @@ export function Dashboard() {
             Voltar ao Mapa
           </Button>
 
+          <Heading size="lg" color="white" mb={2}>
+            {selectedProbe.name || selectedProbe.esn}
+          </Heading>
+          <Text color="gray.400" mb={6}>Análise detalhada do solo</Text>
+
           <Box bg="gray.800" borderRadius="xl" p={6} border="1px solid" borderColor="gray.700">
-            <Box bg="gray.900" borderRadius="lg" p={4} minH="400px">
-              {loadingChart ? (
-                <Flex justify="center" align="center" h="300px"><Spinner size="xl" color="blue.500" /></Flex>
-              ) : chartData.length > 0 ? (
-                <SoilMoistureChart data={chartData} />
-              ) : (
-                <Flex h="300px" justify="center" align="center">
-                  <Text color="gray.500">Sem dados recentes para exibir.</Text>
-                </Flex>
-              )}
-            </Box>
+            {loadingChart ? (
+              <Flex justify="center" align="center" h="300px"><Spinner size="xl" color="blue.500" /></Flex>
+            ) : (
+              <VStack spacing={8} align="stretch">
+
+                {/* Gráfico 1: Umidade */}
+                <Box bg="gray.900" borderRadius="lg" p={4} minH="400px">
+                  {moistureData.length > 0 ? (
+                    <SoilMoistureChart
+                      data={moistureData}
+                      title="Perfil de Umidade (%)"
+                      unit="%"
+                      yDomain={[0, 100]}
+                      showZones={true}
+                    />
+                  ) : (
+                    <Flex h="300px" justify="center" align="center">
+                      <Text color="gray.500">Sem dados de umidade recentes.</Text>
+                    </Flex>
+                  )}
+                </Box>
+
+                {/* Gráfico 2: Temperatura */}
+                <Box bg="gray.900" borderRadius="lg" p={4} minH="400px">
+                  {temperatureData.length > 0 ? (
+                    <SoilMoistureChart
+                      data={temperatureData}
+                      title="Perfil de Temperatura (°C)"
+                      unit="°C"
+                      yDomain={['auto', 'auto']}
+                      showZones={false}
+                    />
+                  ) : (
+                    <Flex h="300px" justify="center" align="center">
+                      <Text color="gray.500">Sem dados de temperatura recentes.</Text>
+                    </Flex>
+                  )}
+                </Box>
+
+              </VStack>
+            )}
           </Box>
         </Container>
       )}

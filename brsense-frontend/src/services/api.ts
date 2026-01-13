@@ -3,6 +3,7 @@ import axios from 'axios';
 import type { Farm, Probe, RequestLog } from '../types';
 
 // Configuração do Axios
+console.log("VITE_API_URL atual:", import.meta.env.VITE_API_URL);
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
 });
@@ -38,6 +39,9 @@ export interface CreateDeviceDTO {
   name: string;
   esn: string;
   farm_id: number;
+  // ADICIONADO: Campos opcionais de localização
+  latitude?: number;
+  longitude?: number;
 }
 
 // Nota: AuthResponse e CreateUserDTO foram removidos pois 

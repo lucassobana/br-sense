@@ -1,5 +1,5 @@
 // brsense-frontend/src/components/SoilMoistureChart/SoilMoistureChart.tsx
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Box,
     Flex,
@@ -19,6 +19,7 @@ import {
     Tooltip,
     ResponsiveContainer,
     ReferenceArea,
+    Brush
 } from 'recharts';
 import { MdZoomOutMap } from 'react-icons/md';
 
@@ -133,6 +134,10 @@ const calculateInitialRange = (data: SoilData[]) => {
 
 interface ChartProps {
     data?: SoilData[];
+    title?: string;              // '?' torna opcional, remova se for obrigatório
+    unit?: string;
+    yDomain?: (number | string)[]; // Para aceitar [0, 100] ou ["auto", "auto"]
+    showZones?: boolean;
 }
 
 export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
@@ -141,41 +146,14 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
     });
 
     const [range, setRange] = useState(() => calculateInitialRange(data));
-    const [refAreaLeft, setRefAreaLeft] = useState('');
-    const [refAreaRight, setRefAreaRight] = useState('');
     const [clickedIndex, setClickedIndex] = useState<number | null>(null);
 
     useEffect(() => {
         setRange(calculateInitialRange(data));
     }, [data]);
 
-    const displayedData = useMemo(() => {
-        if (!data || data.length === 0) return [];
-        return data.slice(range.startIndex, range.endIndex + 1);
-    }, [data, range]);
-
     const toggleLine = (key: string) => {
         setVisibleLines(prev => ({ ...prev, [key]: !prev[key] }));
-    };
-
-    const zoom = () => {
-        if (refAreaLeft === refAreaRight || refAreaRight === '') {
-            setRefAreaLeft('');
-            setRefAreaRight('');
-            return;
-        }
-
-        let leftIndex = data.findIndex(d => d.time === refAreaLeft);
-        let rightIndex = data.findIndex(d => d.time === refAreaRight);
-
-        if (leftIndex < 0) leftIndex = 0;
-        if (rightIndex < 0) rightIndex = data.length - 1;
-
-        if (leftIndex > rightIndex) [leftIndex, rightIndex] = [rightIndex, leftIndex];
-
-        setRefAreaLeft('');
-        setRefAreaRight('');
-        setRange({ startIndex: leftIndex, endIndex: rightIndex });
     };
 
     const zoomOut = () => {
@@ -184,7 +162,7 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
 
     const handleWheelZoom = (e: React.WheelEvent) => {
         e.preventDefault();
-        if (!displayedData || displayedData.length < 2) return;
+        if (!data || data.length < 2) return;
 
         const zoomFactor = 0.1;
         const rangeSize = range.endIndex - range.startIndex;
@@ -205,6 +183,9 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
         }
     };
 
+    const startDate = data && data[range.startIndex] ? data[range.startIndex].time.split(' ')[0] : '';
+    const endDate = data && data[range.endIndex] ? data[range.endIndex].time.split(' ')[0] : '';
+
     return (
         <Box
             bg={COLORS.surface}
@@ -220,9 +201,7 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
                 <VStack align="start" spacing={1}>
                     <Text fontSize="lg" fontWeight="medium">Perfil de Umidade do Solo</Text>
                     <Text color="gray.400" fontSize="sm">
-                        {displayedData.length > 0
-                            ? `${displayedData[0].time.split(' ')[0]} - ${displayedData[displayedData.length - 1].time.split(' ')[0]}`
-                            : 'Sem dados'}
+                        {data.length > 0 ? `${startDate} - ${endDate}` : 'Sem dados'}
                     </Text>
                 </VStack>
 
@@ -241,16 +220,13 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
             <Box h="250px" position="relative" w="100%" onWheel={handleWheelZoom}>
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart
-                        data={displayedData}
+                        data={data}
                         margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
                         onClick={(e) => {
                             if (e && typeof e.activeTooltipIndex === 'number') {
                                 setClickedIndex(e.activeTooltipIndex);
                             }
                         }}
-                        onMouseDown={(e) => e && e.activeLabel && setRefAreaLeft(String(e.activeLabel))}
-                        onMouseMove={(e) => refAreaLeft && e && e.activeLabel && setRefAreaRight(String(e.activeLabel))}
-                        onMouseUp={zoom}
                     >
                         <CartesianGrid strokeDasharray="3 3" stroke="#3b4754" opacity={0.3} vertical={false} />
                         <XAxis
@@ -280,10 +256,6 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
                         <ReferenceArea y1={25} y2={50} fill="rgba(255,204,0,0.15)" strokeOpacity={0} />
                         <ReferenceArea y1={0} y2={25} fill="rgba(255,87,87,0.15)" strokeOpacity={0} />
 
-                        {refAreaLeft && refAreaRight && (
-                            <ReferenceArea x1={refAreaLeft} x2={refAreaRight} strokeOpacity={0.3} fill="#137fec" fillOpacity={0.3} />
-                        )}
-
                         {Object.entries(DEPTH_COLORS).map(([key, color]) => (
                             visibleLines[key] && (
                                 <Line
@@ -299,6 +271,20 @@ export function SoilMoistureChart({ data = MOCK_DATA }: ChartProps) {
                                 />
                             )
                         ))}
+
+                        <Brush
+                            dataKey="time"
+                            height={30}
+                            stroke="#3182ce"
+                            startIndex={range.startIndex}
+                            endIndex={range.endIndex}
+                            onChange={(newRange) => {
+                                // Sincroniza o Brush com o nosso estado para manter o Scroll Zoom funcionando
+                                if (newRange.startIndex !== undefined && newRange.endIndex !== undefined) {
+                                    setRange({ startIndex: newRange.startIndex, endIndex: newRange.endIndex });
+                                }
+                            }}
+                        />
                     </LineChart>
                 </ResponsiveContainer>
             </Box>

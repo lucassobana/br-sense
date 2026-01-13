@@ -1,7 +1,7 @@
 # app/services/ingest.py
 import logging
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from app.models.device import Device
@@ -97,23 +97,28 @@ def ingest_envelope(payload: Dict[str, Any], db: Session) -> dict:
         try:
             # 1. Device
             device = _ensure_device(db, esn)
-            device.updated_at = datetime.utcnow()
+            device.updated_at = datetime.now(timezone.utc)
             
             # 2. Decodificação
             if raw_payload and isinstance(raw_payload, str):
                 decoded = decode_soil_payload(raw_payload)
                 if decoded:
                     # Tenta converter timestamp da mensagem
-                    ts = datetime.utcnow()
+                    ts = datetime.now(timezone.utc)
                     if msg.get("unixTime"):
                         try:
-                            ts = datetime.utcfromtimestamp(int(msg["unixTime"]))
+                            ts = datetime.fromtimestamp(int(msg["unixTime"]), tz=timezone.utc)
                         except:
                             pass
                     
                     for r in decoded:
+                        # Determina o tipo: se tem umidade é 'H', senão assumimos que é temperatura 'T'
+                        # (Lembrando que o decoder coloca None no campo que não existe no pacote)
+                        current_type = 'H' if r["moisture_pct"] is not None else 'T'
+
                         reading = Reading(
                             device_id=device.id,
+                            reading_type=current_type,  # <--- Nova coluna preenchida aqui
                             depth_cm=r["depth_cm"],
                             moisture_pct=r["moisture_pct"],
                             temperature_c=r["temperature_c"],

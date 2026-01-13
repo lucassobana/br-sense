@@ -9,6 +9,7 @@ from datetime import datetime
 from app.db.session import get_db
 from app.models.reading import Reading
 from app.models.device import Device
+from app.models.request_log import RequestLog
 
 router = APIRouter()
 
@@ -41,3 +42,22 @@ def get_device_history(esn: str, db: Session = Depends(get_db)):
         .all()
         
     return readings
+
+@router.get("/logs")
+def view_uplink_logs(limit: int = 50, db: Session = Depends(get_db)):
+    """
+    Rota pública para visualizar os últimos payloads recebidos (capturados pelo Middleware).
+    """
+    logs = db.query(RequestLog).order_by(RequestLog.timestamp.desc()).limit(limit).all()
+    
+    # Retorna uma lista simples
+    return [
+        {
+            "id": l.id,
+            "timestamp": l.timestamp,
+            "ip": l.client_ip,
+            "body": l.raw_body,
+            "message": l.log_message
+        }
+        for l in logs
+    ]

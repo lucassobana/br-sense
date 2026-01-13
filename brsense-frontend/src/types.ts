@@ -1,13 +1,12 @@
 export interface Measurement {
   id?: number;
   depth_cm: number;
-  moisture_pct: number;
-  temperature_c?: number;
+  moisture_pct: number | null;
+  temperature_c?: number | null;
   timestamp: string;
 
-  // --- Adicione estes campos opcionais para compatibilidade com código antigo ---
-  value?: number;        // O código antigo chamava moisture_pct de value
-  sensor_index?: number; // O código antigo usava index
+  value?: number;
+  sensor_index?: number; 
 }
 
 export interface Probe {
@@ -17,19 +16,14 @@ export interface Probe {
   location: string;
   status: string;
   last_communication: string;
-
   readings: Measurement[];
 
-  // --- Adicione estes campos opcionais ---
-  measurements?: Measurement[]; // O código antigo procura por isso
-  position?: [number, number];  // O mapa antigo procura por isso
-
+  measurements?: Measurement[];
+  position?: [number, number];
   farm_id?: number;
   latitude?: number;
   longitude?: number;
 }
-
-// ... (Resto do arquivo Farm, etc)
 
 export interface Farm {
   id: number;

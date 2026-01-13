@@ -70,47 +70,56 @@ def create_or_associate_device(
 ):
     """
     Cria uma nova sonda ou associa uma existente (pré-criada pelo satélite)
-    à fazenda do usuário.
+    à fazenda selecionada.
     """
     user, is_admin = get_user_and_roles(db, token_payload)
 
-    # Verificar se a Fazenda existe
+    # 1. Verificar se a Fazenda alvo existe
     farm = db.query(Farm).filter(Farm.id == device_data.farm_id).first()
     if not farm:
         raise HTTPException(status_code=404, detail="Fazenda não encontrada")
 
-    # O usuário é dono da fazenda?
+    # 2. Verificar permissão: O usuário é dono da fazenda ou é Admin?
     if not is_admin and farm.user_id != user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, 
             detail="Você não tem permissão para adicionar sondas nesta fazenda."
         )
 
-    # Lógica de Associação
-    db_device = db.query(Device).filter(Device.esn == device_data.esn).first()
+    # 3. Buscar se a sonda já existe pelo ESN
+    # Normaliza o ESN para garantir consistência (remove espaços)
+    clean_esn = device_data.esn.strip()
+    db_device = db.query(Device).filter(Device.esn == clean_esn).first()
 
     if db_device:
-        # Cenário A: Já existe.
+        # --- CENÁRIO A: Sonda já existe no banco (Ingestão Automática) ---
+        
+        # Se já tem dono e é diferente da fazenda atual, bloqueia (Evita roubo de sonda)
         if db_device.farm_id is not None and db_device.farm_id != device_data.farm_id:
-             raise HTTPException(status_code=400, detail="Esta sonda já está vinculada a outra fazenda.")
+             # Se for Admin, talvez você queira permitir sobrescrever (move de uma fazenda pra outra)
+             # Mas por segurança, vamos bloquear ou exigir uma confirmação manual no futuro.
+             raise HTTPException(
+                 status_code=400, 
+                 detail=f"Esta sonda já está vinculada a outra fazenda (ID: {db_device.farm_id}). Contate o suporte."
+             )
         
-        # Atualiza vínculo e campos novos se enviados
+        # Adoção: Atualiza os dados
         db_device.farm_id = device_data.farm_id
-        db_device.name = device_data.name or f"Sonda {device_data.esn}"
+        db_device.name = device_data.name or f"Sonda {clean_esn}"
         
-        # Se vier latitude/longitude na criação, atualiza também
+        # Atualiza Lat/Long se fornecidos (importante para o mapa)
         if device_data.latitude is not None:
             db_device.latitude = device_data.latitude
         if device_data.longitude is not None:
             db_device.longitude = device_data.longitude
 
     else:
-        # Cenário B: Novo device
+        # --- CENÁRIO B: Sonda totalmente nova (Nunca enviou dados) ---
         db_device = Device(
-            esn=device_data.esn, 
+            esn=clean_esn, 
             farm_id=device_data.farm_id, 
-            name=device_data.name or f"Sonda {device_data.esn}",
-            latitude=device_data.latitude,   # <--- Passando novos campos
+            name=device_data.name or f"Sonda {clean_esn}",
+            latitude=device_data.latitude,
             longitude=device_data.longitude
         )
         db.add(db_device)
@@ -132,14 +141,12 @@ def update_device(
     if not db_device:
         raise HTTPException(status_code=404, detail="Sonda não encontrada")
 
-    # Verifica permissão
     if not is_admin:
         if db_device.farm_id:
             farm = db.query(Farm).filter(Farm.id == db_device.farm_id).first()
             if not farm or farm.user_id != user.id:
                 raise HTTPException(status_code=403, detail="Acesso negado a esta sonda.")
 
-    # Atualiza dados dinamicamente (incluindo lat/long)
     update_data = device_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_device, key, value)
@@ -154,17 +161,6 @@ def delete_device(esn: str, db: Session = Depends(get_db)):
     device = db.query(Device).filter(Device.esn == esn).first()
     if not device:
         raise HTTPException(status_code=404, detail="Sonda não encontrada")
-
     db.delete(device)
     db.commit()
     return
-
-@router.get("/debug/db")
-def debug_db(db: Session = Depends(get_db)):
-    result = db.execute(text("SELECT current_database(), current_schema(), inet_server_addr()"))
-    row = result.fetchone()
-    return {
-        "database": row[0],
-        "schema": row[1],
-        "server": row[2]
-    }
