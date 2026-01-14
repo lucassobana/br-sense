@@ -68,56 +68,36 @@ def create_or_associate_device(
     token_payload: dict = Depends(get_current_user_token),
     db: Session = Depends(get_db)
 ):
-    """
-    Cria uma nova sonda ou associa uma existente (pré-criada pelo satélite)
-    à fazenda selecionada.
-    """
     user, is_admin = get_user_and_roles(db, token_payload)
 
-    # 1. Verificar se a Fazenda alvo existe
-    farm = db.query(Farm).filter(Farm.id == device_data.farm_id).first()
-    if not farm:
-        raise HTTPException(status_code=404, detail="Fazenda não encontrada")
+    # Se farm_id for fornecido, valida a fazenda
+    if device_data.farm_id is not None:
+        farm = db.query(Farm).filter(Farm.id == device_data.farm_id).first()
+        if not farm:
+            raise HTTPException(status_code=404, detail="Fazenda não encontrada")
 
-    # 2. Verificar permissão: O usuário é dono da fazenda ou é Admin?
-    if not is_admin and farm.user_id != user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
-            detail="Você não tem permissão para adicionar sondas nesta fazenda."
-        )
+        if not is_admin and farm.user_id != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail="Você não tem permissão para adicionar sondas nesta fazenda."
+            )
 
-    # 3. Buscar se a sonda já existe pelo ESN
-    # Normaliza o ESN para garantir consistência (remove espaços)
     clean_esn = device_data.esn.strip()
     db_device = db.query(Device).filter(Device.esn == clean_esn).first()
 
     if db_device:
-        # --- CENÁRIO A: Sonda já existe no banco (Ingestão Automática) ---
-        
-        # Se já tem dono e é diferente da fazenda atual, bloqueia (Evita roubo de sonda)
-        if db_device.farm_id is not None and db_device.farm_id != device_data.farm_id:
-             # Se for Admin, talvez você queira permitir sobrescrever (move de uma fazenda pra outra)
-             # Mas por segurança, vamos bloquear ou exigir uma confirmação manual no futuro.
-             raise HTTPException(
-                 status_code=400, 
-                 detail=f"Esta sonda já está vinculada a outra fazenda (ID: {db_device.farm_id}). Contate o suporte."
-             )
-        
-        # Adoção: Atualiza os dados
+        # Atualiza dados existentes
         db_device.farm_id = device_data.farm_id
         db_device.name = device_data.name or f"Sonda {clean_esn}"
-        
-        # Atualiza Lat/Long se fornecidos (importante para o mapa)
         if device_data.latitude is not None:
             db_device.latitude = device_data.latitude
         if device_data.longitude is not None:
             db_device.longitude = device_data.longitude
-
     else:
-        # --- CENÁRIO B: Sonda totalmente nova (Nunca enviou dados) ---
+        # Cria nova sonda
         db_device = Device(
-            esn=clean_esn, 
-            farm_id=device_data.farm_id, 
+            esn=clean_esn,
+            farm_id=device_data.farm_id,  # Pode ser None agora
             name=device_data.name or f"Sonda {clean_esn}",
             latitude=device_data.latitude,
             longitude=device_data.longitude

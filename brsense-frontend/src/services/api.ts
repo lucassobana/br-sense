@@ -3,7 +3,6 @@ import axios from 'axios';
 import type { Farm, Probe, RequestLog } from '../types';
 
 // Configuração do Axios
-console.log("VITE_API_URL atual:", import.meta.env.VITE_API_URL);
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
 });
@@ -44,6 +43,12 @@ export interface CreateDeviceDTO {
   longitude?: number;
 }
 
+interface HistoryParams {
+  limit?: number;
+  start_date?: string;
+  end_date?: string;
+}
+
 // Nota: AuthResponse e CreateUserDTO foram removidos pois 
 // o login e criação de usuários agora são gerenciados pelo Keycloak.
 
@@ -82,8 +87,9 @@ export const getLogs = async () => {
   return response.data;
 };
 
-export const getDeviceHistory = async (esn: string) => {
-  const response = await api.get<ReadingHistory[]>(`/api/device/${esn}/history`);
+export const getDeviceHistory = async (esn: string, params?: HistoryParams) => {
+  // Passamos o objeto { params } como segundo argumento do axios
+  const response = await api.get<ReadingHistory[]>(`/api/device/${esn}/history`, { params });
   return response.data;
 };
 

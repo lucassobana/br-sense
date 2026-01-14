@@ -7,6 +7,9 @@ app = 'brsense-frontend-prod'
 primary_region = 'gru'
 
 [build]
+[build.args]
+VITE_API_URL = "https://soilprobe-api-floral-sound-9539.fly.dev"
+VITE_KEYCLOAK_URL = "https://brsense-auth.fly.dev"
 
 [http_service]
   internal_port = 80

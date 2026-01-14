@@ -1,5 +1,5 @@
 // brsense-frontend/src/pages/Dashboard.tsx
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   Box, Flex, Text, useToast, Spinner, Button,
   SimpleGrid, Container, Heading, Card, CardBody, Badge,
@@ -24,7 +24,7 @@ function processReadingsToChartData(readings: ReadingHistory[]) {
 
   readings.forEach((r) => {
     const dateObj = new Date(r.timestamp);
-    // Agrupa por minuto para alinhar dados próximos no mesmo ponto do eixo X
+    // Agrupa por minuto
     const timeKey = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const depthKey = `depth${Math.round(r.depth_cm)}`;
 
@@ -47,7 +47,6 @@ function processReadingsToChartData(readings: ReadingHistory[]) {
 
   // Função auxiliar para ordenar cronologicamente
   const sorter = (a: ChartDataPoint, b: ChartDataPoint) => {
-    // Converte "DD/MM/YYYY HH:mm" de volta para comparação
     const [dateA, timeA] = a.time.split(' ');
     const [d1, m1, y1] = dateA.split('/').map(Number);
     const [h1, min1] = timeA.split(':').map(Number);
@@ -80,6 +79,14 @@ export function Dashboard() {
   const [loadingChart, setLoadingChart] = useState(false);
   const toast = useToast();
 
+  // Ref para controlar se o componente está montado (evita erro de set state)
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
+
   const filteredProbes = useMemo(() => {
     if (!selectedFarm) return probes;
     return probes.filter(probe => probe.farm_id === selectedFarm.id);
@@ -105,11 +112,9 @@ export function Dashboard() {
 
       let currentStatusCode = 'status_offline';
       const readings = probe.readings || [];
-      // Tenta achar leitura de superfície (10cm) ou pega a primeira disponível
       let surfaceReading = readings.find(r => r.depth_cm === 10);
       if (!surfaceReading && readings.length > 0) surfaceReading = readings[0];
 
-      // Define status baseado na umidade
       if (surfaceReading && surfaceReading.moisture_pct !== null) {
         const val = Number(surfaceReading.moisture_pct);
         if (val < 25) currentStatusCode = 'status_critical';
@@ -133,38 +138,89 @@ export function Dashboard() {
     try {
       setLoading(true);
       const [probesData, farmsData] = await Promise.all([getProbes(), getFarms()]);
-      setProbes(probesData);
-      setFarms(farmsData);
+      if (isMountedRef.current) {
+        setProbes(probesData);
+        setFarms(farmsData);
+      }
     } catch (error) {
       console.error(error);
-      toast({ title: 'Erro ao carregar dados', status: 'error', duration: 3000 });
+      if (isMountedRef.current) {
+        toast({ title: 'Erro ao carregar dados', status: 'error', duration: 3000 });
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
     }
   }, [toast]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Carrega histórico quando entra no modo gráfico
+  // --- LÓGICA DE CARREGAMENTO PROGRESSIVO ---
   useEffect(() => {
     if (!selectedProbe || viewMode !== 'chart') return;
-    const fetchHistory = async () => {
+
+    const fetchFullHistory = async () => {
       try {
         setLoadingChart(true);
-        const history = await getDeviceHistory(selectedProbe.esn);
-        const { moisture, temperature } = processReadingsToChartData(history);
-        setMoistureData(moisture);
-        setTemperatureData(temperature);
-      } catch (error) {
-        console.error("Erro histórico", error);
         setMoistureData([]);
         setTemperatureData([]);
+
+        // Janela principal: últimos 3 dias
+        const now = new Date();
+        const cutoffDate = new Date();
+        cutoffDate.setDate(now.getDate() - 3);
+
+        // 1. Busca RECENTE (últimos 3 dias)
+        const recentHistory = await getDeviceHistory(selectedProbe.esn, {
+          start_date: cutoffDate.toISOString()
+        });
+
+        if (!isMountedRef.current) return;
+
+        // 2. Prepara busca ANTIGA (Complementar)
+        let pivotDate: string;
+
+        if (recentHistory.length > 0) {
+          pivotDate = recentHistory[0].timestamp;
+        } else {
+          pivotDate = cutoffDate.toISOString();
+        }
+
+        const limitDate = new Date();
+        limitDate.setDate(limitDate.getDate() - 3);
+
+        const olderHistory = await getDeviceHistory(selectedProbe.esn, {
+          end_date: pivotDate,        // Traz o que tiver antes do pivot
+          start_date: limitDate.toISOString(), // MAS só até 7 dias atrás.
+          limit: 50000
+        });
+
+        if (!isMountedRef.current) return;
+
+        const allReadings = [...olderHistory, ...recentHistory];
+
+        // Se mesmo assim vier vazio (sem dados na última semana), o gráfico ficará vazio corretamente,
+        // em vez de mostrar dados de Janeiro.
+        const processedData = processReadingsToChartData(allReadings);
+
+        if (isMountedRef.current) {
+          setMoistureData(processedData.moisture);
+          setTemperatureData(processedData.temperature);
+        }
+
+      } catch (error) {
+        console.error("Erro ao carregar histórico", error);
+        if (isMountedRef.current) {
+          toast({ title: 'Erro ao carregar dados', status: 'error' });
+        }
       } finally {
-        setLoadingChart(false);
+        if (isMountedRef.current) {
+          setLoadingChart(false);
+        }
       }
     };
-    fetchHistory();
-  }, [selectedProbe, viewMode]);
+
+    fetchFullHistory();
+  }, [selectedProbe, viewMode, toast]);
 
   const handleBackToMap = () => {
     setSelectedProbe(null);
@@ -284,7 +340,7 @@ export function Dashboard() {
         </>
       )}
 
-      {/* --- MODO GRÁFICO DUPLO --- */}
+      {/* --- MODO GRÁFICO --- */}
       {viewMode === 'chart' && selectedProbe && (
         <Container maxW="container.xl" py={6} minH="100vh">
           <Button
@@ -304,6 +360,7 @@ export function Dashboard() {
           <Text color="gray.400" mb={6}>Análise detalhada do solo</Text>
 
           <Box bg="gray.800" borderRadius="xl" p={6} border="1px solid" borderColor="gray.700">
+            {/* O loadingChart só é true durante a primeira carga rápida */}
             {loadingChart ? (
               <Flex justify="center" align="center" h="300px"><Spinner size="xl" color="blue.500" /></Flex>
             ) : (

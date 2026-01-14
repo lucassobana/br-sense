@@ -9,8 +9,8 @@ const REALM = import.meta.env.VITE_KEYCLOAK_REALM || "br-sense";
 // Se você criou como 'soil-realm' no passo anterior, mude 'br-sense' para 'soil-realm' aqui embaixo:
 const KEYCLOAK_URL = `${BASE_URL}/realms/${REALM}/protocol/openid-connect/token`;
 
-// const CLIENT_ID = "soil-frontend"; // staging e production
-const CLIENT_ID = "brsense-frontend"; // local
+const CLIENT_ID = "soil-frontend"; // staging e production
+// const CLIENT_ID = "brsense-frontend"; // local
 
 interface TokenResponse {
     access_token: string;

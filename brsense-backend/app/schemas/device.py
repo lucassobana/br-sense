@@ -36,7 +36,7 @@ class DeviceUpdate(BaseModel):
     
 class DeviceCreate(BaseModel):
     esn: str
-    farm_id: int
+    farm_id: Optional[int] = None
     name: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None

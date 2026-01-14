@@ -24,7 +24,13 @@ class ReadingResponse(BaseModel):
         from_attributes = True
 
 @router.get("/device/{esn}/history", response_model=List[ReadingResponse])
-def get_device_history(esn: str, db: Session = Depends(get_db)):
+def get_device_history(
+    esn: str, 
+    start_date: Optional[datetime] = None, 
+    end_date: Optional[datetime] = None,
+    limit: int = 1000, # Padrão leve para carga inicial
+    db: Session = Depends(get_db)
+):
     """
     Retorna o histórico de leituras de um dispositivo específico (ESN).
     """
@@ -33,14 +39,24 @@ def get_device_history(esn: str, db: Session = Depends(get_db)):
     if not device:
         raise HTTPException(status_code=404, detail="Dispositivo não encontrado")
     
-    # 2. Busca as leituras ordenadas por data
-    # Limita a 2000 registros para não pesar no gráfico
-    readings = db.query(Reading)\
-        .filter(Reading.device_id == device.id)\
-        .order_by(Reading.timestamp.asc())\
-        .limit(2000)\
-        .all()
+    query = db.query(Reading).filter(Reading.device_id == device.id)
+    if start_date and start_date.tzinfo:
+        start_date = start_date.replace(tzinfo=None)
         
+    if end_date and end_date.tzinfo:
+        end_date = end_date.replace(tzinfo=None)
+
+    if start_date:
+        query = query.filter(Reading.timestamp >= start_date)
+    if end_date:
+        query = query.filter(Reading.timestamp < end_date)
+
+    if start_date or end_date:
+        readings = query.order_by(Reading.timestamp.asc()).limit(50000).all()
+    else:
+        readings = query.order_by(Reading.timestamp.desc()).limit(limit).all()
+        readings = readings[::-1]
+
     return readings
 
 @router.get("/logs")
