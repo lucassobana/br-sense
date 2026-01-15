@@ -9,6 +9,7 @@ import type { Measurement } from '../../types';
 import iconMarker from 'leaflet/dist/images/marker-icon.png';
 import iconRetina from 'leaflet/dist/images/marker-icon-2x.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+import { COLORS } from '../../colors/colors';
 
 const DefaultIcon = L.icon({
     iconUrl: iconMarker,
@@ -131,14 +132,15 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
             w="100%"
             h="100%"
             minH="500px"
-            bg="gray.900"
-            overflow="hidden" // Garante que o painel não saia da área
+            bg={COLORS.background}
+            overflow="hidden"
+            paddingTop='15px'
         >
             <MapContainer
                 center={center}
                 zoom={zoom}
                 scrollWheelZoom={true}
-                style={{ height: '100%', width: '100%' }}
+                style={{ height: '100%', width: '100%', borderRadius: '12px' }}
                 zoomControl={false} // Removemos o zoom padrão para reposicionar se quiser
             >
                 <TileLayer
@@ -208,24 +210,26 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
 
                         {/* Corpo: Barras de Progresso */}
                         <VStack align="stretch" spacing={2} mt={2} mb={3}>
-                            {profileData.length > 0 ? profileData.map((r) => (
-                                <HStack key={r.depth_cm} spacing={2}>
-                                    <Text fontSize="2xs" color="gray.400" w="30px" fontWeight="medium">
-                                        {r.depth_cm}cm
-                                    </Text>
-                                    <Box flex="1">
-                                        <Progress
-                                            value={r.moisture_pct}
-                                            size="xs" // Barra super fina (Minimalista)
-                                            borderRadius="full"
-                                            colorScheme={getProgressColor(r.moisture_pct)}
-                                            bg="whiteAlpha.200"
-                                        />
-                                    </Box>
-                                </HStack>
-                            )) : (
-                                <Text fontSize="xs" color="gray.500">Sem dados recentes.</Text>
-                            )}
+                            {profileData.map((r) => {
+                                if (r.moisture_pct === null) return null;
+
+                                return (
+                                    <HStack key={r.depth_cm} spacing={2}>
+                                        <Text fontSize="2xs" color="gray.400" w="30px" fontWeight="medium">
+                                            {r.depth_cm}cm
+                                        </Text>
+                                        <Box flex="1">
+                                            <Progress
+                                                value={r.moisture_pct}
+                                                size="xs"
+                                                borderRadius="full"
+                                                colorScheme={getProgressColor(r.moisture_pct)}
+                                                bg="whiteAlpha.200"
+                                            />
+                                        </Box>
+                                    </HStack>
+                                );
+                            })}
                         </VStack>
 
                         {/* Footer: Botão */}

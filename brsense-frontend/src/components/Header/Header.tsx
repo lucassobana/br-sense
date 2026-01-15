@@ -15,6 +15,7 @@ import {
 import { MdLogout, MdPerson } from 'react-icons/md';
 import { useNavigate, Link as RouterLink, useLocation } from 'react-router-dom';
 import brsenseLogo from '../../assets/BRSense_logo.png';
+import { COLORS } from '../../colors/colors';
 
 export function Header() {
     const navigate = useNavigate();
@@ -56,7 +57,7 @@ export function Header() {
             as="header"
             w="100%"
             h="80px"
-            bg="#111111"
+            bg={COLORS.background}
             align="center"
             justify="space-between"
             px={8}

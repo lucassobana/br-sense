@@ -190,7 +190,6 @@ export function Dashboard() {
 
         const olderHistory = await getDeviceHistory(selectedProbe.esn, {
           end_date: pivotDate,        // Traz o que tiver antes do pivot
-          start_date: limitDate.toISOString(), // MAS só até 7 dias atrás.
           limit: 50000
         });
 
@@ -266,7 +265,7 @@ export function Dashboard() {
           </Container>
 
           <Container maxW="container.xl" mt={8} mb={10}>
-            <Heading size="md" mb={6} color="gray.300" borderLeft="4px solid" borderColor="blue.500" pl={3}>
+            <Heading size="md" mb={6} color={COLORS.textPrimary} borderLeft="4px solid" borderColor="blue.500" pl={3}>
               Monitoramento Detalhado
             </Heading>
 

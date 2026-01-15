@@ -9,7 +9,7 @@ primary_region = 'gru'
 [build]
 # Esta seção conecta o Fly.io aos argumentos do Dockerfile
 [build.args]
-VITE_API_URL = "https://soilprobe-api-floral-sound-9539.fly.dev"
+VITE_API_URL = "https://brsense-api-dev.fly.dev"
 VITE_KEYCLOAK_URL = "https://brsense-auth.fly.dev"
 
 [http_service]

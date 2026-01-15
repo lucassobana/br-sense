@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Box, Flex } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '../Header/Header';
+import { COLORS } from '../../colors/colors';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -23,7 +24,7 @@ export function Layout({ children }: LayoutProps) {
   }, [navigate]);
 
   return (
-    <Flex direction="column" minH="100vh" bg="#0A0A0A">
+    <Flex direction="column" minH="100vh" bg={COLORS.surface}>
       {/* Removemos o 'onOpen={...}' pois o Header não precisa mais dele */}
       <Header />
 
