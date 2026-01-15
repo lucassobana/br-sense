@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
     Box,
     Flex,
@@ -95,10 +95,9 @@ export function SoilMoistureChart({
     const [range, setRange] = useState({ startIndex: 0, endIndex: 0 });
     const [prevData, setPrevData] = useState<SoilData[]>(data);
 
-    // Referência para o container onde o zoom vai funcionar
     const chartContainerRef = useRef<HTMLDivElement>(null);
 
-    // 1. Atualiza range quando dados mudam
+    // 1. Sincronização de dados
     if (data !== prevData) {
         setPrevData(data);
         if (data && data.length > 0) {
@@ -108,33 +107,92 @@ export function SoilMoistureChart({
         }
     }
 
-    // 2. EFEITO PARA CAPTURAR O SCROLL (Corrigido com passive: false)
+    // 2. Lógica de Escala Dinâmica (Zoom Vertical)
+    const activeYDomain = useMemo(() => {
+        if (!data || data.length === 0) return yDomain;
+        
+        const visibleData = data.slice(range.startIndex, range.endIndex + 1);
+        if (visibleData.length === 0) return yDomain;
+
+        let min = Infinity;
+        let max = -Infinity;
+        let hasActiveData = false;
+
+        visibleData.forEach(item => {
+            Object.keys(visibleLines).forEach(key => {
+                if (visibleLines[key] && item[key] !== undefined && item[key] !== null) {
+                    const val = Number(item[key]);
+                    if (!isNaN(val)) {
+                        if (val < min) min = val;
+                        if (val > max) max = val;
+                        hasActiveData = true;
+                    }
+                }
+            });
+        });
+
+        if (!hasActiveData) return yDomain;
+
+        // Adiciona margem de segurança (padding)
+        const diff = max - min;
+        const padding = diff === 0 ? 5 : diff * 0.3; 
+
+        const autoMin = Math.floor(min - padding);
+        const autoMax = Math.ceil(max + padding);
+        
+        const defaultMin = typeof yDomain[0] === 'number' ? yDomain[0] : 0;
+        const defaultMax = typeof yDomain[1] === 'number' ? yDomain[1] : 100;
+        const defaultRange = defaultMax - defaultMin;
+        const autoRange = autoMax - autoMin;
+
+        // Se o range calculado for "menor" (mais zoom) que o padrão, usamos ele.
+        if (autoRange < defaultRange) {
+             const finalMin = (defaultMin === 0 && autoMin < 0) ? 0 : autoMin;
+             return [finalMin, autoMax];
+        }
+
+        return yDomain;
+    }, [data, range, visibleLines, yDomain]);
+
+    // 3. Função auxiliar para desenhar as Zonas Corretamente no Zoom
+    // Ela garante que a ReferenceArea nunca ultrapasse o domínio visível,
+    // evitando bugs visuais ou que o gráfico tente expandir para mostrar a zona inteira.
+    const renderZone = (y1: number, y2: number, fill: string) => {
+        const [currentMin, currentMax] = activeYDomain as [number, number];
+
+        // Clampa (limita) os valores da zona aos limites visíveis do gráfico
+        const effectiveY1 = Math.max(y1, currentMin);
+        const effectiveY2 = Math.min(y2, currentMax);
+
+        // Só desenha se a zona estiver visível (tiver altura positiva)
+        if (effectiveY1 < effectiveY2) {
+            return <ReferenceArea key={`${y1}-${y2}`} y1={effectiveY1} y2={effectiveY2} fill={fill} strokeOpacity={0} />;
+        }
+        return null;
+    };
+
+    // 4. Efeito de Scroll/Zoom
     useEffect(() => {
         const container = chartContainerRef.current;
         if (!container) return;
 
         const handleWheelNative = (e: WheelEvent) => {
-            // Se não tiver dados, deixa a página rolar
             if (!data || data.length < 2) return;
 
-            // BLOQUEIA O SCROLL DA PÁGINA
             e.preventDefault();
             e.stopPropagation();
 
             const zoomFactor = 0.1;
 
-            // Usamos setState com callback para ter o valor mais atual de 'range'
             setRange(prevRange => {
                 const rangeSize = prevRange.endIndex - prevRange.startIndex;
                 const zoomAmount = Math.max(1, Math.floor(rangeSize * zoomFactor));
 
-                if (e.deltaY < 0) {
-                    // Zoom IN
+                if (e.deltaY < 0) { // Zoom In
                     const newStart = Math.min(prevRange.startIndex + zoomAmount, prevRange.endIndex - 1);
                     const newEnd = Math.max(prevRange.endIndex - zoomAmount, prevRange.startIndex + 1);
                     return { startIndex: newStart, endIndex: newEnd };
-                } else {
-                    // Zoom OUT
+                } else { // Zoom Out
                     const newStart = Math.max(0, prevRange.startIndex - zoomAmount);
                     const newEnd = Math.min(data.length - 1, prevRange.endIndex + zoomAmount);
                     return { startIndex: newStart, endIndex: newEnd };
@@ -142,14 +200,9 @@ export function SoilMoistureChart({
             });
         };
 
-        // Adiciona o listener MANUALMENTE para garantir { passive: false }
         container.addEventListener('wheel', handleWheelNative, { passive: false });
-
-        // Limpeza ao desmontar
-        return () => {
-            container.removeEventListener('wheel', handleWheelNative);
-        };
-    }, [data]); // Recria o listener apenas se 'data' mudar drasticamente (referência)
+        return () => container.removeEventListener('wheel', handleWheelNative);
+    }, [data]);
 
     const toggleLine = (key: string) => {
         setVisibleLines(prev => ({ ...prev, [key]: !prev[key] }));
@@ -195,7 +248,6 @@ export function SoilMoistureChart({
                 </Button>
             </Flex>
 
-            {/* Container com a REFERÊNCIA (ref={chartContainerRef}) */}
             <Box
                 h="300px"
                 position="relative"
@@ -218,10 +270,11 @@ export function SoilMoistureChart({
                             minTickGap={30}
                         />
                         <YAxis
-                            domain={yDomain as [number, number]}
+                            domain={activeYDomain as [number, number]}
                             tick={{ fill: '#6b7280', fontSize: 10 }}
                             axisLine={false}
                             tickLine={false}
+                            allowDataOverflow={true} // Importante para o zoom funcionar
                         />
 
                         <Tooltip
@@ -230,12 +283,13 @@ export function SoilMoistureChart({
                             wrapperStyle={{ outline: 'none' }}
                         />
 
+                        {/* Renderização condicional e 'clampada' das zonas */}
                         {showZones && (
                             <>
-                                <ReferenceArea y1={80} y2={100} fill="rgba(52,152,219,0.1)" strokeOpacity={0} />
-                                <ReferenceArea y1={50} y2={80} fill="rgba(76,175,80,0.1)" strokeOpacity={0} />
-                                <ReferenceArea y1={25} y2={50} fill="rgba(255,204,0,0.1)" strokeOpacity={0} />
-                                <ReferenceArea y1={0} y2={25} fill="rgba(255,87,87,0.1)" strokeOpacity={0} />
+                                {renderZone(80, 100, "rgba(52,152,219,0.1)")} {/* Azul (Saturado) */}
+                                {renderZone(50, 80, "rgba(76,175,80,0.1)")}  {/* Verde (Ideal) */}
+                                {renderZone(25, 50, "rgba(255,204,0,0.1)")}  {/* Amarelo (Atenção) */}
+                                {renderZone(0, 25, "rgba(255,87,87,0.1)")}   {/* Vermelho (Crítico) */}
                             </>
                         )}
 
