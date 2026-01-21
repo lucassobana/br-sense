@@ -24,7 +24,7 @@ export function Layout({ children }: LayoutProps) {
   }, [navigate]);
 
   return (
-    <Flex direction="column" minH="100vh" bg={COLORS.surface}>
+    <Flex direction="column" minH="100vh" bg={COLORS.background}>
       {/* Removemos o 'onOpen={...}' pois o Header não precisa mais dele */}
       <Header />
 

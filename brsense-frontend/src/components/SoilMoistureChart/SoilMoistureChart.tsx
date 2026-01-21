@@ -15,13 +15,12 @@ import {
     XAxis,
     YAxis,
     CartesianGrid,
-    Tooltip,
     ResponsiveContainer,
     ReferenceArea,
-    Brush
+    Brush,
+    Tooltip
 } from 'recharts';
 import { MdZoomOutMap } from 'react-icons/md';
-import type { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
 import { COLORS, DEPTH_COLORS } from '../../colors/colors';
 
 // Interface
@@ -29,50 +28,6 @@ export interface SoilData {
     time: string;
     [key: string]: number | string | undefined;
 }
-
-// Tooltip personalizado
-interface CustomTooltipProps {
-    active?: boolean;
-    payload?: Array<{
-        name: NameType;
-        value: ValueType;
-        color: string;
-        dataKey: string | number;
-    }>;
-    label?: string;
-}
-
-const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
-    if (active && payload && payload.length) {
-        return (
-            <Box
-                bg={COLORS.surface}
-                borderColor="rgba(59, 71, 84, 0.5)"
-                borderWidth="1px"
-                p={3}
-                borderRadius="md"
-                boxShadow="xl"
-                zIndex={10}
-            >
-                <Text color="gray.300" fontSize="xs" mb={2} fontWeight="bold">
-                    {label}
-                </Text>
-                {payload.map((entry) => (
-                    <HStack key={entry.dataKey} spacing={2} fontSize="xs">
-                        <Box w="8px" h="8px" borderRadius="full" bg={entry.color} />
-                        <Text color={COLORS.textSecondary}>
-                            {String(entry.name).replace('depth', '')}cm:
-                        </Text>
-                        <Text color={COLORS.textSecondary} fontWeight="bold">
-                            {Number(entry.value).toFixed(1)}%
-                        </Text>
-                    </HStack>
-                ))}
-            </Box>
-        );
-    }
-    return null;
-};
 
 interface ChartProps {
     data?: SoilData[];
@@ -92,12 +47,18 @@ export function SoilMoistureChart({
         depth10: true, depth20: true, depth30: true, depth40: true, depth50: true, depth60: true,
     });
 
-    const [range, setRange] = useState({ startIndex: 0, endIndex: 0 });
-    const [prevData, setPrevData] = useState<SoilData[]>(data);
+    // CORREÇÃO PRINCIPAL: Inicializa o range com o tamanho TOTAL dos dados.
+    // Isso garante que o gráfico já nasça com o "Ver Tudo" aplicado.
+    const [range, setRange] = useState({
+        startIndex: 0,
+        endIndex: (data && data.length > 0) ? data.length - 1 : 0
+    });
 
+    // Estado para rastrear mudanças nas props (Pattern "Derived State")
+    const [prevData, setPrevData] = useState<SoilData[]>(data);
     const chartContainerRef = useRef<HTMLDivElement>(null);
 
-    // 1. Sincronização de dados
+    // Se os dados mudarem (ex: troca de sonda), atualizamos o range para mostrar tudo novamente.
     if (data !== prevData) {
         setPrevData(data);
         if (data && data.length > 0) {
@@ -110,7 +71,7 @@ export function SoilMoistureChart({
     // 2. Lógica de Escala Dinâmica (Zoom Vertical)
     const activeYDomain = useMemo(() => {
         if (!data || data.length === 0) return yDomain;
-        
+
         const visibleData = data.slice(range.startIndex, range.endIndex + 1);
         if (visibleData.length === 0) return yDomain;
 
@@ -133,45 +94,38 @@ export function SoilMoistureChart({
 
         if (!hasActiveData) return yDomain;
 
-        // Adiciona margem de segurança (padding)
         const diff = max - min;
-        const padding = diff === 0 ? 5 : diff * 0.3; 
+        const padding = diff === 0 ? 5 : diff * 0.1;
 
         const autoMin = Math.floor(min - padding);
         const autoMax = Math.ceil(max + padding);
-        
+
         const defaultMin = typeof yDomain[0] === 'number' ? yDomain[0] : 0;
         const defaultMax = typeof yDomain[1] === 'number' ? yDomain[1] : 100;
         const defaultRange = defaultMax - defaultMin;
         const autoRange = autoMax - autoMin;
 
-        // Se o range calculado for "menor" (mais zoom) que o padrão, usamos ele.
         if (autoRange < defaultRange) {
-             const finalMin = (defaultMin === 0 && autoMin < 0) ? 0 : autoMin;
-             return [finalMin, autoMax];
+            const finalMin = (defaultMin === 0 && autoMin < 0) ? 0 : autoMin;
+            return [finalMin, autoMax];
         }
 
         return yDomain;
     }, [data, range, visibleLines, yDomain]);
 
-    // 3. Função auxiliar para desenhar as Zonas Corretamente no Zoom
-    // Ela garante que a ReferenceArea nunca ultrapasse o domínio visível,
-    // evitando bugs visuais ou que o gráfico tente expandir para mostrar a zona inteira.
+    // 3. Função auxiliar para desenhar as Zonas
     const renderZone = (y1: number, y2: number, fill: string) => {
         const [currentMin, currentMax] = activeYDomain as [number, number];
-
-        // Clampa (limita) os valores da zona aos limites visíveis do gráfico
         const effectiveY1 = Math.max(y1, currentMin);
         const effectiveY2 = Math.min(y2, currentMax);
 
-        // Só desenha se a zona estiver visível (tiver altura positiva)
         if (effectiveY1 < effectiveY2) {
             return <ReferenceArea key={`${y1}-${y2}`} y1={effectiveY1} y2={effectiveY2} fill={fill} strokeOpacity={0} />;
         }
         return null;
     };
 
-    // 4. Efeito de Scroll/Zoom
+    // 4. Efeito de Scroll/Zoom (Mouse Wheel)
     useEffect(() => {
         const container = chartContainerRef.current;
         if (!container) return;
@@ -274,22 +228,21 @@ export function SoilMoistureChart({
                             tick={{ fill: '#6b7280', fontSize: 10 }}
                             axisLine={false}
                             tickLine={false}
-                            allowDataOverflow={true} // Importante para o zoom funcionar
+                            allowDataOverflow={true}
                         />
 
+                        {/* Tooltip invisível para manter o ActiveDot funcionando */}
                         <Tooltip
-                            content={<CustomTooltip />}
-                            trigger="hover"
-                            wrapperStyle={{ outline: 'none' }}
+                            content={() => null}
+                            cursor={{ stroke: 'rgba(255,255,255,0.2)', strokeWidth: 1 }}
                         />
 
-                        {/* Renderização condicional e 'clampada' das zonas */}
                         {showZones && (
                             <>
-                                {renderZone(80, 100, "rgba(52,152,219,0.1)")} {/* Azul (Saturado) */}
-                                {renderZone(50, 80, "rgba(76,175,80,0.1)")}  {/* Verde (Ideal) */}
-                                {renderZone(25, 50, "rgba(255,204,0,0.1)")}  {/* Amarelo (Atenção) */}
-                                {renderZone(0, 25, "rgba(255,87,87,0.1)")}   {/* Vermelho (Crítico) */}
+                                {renderZone(80, 100, "rgba(52,152,219,0.3)")}
+                                {renderZone(50, 80, "rgba(76,175,80,0.3)")}
+                                {renderZone(25, 50, "rgba(255,204,0,0.3)")}
+                                {renderZone(0, 25, "rgba(255,87,87,0.3)")}
                             </>
                         )}
 
@@ -303,7 +256,7 @@ export function SoilMoistureChart({
                                     stroke={color}
                                     strokeWidth={2}
                                     dot={false}
-                                    activeDot={{ r: 6 }}
+                                    activeDot={{ r: 6, fill: color, stroke: '#fff', strokeWidth: 2 }}
                                     isAnimationActive={false}
                                 />
                             )

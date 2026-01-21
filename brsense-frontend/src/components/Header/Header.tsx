@@ -74,7 +74,7 @@ export function Header() {
                         BR Sense
                     </Text>
                     <Text color="gray.400" fontSize="xs">
-                        Soil Intelligence
+                        Tecnologia Agrícola
                     </Text>
                 </Box>
             </HStack>

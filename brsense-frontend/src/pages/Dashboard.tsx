@@ -1,10 +1,10 @@
-// brsense-frontend/src/pages/Dashboard.tsx
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   Box, Flex, Text, useToast, Spinner, Button,
   SimpleGrid, Container, Heading, Card, CardBody, Badge,
   VStack, HStack, Icon
 } from '@chakra-ui/react';
+import { useSearchParams } from 'react-router-dom'; // IMPORTANTE: Importar useSearchParams
 import { MdArrowBack, MdSensors, MdBarChart, MdAgriculture } from 'react-icons/md';
 import { getProbes, getFarms, getDeviceHistory, type ReadingHistory } from '../services/api';
 import type { Probe, Farm } from '../types';
@@ -17,18 +17,16 @@ interface ChartDataPoint {
   [key: string]: string | number;
 }
 
-// Helper para processar e separar os dados
+// Helper para processar e separar os dados (Mantido igual)
 function processReadingsToChartData(readings: ReadingHistory[]) {
   const groupedMoisture: Record<string, ChartDataPoint> = {};
   const groupedTemp: Record<string, ChartDataPoint> = {};
 
   readings.forEach((r) => {
     const dateObj = new Date(r.timestamp);
-    // Agrupa por minuto
     const timeKey = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const depthKey = `depth${Math.round(r.depth_cm)}`;
 
-    // Processa Umidade
     if (r.moisture_pct !== null && r.moisture_pct !== undefined) {
       if (!groupedMoisture[timeKey]) {
         groupedMoisture[timeKey] = { time: timeKey };
@@ -36,7 +34,6 @@ function processReadingsToChartData(readings: ReadingHistory[]) {
       groupedMoisture[timeKey][depthKey] = r.moisture_pct;
     }
 
-    // Processa Temperatura
     if (r.temperature_c !== null && r.temperature_c !== undefined) {
       if (!groupedTemp[timeKey]) {
         groupedTemp[timeKey] = { time: timeKey };
@@ -45,7 +42,6 @@ function processReadingsToChartData(readings: ReadingHistory[]) {
     }
   });
 
-  // Função auxiliar para ordenar cronologicamente
   const sorter = (a: ChartDataPoint, b: ChartDataPoint) => {
     const [dateA, timeA] = a.time.split(' ');
     const [d1, m1, y1] = dateA.split('/').map(Number);
@@ -65,22 +61,30 @@ function processReadingsToChartData(readings: ReadingHistory[]) {
 }
 
 export function Dashboard() {
+  // Controle de estado via URL para corrigir a navegação do header
+  const [searchParams, setSearchParams] = useSearchParams();
+  const probeIdParam = searchParams.get('probeId');
+
   const [probes, setProbes] = useState<Probe[]>([]);
   const [farms, setFarms] = useState<Farm[]>([]);
   const [selectedFarm] = useState<Farm | null>(null);
-  const [selectedProbe, setSelectedProbe] = useState<Probe | null>(null);
-  const [viewMode, setViewMode] = useState<'map' | 'chart'>('map');
 
-  // Estados para os dois gráficos
+  // Estados dos gráficos
   const [moistureData, setMoistureData] = useState<ChartDataPoint[]>([]);
   const [temperatureData, setTemperatureData] = useState<ChartDataPoint[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [loadingChart, setLoadingChart] = useState(false);
   const toast = useToast();
-
-  // Ref para controlar se o componente está montado (evita erro de set state)
   const isMountedRef = useRef(true);
+
+  // Determina modo e sonda selecionada com base na URL
+  const selectedProbe = useMemo(() => {
+    if (!probeIdParam) return null;
+    return probes.find(p => p.id === Number(probeIdParam)) || null;
+  }, [probes, probeIdParam]);
+
+  const viewMode = selectedProbe ? 'chart' : 'map';
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -92,13 +96,17 @@ export function Dashboard() {
     return probes.filter(probe => probe.farm_id === selectedFarm.id);
   }, [selectedFarm, probes]);
 
+  // Ao clicar no mapa ou card, atualizamos a URL
   const handleMapGraphClick = (deviceId: number) => {
-    const probe = filteredProbes.find(p => p.id === deviceId);
-    if (probe) {
-      setSelectedProbe(probe);
-      setViewMode('chart');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    setSearchParams({ probeId: String(deviceId) });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Ao voltar, limpamos a URL -> isso ativa o modo Mapa automaticamente
+  const handleBackToMap = () => {
+    setSearchParams({});
+    setMoistureData([]);
+    setTemperatureData([]);
   };
 
   const mapPoints: MapPoint[] = useMemo(() => {
@@ -112,11 +120,12 @@ export function Dashboard() {
 
       let currentStatusCode = 'status_offline';
       const readings = probe.readings || [];
-      let surfaceReading = readings.find(r => r.depth_cm === 10);
-      if (!surfaceReading && readings.length > 0) surfaceReading = readings[0];
+      const validReading = readings
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .find(r => r.moisture_pct !== null && r.moisture_pct !== undefined);
 
-      if (surfaceReading && surfaceReading.moisture_pct !== null) {
-        const val = Number(surfaceReading.moisture_pct);
+      if (validReading) {
+        const val = Number(validReading.moisture_pct);
         if (val < 25) currentStatusCode = 'status_critical';
         else if (val < 50) currentStatusCode = 'status_alert';
         else if (val < 75) currentStatusCode = 'status_ok';
@@ -154,7 +163,7 @@ export function Dashboard() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // --- LÓGICA DE CARREGAMENTO PROGRESSIVO ---
+  // --- Carregamento de Histórico (Dispara quando a URL muda para chart) ---
   useEffect(() => {
     if (!selectedProbe || viewMode !== 'chart') return;
 
@@ -164,41 +173,31 @@ export function Dashboard() {
         setMoistureData([]);
         setTemperatureData([]);
 
-        // Janela principal: últimos 3 dias
         const now = new Date();
         const cutoffDate = new Date();
         cutoffDate.setDate(now.getDate() - 3);
 
-        // 1. Busca RECENTE (últimos 3 dias)
         const recentHistory = await getDeviceHistory(selectedProbe.esn, {
           start_date: cutoffDate.toISOString()
         });
 
         if (!isMountedRef.current) return;
 
-        // 2. Prepara busca ANTIGA (Complementar)
         let pivotDate: string;
-
         if (recentHistory.length > 0) {
           pivotDate = recentHistory[0].timestamp;
         } else {
           pivotDate = cutoffDate.toISOString();
         }
 
-        const limitDate = new Date();
-        limitDate.setDate(limitDate.getDate() - 3);
-
         const olderHistory = await getDeviceHistory(selectedProbe.esn, {
-          end_date: pivotDate,        // Traz o que tiver antes do pivot
+          end_date: pivotDate,
           limit: 50000
         });
 
         if (!isMountedRef.current) return;
 
         const allReadings = [...olderHistory, ...recentHistory];
-
-        // Se mesmo assim vier vazio (sem dados na última semana), o gráfico ficará vazio corretamente,
-        // em vez de mostrar dados de Janeiro.
         const processedData = processReadingsToChartData(allReadings);
 
         if (isMountedRef.current) {
@@ -220,13 +219,6 @@ export function Dashboard() {
 
     fetchFullHistory();
   }, [selectedProbe, viewMode, toast]);
-
-  const handleBackToMap = () => {
-    setSelectedProbe(null);
-    setMoistureData([]);
-    setTemperatureData([]);
-    setViewMode('map');
-  };
 
   const getStatusColor = (status: string) => {
     if (status.includes('status_critical')) return 'red';
@@ -359,7 +351,6 @@ export function Dashboard() {
           <Text color="gray.400" mb={6}>Análise detalhada do solo</Text>
 
           <Box bg="gray.800" borderRadius="xl" p={6} border="1px solid" borderColor="gray.700">
-            {/* O loadingChart só é true durante a primeira carga rápida */}
             {loadingChart ? (
               <Flex justify="center" align="center" h="300px"><Spinner size="xl" color="blue.500" /></Flex>
             ) : (
