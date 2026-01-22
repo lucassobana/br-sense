@@ -17,62 +17,122 @@ import {
     CartesianGrid,
     ResponsiveContainer,
     ReferenceArea,
-    Brush,
-    Tooltip
+    Brush
 } from 'recharts';
 import { MdZoomOutMap } from 'react-icons/md';
 import { COLORS, DEPTH_COLORS } from '../../colors/colors';
 
-// Interface
-export interface SoilData {
+// Interface dos dados brutos da API
+export interface RawApiData {
+    timestamp: string;
+    depth_cm: number;
+    moisture_pct: number | null;
+    temperature_c: number | null;
+}
+
+interface ChartDataPoint {
     time: string;
     [key: string]: number | string | undefined;
 }
 
 interface ChartProps {
-    data?: SoilData[];
+    data?: RawApiData[];
     title?: string;
     unit?: string;
     yDomain?: (number | string)[];
     showZones?: boolean;
+    metric?: 'moisture' | 'temperature';
 }
 
 export function SoilMoistureChart({
     data = [],
     title = "Umidade do Solo",
     yDomain = [0, 100],
-    showZones = true
+    showZones = true,
+    metric = 'moisture'
 }: ChartProps) {
     const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
         depth10: true, depth20: true, depth30: true, depth40: true, depth50: true, depth60: true,
     });
 
-    // CORREÇÃO PRINCIPAL: Inicializa o range com o tamanho TOTAL dos dados.
-    // Isso garante que o gráfico já nasça com o "Ver Tudo" aplicado.
+    const chartData = useMemo(() => {
+        if (!data || data.length === 0) return [];
+
+        const hourlyMap = new Map<number, {
+            counts: Record<string, number>;
+            sums: Record<string, number>
+        }>();
+
+        data.forEach(item => {
+            if (!item.timestamp) return;
+
+            const rawValue = metric === 'moisture' ? item.moisture_pct : item.temperature_c;
+
+            if (rawValue === null || rawValue === undefined) return;
+
+            const val = Number(rawValue);
+            if (isNaN(val)) return;
+
+            const date = new Date(item.timestamp);
+            if (isNaN(date.getTime())) return;
+
+            date.setMinutes(0, 0, 0);
+            const hourTs = date.getTime();
+
+            if (!hourlyMap.has(hourTs)) {
+                hourlyMap.set(hourTs, { counts: {}, sums: {} });
+            }
+            const group = hourlyMap.get(hourTs)!;
+
+            const depthKey = `depth${item.depth_cm}`;
+
+            if (DEPTH_COLORS[depthKey as keyof typeof DEPTH_COLORS]) {
+                group.sums[depthKey] = (group.sums[depthKey] || 0) + val;
+                group.counts[depthKey] = (group.counts[depthKey] || 0) + 1;
+            }
+        });
+
+        const processed = Array.from(hourlyMap.entries())
+            .map(([ts, { sums, counts }]) => {
+                const dateObj = new Date(ts);
+                const newItem: ChartDataPoint = {
+                    time: dateObj.toISOString()
+                };
+
+                Object.keys(sums).forEach(key => {
+                    newItem[key] = sums[key] / counts[key];
+                });
+
+                return newItem;
+            })
+            .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+        return processed;
+    }, [data, metric]);
+
     const [range, setRange] = useState({
         startIndex: 0,
-        endIndex: (data && data.length > 0) ? data.length - 1 : 0
+        endIndex: (chartData && chartData.length > 0) ? chartData.length - 1 : 0
     });
 
-    // Estado para rastrear mudanças nas props (Pattern "Derived State")
-    const [prevData, setPrevData] = useState<SoilData[]>(data);
-    const chartContainerRef = useRef<HTMLDivElement>(null);
+    const [prevDataLength, setPrevDataLength] = useState<number>(data.length);
+    const [prevMetric, setPrevMetric] = useState<string>(metric);
 
-    // Se os dados mudarem (ex: troca de sonda), atualizamos o range para mostrar tudo novamente.
-    if (data !== prevData) {
-        setPrevData(data);
-        if (data && data.length > 0) {
-            setRange({ startIndex: 0, endIndex: data.length - 1 });
+    if (data.length !== prevDataLength || metric !== prevMetric) {
+        setPrevDataLength(data.length);
+        setPrevMetric(metric);
+        if (chartData.length > 0) {
+            setRange({ startIndex: 0, endIndex: chartData.length - 1 });
         } else {
             setRange({ startIndex: 0, endIndex: 0 });
         }
     }
 
-    // 2. Lógica de Escala Dinâmica (Zoom Vertical)
-    const activeYDomain = useMemo(() => {
-        if (!data || data.length === 0) return yDomain;
+    const chartContainerRef = useRef<HTMLDivElement>(null);
 
-        const visibleData = data.slice(range.startIndex, range.endIndex + 1);
+    const activeYDomain = useMemo(() => {
+        if (!chartData || chartData.length === 0) return yDomain;
+        const visibleData = chartData.slice(range.startIndex, range.endIndex + 1);
         if (visibleData.length === 0) return yDomain;
 
         let min = Infinity;
@@ -81,95 +141,79 @@ export function SoilMoistureChart({
 
         visibleData.forEach(item => {
             Object.keys(visibleLines).forEach(key => {
-                if (visibleLines[key] && item[key] !== undefined && item[key] !== null) {
-                    const val = Number(item[key]);
-                    if (!isNaN(val)) {
-                        if (val < min) min = val;
-                        if (val > max) max = val;
-                        hasActiveData = true;
-                    }
+                if (visibleLines[key] && typeof item[key] === 'number') {
+                    const val = item[key] as number;
+                    if (val < min) min = val;
+                    if (val > max) max = val;
+                    hasActiveData = true;
                 }
             });
         });
 
         if (!hasActiveData) return yDomain;
-
-        const diff = max - min;
-        const padding = diff === 0 ? 5 : diff * 0.1;
-
-        const autoMin = Math.floor(min - padding);
+        const padding = (max - min) * 0.1 || 5;
+        const autoMin = Math.max(0, Math.floor(min - padding));
         const autoMax = Math.ceil(max + padding);
 
         const defaultMin = typeof yDomain[0] === 'number' ? yDomain[0] : 0;
         const defaultMax = typeof yDomain[1] === 'number' ? yDomain[1] : 100;
-        const defaultRange = defaultMax - defaultMin;
-        const autoRange = autoMax - autoMin;
 
-        if (autoRange < defaultRange) {
-            const finalMin = (defaultMin === 0 && autoMin < 0) ? 0 : autoMin;
-            return [finalMin, autoMax];
+        if ((autoMax - autoMin) < (defaultMax - defaultMin)) {
+            return [autoMin, autoMax];
         }
-
         return yDomain;
-    }, [data, range, visibleLines, yDomain]);
+    }, [chartData, range, visibleLines, yDomain]);
 
-    // 3. Função auxiliar para desenhar as Zonas
     const renderZone = (y1: number, y2: number, fill: string) => {
         const [currentMin, currentMax] = activeYDomain as [number, number];
         const effectiveY1 = Math.max(y1, currentMin);
         const effectiveY2 = Math.min(y2, currentMax);
-
         if (effectiveY1 < effectiveY2) {
             return <ReferenceArea key={`${y1}-${y2}`} y1={effectiveY1} y2={effectiveY2} fill={fill} strokeOpacity={0} />;
         }
         return null;
     };
 
-    // 4. Efeito de Scroll/Zoom (Mouse Wheel)
     useEffect(() => {
         const container = chartContainerRef.current;
         if (!container) return;
 
-        const handleWheelNative = (e: WheelEvent) => {
-            if (!data || data.length < 2) return;
-
+        const handleWheel = (e: WheelEvent) => {
+            if (!chartData || chartData.length < 2) return;
             e.preventDefault();
             e.stopPropagation();
-
             const zoomFactor = 0.1;
 
-            setRange(prevRange => {
-                const rangeSize = prevRange.endIndex - prevRange.startIndex;
-                const zoomAmount = Math.max(1, Math.floor(rangeSize * zoomFactor));
-
-                if (e.deltaY < 0) { // Zoom In
-                    const newStart = Math.min(prevRange.startIndex + zoomAmount, prevRange.endIndex - 1);
-                    const newEnd = Math.max(prevRange.endIndex - zoomAmount, prevRange.startIndex + 1);
-                    return { startIndex: newStart, endIndex: newEnd };
-                } else { // Zoom Out
-                    const newStart = Math.max(0, prevRange.startIndex - zoomAmount);
-                    const newEnd = Math.min(data.length - 1, prevRange.endIndex + zoomAmount);
-                    return { startIndex: newStart, endIndex: newEnd };
+            setRange(prev => {
+                const size = prev.endIndex - prev.startIndex;
+                const amount = Math.max(1, Math.floor(size * zoomFactor));
+                if (e.deltaY < 0) {
+                    return {
+                        startIndex: Math.min(prev.startIndex + amount, prev.endIndex - 1),
+                        endIndex: Math.max(prev.endIndex - amount, prev.startIndex + 1)
+                    };
+                } else {
+                    return {
+                        startIndex: Math.max(0, prev.startIndex - amount),
+                        endIndex: Math.min(chartData.length - 1, prev.endIndex + amount)
+                    };
                 }
             });
         };
+        container.addEventListener('wheel', handleWheel, { passive: false });
+        return () => container.removeEventListener('wheel', handleWheel);
+    }, [chartData]);
 
-        container.addEventListener('wheel', handleWheelNative, { passive: false });
-        return () => container.removeEventListener('wheel', handleWheelNative);
-    }, [data]);
+    const toggleLine = (key: string) => setVisibleLines(prev => ({ ...prev, [key]: !prev[key] }));
 
-    const toggleLine = (key: string) => {
-        setVisibleLines(prev => ({ ...prev, [key]: !prev[key] }));
+    const formatDateHeader = (isoStr?: string) => {
+        if (!isoStr) return '';
+        const d = new Date(isoStr);
+        return d.toLocaleDateString('pt-BR');
     };
 
-    const zoomOut = () => {
-        if (data && data.length > 0) {
-            setRange({ startIndex: 0, endIndex: data.length - 1 });
-        }
-    };
-
-    const startDate = data && data[range.startIndex] ? String(data[range.startIndex].time).split(' ')[0] : '';
-    const endDate = data && data[range.endIndex] ? String(data[range.endIndex].time).split(' ')[0] : '';
+    const startDate = chartData[range.startIndex]?.time;
+    const endDate = chartData[range.endIndex]?.time;
 
     return (
         <Box
@@ -178,63 +222,56 @@ export function SoilMoistureChart({
             borderWidth="1px"
             borderRadius="xl"
             p={4}
-            m={0}
             color="white"
             userSelect="none"
         >
-            <Flex justify="space-between" align="start" mb={4}>
+            <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={2}>
                 <VStack align="start" spacing={1}>
                     <Text fontSize="lg" fontWeight="medium">{title}</Text>
                     <Text color="gray.400" fontSize="sm">
-                        {data.length > 0 ? `${startDate} - ${endDate}` : 'Aguardando dados...'}
+                        {chartData.length > 0
+                            ? `${formatDateHeader(startDate)} - ${formatDateHeader(endDate)}`
+                            : 'Aguardando dados...'}
                     </Text>
                 </VStack>
-
                 <Button
                     size="xs"
                     leftIcon={<Icon as={MdZoomOutMap} />}
-                    onClick={zoomOut}
+                    onClick={() => chartData.length > 0 && setRange({ startIndex: 0, endIndex: chartData.length - 1 })}
                     colorScheme="blue"
                     variant="outline"
-                    isDisabled={!data || data.length === 0}
+                    isDisabled={!chartData.length}
                 >
                     Ver Tudo
                 </Button>
             </Flex>
 
-            <Box
-                h="300px"
-                position="relative"
-                w="100%"
-                ref={chartContainerRef}
-                cursor="crosshair"
-            >
+            <Box h="300px" w="100%" ref={chartContainerRef} cursor="crosshair">
                 <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                        data={data}
-                        margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
-                    >
+                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#3b4754" opacity={0.3} vertical={false} />
                         <XAxis
                             dataKey="time"
-                            tickFormatter={(value: string) => value.split(' ')[0]}
+                            tickFormatter={(val) => {
+                                try {
+                                    const d = new Date(val);
+                                    const day = String(d.getDate()).padStart(2, '0');
+                                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                                    const year = d.getFullYear();
+                                    return `${day}/${month}/${year}`;
+                                } catch { return ''; }
+                            }}
                             tick={{ fill: '#6b7280', fontSize: 10 }}
                             axisLine={false}
                             tickLine={false}
-                            minTickGap={30}
+                            minTickGap={60}
                         />
                         <YAxis
                             domain={activeYDomain as [number, number]}
                             tick={{ fill: '#6b7280', fontSize: 10 }}
                             axisLine={false}
                             tickLine={false}
-                            allowDataOverflow={true}
-                        />
-
-                        {/* Tooltip invisível para manter o ActiveDot funcionando */}
-                        <Tooltip
-                            content={() => null}
-                            cursor={{ stroke: 'rgba(255,255,255,0.2)', strokeWidth: 1 }}
+                            allowDataOverflow
                         />
 
                         {showZones && (
@@ -252,12 +289,12 @@ export function SoilMoistureChart({
                                     key={key}
                                     type="monotone"
                                     dataKey={key}
-                                    name={key}
                                     stroke={color}
-                                    strokeWidth={2}
+                                    strokeWidth={2.5}
                                     dot={false}
                                     activeDot={{ r: 6, fill: color, stroke: '#fff', strokeWidth: 2 }}
                                     isAnimationActive={false}
+                                    connectNulls
                                 />
                             )
                         ))}
@@ -268,9 +305,26 @@ export function SoilMoistureChart({
                             stroke="#3182ce"
                             startIndex={range.startIndex}
                             endIndex={range.endIndex}
-                            onChange={(newRange) => {
-                                if (newRange.startIndex !== undefined && newRange.endIndex !== undefined) {
-                                    setRange({ startIndex: newRange.startIndex, endIndex: newRange.endIndex });
+                            // Formata o texto do slider para DD/MM HH:mm
+                            tickFormatter={(value) => {
+                                try {
+                                    const d = new Date(value);
+                                    if (isNaN(d.getTime())) return '';
+
+                                    const day = String(d.getDate()).padStart(2, '0');
+                                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                                    const hour = String(d.getHours()).padStart(2, '0');
+                                    const min = String(d.getMinutes()).padStart(2, '0');
+
+                                    return `${day}/${month} ${hour}:${min}`;
+                                } catch {
+                                    return '';
+                                }
+                            }}
+                            onChange={(r) => {
+                                const range = r as { startIndex?: number, endIndex?: number };
+                                if (typeof range?.startIndex === 'number' && typeof range?.endIndex === 'number') {
+                                    setRange({ startIndex: range.startIndex, endIndex: range.endIndex });
                                 }
                             }}
                         />
@@ -278,38 +332,28 @@ export function SoilMoistureChart({
                 </ResponsiveContainer>
             </Box>
 
-            <Flex direction="column" gap={4} pt={4}>
-                <Flex gap={4} wrap="wrap">
-                    {Object.entries(DEPTH_COLORS)
-                        .filter(([key]) => {
-                            const depth = parseInt(key.replace('depth', ''));
-                            return depth >= 10 && depth <= 60;
-                        })
-                        .sort(([a], [b]) => parseInt(a.replace('depth', '')) - parseInt(b.replace('depth', '')))
-                        .map(([key, color]) => {
-                            const depth = key.replace('depth', '');
-                            return (
-                                <Checkbox
-                                    key={key}
-                                    isChecked={visibleLines[key]}
-                                    onChange={() => toggleLine(key)}
-                                    colorScheme="blue"
-                                    iconColor="white"
-                                    sx={{
-                                        '.chakra-checkbox__label': {
-                                            fontSize: 'sm',
-                                            color: visibleLines[key] ? 'gray.300' : 'gray.600'
-                                        }
-                                    }}
-                                >
-                                    <HStack spacing={2}>
-                                        <Box w="10px" h="10px" borderRadius="full" bg={color} opacity={visibleLines[key] ? 1 : 0.4} />
-                                        <Text>{depth} cm</Text>
-                                    </HStack>
-                                </Checkbox>
-                            );
-                        })}
-                </Flex>
+            <Flex gap={4} wrap="wrap" pt={4}>
+                {Object.entries(DEPTH_COLORS)
+                    .filter(([key]) => {
+                        const depth = parseInt(key.replace('depth', ''));
+                        return depth >= 10 && depth <= 60;
+                    })
+                    .sort(([a], [b]) => parseInt(a.replace('depth', '')) - parseInt(b.replace('depth', '')))
+                    .map(([key, color]) => (
+                        <Checkbox
+                            key={key}
+                            isChecked={visibleLines[key]}
+                            onChange={() => toggleLine(key)}
+                            colorScheme="blue"
+                            iconColor="white"
+                            sx={{ '.chakra-checkbox__label': { fontSize: 'sm', color: visibleLines[key] ? 'gray.300' : 'gray.600' } }}
+                        >
+                            <HStack spacing={2}>
+                                <Box w="10px" h="10px" borderRadius="full" bg={color} opacity={visibleLines[key] ? 1 : 0.4} />
+                                <Text>{key.replace('depth', '')} cm</Text>
+                            </HStack>
+                        </Checkbox>
+                    ))}
             </Flex>
         </Box>
     );

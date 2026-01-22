@@ -4,64 +4,15 @@ import {
   SimpleGrid, Container, Heading, Card, CardBody, Badge,
   VStack, HStack, Icon
 } from '@chakra-ui/react';
-import { useSearchParams } from 'react-router-dom'; // IMPORTANTE: Importar useSearchParams
+import { useSearchParams } from 'react-router-dom';
 import { MdArrowBack, MdSensors, MdBarChart, MdAgriculture } from 'react-icons/md';
-import { getProbes, getFarms, getDeviceHistory, type ReadingHistory } from '../services/api';
+import { getProbes, getFarms, getDeviceHistory } from '../services/api';
 import type { Probe, Farm } from '../types';
-import { SoilMoistureChart } from '../components/SoilMoistureChart/SoilMoistureChart';
+import { SoilMoistureChart, type RawApiData } from '../components/SoilMoistureChart/SoilMoistureChart';
 import { COLORS } from '../colors/colors';
 import { SatelliteMap, type MapPoint } from '../components/SatelliteMap/SatelliteMap';
 
-interface ChartDataPoint {
-  time: string;
-  [key: string]: string | number;
-}
-
-// Helper para processar e separar os dados (Mantido igual)
-function processReadingsToChartData(readings: ReadingHistory[]) {
-  const groupedMoisture: Record<string, ChartDataPoint> = {};
-  const groupedTemp: Record<string, ChartDataPoint> = {};
-
-  readings.forEach((r) => {
-    const dateObj = new Date(r.timestamp);
-    const timeKey = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const depthKey = `depth${Math.round(r.depth_cm)}`;
-
-    if (r.moisture_pct !== null && r.moisture_pct !== undefined) {
-      if (!groupedMoisture[timeKey]) {
-        groupedMoisture[timeKey] = { time: timeKey };
-      }
-      groupedMoisture[timeKey][depthKey] = r.moisture_pct;
-    }
-
-    if (r.temperature_c !== null && r.temperature_c !== undefined) {
-      if (!groupedTemp[timeKey]) {
-        groupedTemp[timeKey] = { time: timeKey };
-      }
-      groupedTemp[timeKey][depthKey] = r.temperature_c;
-    }
-  });
-
-  const sorter = (a: ChartDataPoint, b: ChartDataPoint) => {
-    const [dateA, timeA] = a.time.split(' ');
-    const [d1, m1, y1] = dateA.split('/').map(Number);
-    const [h1, min1] = timeA.split(':').map(Number);
-
-    const [dateB, timeB] = b.time.split(' ');
-    const [d2, m2, y2] = dateB.split('/').map(Number);
-    const [h2, min2] = timeB.split(':').map(Number);
-
-    return new Date(y1, m1 - 1, d1, h1, min1).getTime() - new Date(y2, m2 - 1, d2, h2, min2).getTime();
-  };
-
-  return {
-    moisture: Object.values(groupedMoisture).sort(sorter),
-    temperature: Object.values(groupedTemp).sort(sorter)
-  };
-}
-
 export function Dashboard() {
-  // Controle de estado via URL para corrigir a navegação do header
   const [searchParams, setSearchParams] = useSearchParams();
   const probeIdParam = searchParams.get('probeId');
 
@@ -69,16 +20,15 @@ export function Dashboard() {
   const [farms, setFarms] = useState<Farm[]>([]);
   const [selectedFarm] = useState<Farm | null>(null);
 
-  // Estados dos gráficos
-  const [moistureData, setMoistureData] = useState<ChartDataPoint[]>([]);
-  const [temperatureData, setTemperatureData] = useState<ChartDataPoint[]>([]);
+  // Armazena TODOS os dados brutos (Temp + Umidade misturados)
+  // O componente de gráfico filtrará o que precisa
+  const [chartData, setChartData] = useState<RawApiData[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [loadingChart, setLoadingChart] = useState(false);
   const toast = useToast();
   const isMountedRef = useRef(true);
 
-  // Determina modo e sonda selecionada com base na URL
   const selectedProbe = useMemo(() => {
     if (!probeIdParam) return null;
     return probes.find(p => p.id === Number(probeIdParam)) || null;
@@ -96,17 +46,14 @@ export function Dashboard() {
     return probes.filter(probe => probe.farm_id === selectedFarm.id);
   }, [selectedFarm, probes]);
 
-  // Ao clicar no mapa ou card, atualizamos a URL
   const handleMapGraphClick = (deviceId: number) => {
     setSearchParams({ probeId: String(deviceId) });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Ao voltar, limpamos a URL -> isso ativa o modo Mapa automaticamente
   const handleBackToMap = () => {
     setSearchParams({});
-    setMoistureData([]);
-    setTemperatureData([]);
+    setChartData([]);
   };
 
   const mapPoints: MapPoint[] = useMemo(() => {
@@ -163,15 +110,13 @@ export function Dashboard() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // --- Carregamento de Histórico (Dispara quando a URL muda para chart) ---
   useEffect(() => {
     if (!selectedProbe || viewMode !== 'chart') return;
 
     const fetchFullHistory = async () => {
       try {
         setLoadingChart(true);
-        setMoistureData([]);
-        setTemperatureData([]);
+        setChartData([]);
 
         const now = new Date();
         const cutoffDate = new Date();
@@ -198,11 +143,17 @@ export function Dashboard() {
         if (!isMountedRef.current) return;
 
         const allReadings = [...olderHistory, ...recentHistory];
-        const processedData = processReadingsToChartData(allReadings);
+
+        // Mapeia para garantir compatibilidade com a interface RawApiData
+        const formattedData: RawApiData[] = allReadings.map(r => ({
+          timestamp: r.timestamp,
+          depth_cm: r.depth_cm,
+          moisture_pct: r.moisture_pct, // pode ser null
+          temperature_c: r.temperature_c // pode ser null
+        }));
 
         if (isMountedRef.current) {
-          setMoistureData(processedData.moisture);
-          setTemperatureData(processedData.temperature);
+          setChartData(formattedData);
         }
 
       } catch (error) {
@@ -246,8 +197,6 @@ export function Dashboard() {
 
   return (
     <Box minH="100vh" bg={COLORS.background} pb={10}>
-
-      {/* --- MODO MAPA --- */}
       {viewMode === 'map' && (
         <>
           <Container maxW="container.xl" p={0} mt={6} borderRadius="xl" overflow="hidden" boxShadow="2xl">
@@ -331,7 +280,6 @@ export function Dashboard() {
         </>
       )}
 
-      {/* --- MODO GRÁFICO --- */}
       {viewMode === 'chart' && selectedProbe && (
         <Container maxW="container.xl" py={6} minH="100vh">
           <Button
@@ -356,15 +304,16 @@ export function Dashboard() {
             ) : (
               <VStack spacing={8} align="stretch">
 
-                {/* Gráfico 1: Umidade */}
+                {/* GRÁFICO 1: UMIDADE */}
                 <Box bg="gray.900" borderRadius="lg" p={4} minH="400px">
-                  {moistureData.length > 0 ? (
+                  {chartData.length > 0 ? (
                     <SoilMoistureChart
-                      data={moistureData}
+                      data={chartData}
                       title="Perfil de Umidade (%)"
                       unit="%"
                       yDomain={[0, 100]}
                       showZones={true}
+                      metric="moisture" // <--- MODO UMIDADE
                     />
                   ) : (
                     <Flex h="300px" justify="center" align="center">
@@ -373,15 +322,16 @@ export function Dashboard() {
                   )}
                 </Box>
 
-                {/* Gráfico 2: Temperatura */}
+                {/* GRÁFICO 2: TEMPERATURA */}
                 <Box bg="gray.900" borderRadius="lg" p={4} minH="400px">
-                  {temperatureData.length > 0 ? (
+                  {chartData.length > 0 ? (
                     <SoilMoistureChart
-                      data={temperatureData}
+                      data={chartData}
                       title="Perfil de Temperatura (°C)"
                       unit="°C"
                       yDomain={['auto', 'auto']}
                       showZones={false}
+                      metric="temperature" // <--- MODO TEMPERATURA
                     />
                   ) : (
                     <Flex h="300px" justify="center" align="center">
@@ -395,7 +345,6 @@ export function Dashboard() {
           </Box>
         </Container>
       )}
-
     </Box>
   );
 }
