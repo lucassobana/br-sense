@@ -25,8 +25,7 @@ import { MdZoomOutMap, MdSettings } from 'react-icons/md';
 import { COLORS, DEPTH_COLORS } from '../../colors/colors';
 import { MoistureRangeModal } from '../MoistureRangeModal/MoistureRangeModal';
 
-// Chave para salvar as configurações no LocalStorage
-const STORAGE_KEY = 'BRSENSE_MOISTURE_RANGES';
+// REMOVIDO: const STORAGE_KEY fixa. Agora será dinâmica dentro do componente.
 
 export interface RawApiData {
     timestamp: string;
@@ -62,26 +61,32 @@ export function SoilMoistureChart({
         depth10: true, depth20: true, depth30: true, depth40: true, depth50: true, depth60: true,
     });
 
-    // --- CONFIGURAÇÃO DAS ZONAS COM PERSISTÊNCIA ---
-    // 1. Inicializa lendo do LocalStorage (Lazy Initialization)
+    // --- LÓGICA DE STORAGE DINÂMICA ---
+    // Cria uma chave única baseada na métrica (ex: BRSENSE_MOISTURE_RANGES ou BRSENSE_TEMPERATURE_RANGES)
+    const storageKey = `BRSENSE_${metric.toUpperCase()}_RANGES`;
+
+    // Define padrões diferentes dependendo da métrica (opcional, mas melhora a UX)
+    const defaultRanges = metric === 'moisture'
+        ? { min: 45, max: 55 } // Padrão Umidade
+        : { min: 20, max: 30 }; // Padrão Temperatura (exemplo)
+
     const [rangeSettings, setRangeSettings] = useState(() => {
         try {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            return saved ? JSON.parse(saved) : { min: 45, max: 55 };
+            const saved = localStorage.getItem(storageKey);
+            return saved ? JSON.parse(saved) : defaultRanges;
         } catch (error) {
-            console.error("Erro ao carregar configurações de zona:", error);
-            return { min: 45, max: 55 };
+            console.error("Erro ao carregar configurações:", error);
+            return defaultRanges;
         }
     });
 
     const { isOpen, onOpen, onClose } = useDisclosure();
 
-    // 2. Salva no LocalStorage sempre que o range mudar
+    // Salva no LocalStorage correto sempre que mudar
     useEffect(() => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(rangeSettings));
-    }, [rangeSettings]);
+        localStorage.setItem(storageKey, JSON.stringify(rangeSettings));
+    }, [rangeSettings, storageKey]);
 
-    // --- PROCESSAMENTO DE DADOS ---
     const chartData = useMemo(() => {
         if (!data || data.length === 0) return [];
 
@@ -271,8 +276,9 @@ export function SoilMoistureChart({
                 </VStack>
 
                 <HStack spacing={2}>
-                    {metric === 'moisture' && isAdmin && (
-                        <ChakraTooltip>
+                    {/* Botão de Configuração: Agora visível para QUALQUER métrica se for admin */}
+                    {isAdmin && (
+                        <ChakraTooltip label={`Configurar Zonas (${metric === 'moisture' ? 'Umidade' : 'Temperatura'})`} hasArrow>
                             <Button
                                 size="xs"
                                 onClick={onOpen}
@@ -327,6 +333,7 @@ export function SoilMoistureChart({
                             allowDataOverflow
                         />
 
+                        {/* As zonas só aparecem se showZones=true (controlado pelo pai) */}
                         {showZones && (
                             <>
                                 {renderZone(rangeSettings.max, 100, "rgba(52,152,219,0.3)")}

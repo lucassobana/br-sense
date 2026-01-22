@@ -333,7 +333,7 @@ export function Dashboard() {
                       title="Perfil de Temperatura (°C)"
                       unit="°C"
                       yDomain={['auto', 'auto']}
-                      showZones={false}
+                      showZones={true}
                       metric="temperature"
                       isAdmin={userIsAdmin}
                     />
