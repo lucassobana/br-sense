@@ -47,3 +47,30 @@ export const parseJwt = (token: string) => {
         return null;
     }
 };
+
+// Adicione esta função ao final do arquivo ou dentro da classe de Auth
+export const isUserAdmin = (): boolean => {
+    const token = localStorage.getItem('access_token'); // Ou o nome da chave que você usa
+    if (!token) return false;
+
+    try {
+        // Decodifica o payload do JWT (parte do meio)
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function (c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+
+        const payload = JSON.parse(jsonPayload);
+
+        // VERIFICAÇÃO DE ROLE (Ajuste conforme seu backend/Keycloak)
+        // Exemplo Keycloak: realm_access.roles OU resource_access.roles
+        const roles = payload.realm_access?.roles || [];
+
+        // Verifica se a role 'admin' ou 'superuser' existe
+        return roles.includes('admin') || roles.includes('administrator');
+
+    } catch {
+        return false;
+    }
+};

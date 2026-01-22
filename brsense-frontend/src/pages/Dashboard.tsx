@@ -11,6 +11,7 @@ import type { Probe, Farm } from '../types';
 import { SoilMoistureChart, type RawApiData } from '../components/SoilMoistureChart/SoilMoistureChart';
 import { COLORS } from '../colors/colors';
 import { SatelliteMap, type MapPoint } from '../components/SatelliteMap/SatelliteMap';
+import { isUserAdmin } from '../services/auth';
 
 export function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -28,6 +29,7 @@ export function Dashboard() {
   const [loadingChart, setLoadingChart] = useState(false);
   const toast = useToast();
   const isMountedRef = useRef(true);
+  const userIsAdmin = isUserAdmin();
 
   const selectedProbe = useMemo(() => {
     if (!probeIdParam) return null;
@@ -313,7 +315,8 @@ export function Dashboard() {
                       unit="%"
                       yDomain={[0, 100]}
                       showZones={true}
-                      metric="moisture" // <--- MODO UMIDADE
+                      metric="moisture"
+                      isAdmin={userIsAdmin}
                     />
                   ) : (
                     <Flex h="300px" justify="center" align="center">
@@ -331,7 +334,8 @@ export function Dashboard() {
                       unit="°C"
                       yDomain={['auto', 'auto']}
                       showZones={false}
-                      metric="temperature" // <--- MODO TEMPERATURA
+                      metric="temperature"
+                      isAdmin={userIsAdmin}
                     />
                   ) : (
                     <Flex h="300px" justify="center" align="center">
