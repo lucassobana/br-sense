@@ -25,8 +25,6 @@ import { MdZoomOutMap, MdSettings } from 'react-icons/md';
 import { COLORS, DEPTH_COLORS } from '../../colors/colors';
 import { MoistureRangeModal } from '../MoistureRangeModal/MoistureRangeModal';
 
-// REMOVIDO: const STORAGE_KEY fixa. Agora será dinâmica dentro do componente.
-
 export interface RawApiData {
     timestamp: string;
     depth_cm: number;
@@ -62,13 +60,11 @@ export function SoilMoistureChart({
     });
 
     // --- LÓGICA DE STORAGE DINÂMICA ---
-    // Cria uma chave única baseada na métrica (ex: BRSENSE_MOISTURE_RANGES ou BRSENSE_TEMPERATURE_RANGES)
     const storageKey = `BRSENSE_${metric.toUpperCase()}_RANGES`;
 
-    // Define padrões diferentes dependendo da métrica (opcional, mas melhora a UX)
     const defaultRanges = metric === 'moisture'
-        ? { min: 45, max: 55 } // Padrão Umidade
-        : { min: 20, max: 30 }; // Padrão Temperatura (exemplo)
+        ? { min: 45, max: 55 }
+        : { min: 20, max: 30 };
 
     const [rangeSettings, setRangeSettings] = useState(() => {
         try {
@@ -82,7 +78,6 @@ export function SoilMoistureChart({
 
     const { isOpen, onOpen, onClose } = useDisclosure();
 
-    // Salva no LocalStorage correto sempre que mudar
     useEffect(() => {
         localStorage.setItem(storageKey, JSON.stringify(rangeSettings));
     }, [rangeSettings, storageKey]);
@@ -276,7 +271,6 @@ export function SoilMoistureChart({
                 </VStack>
 
                 <HStack spacing={2}>
-                    {/* Botão de Configuração: Agora visível para QUALQUER métrica se for admin */}
                     {isAdmin && (
                         <ChakraTooltip label={`Configurar Zonas (${metric === 'moisture' ? 'Umidade' : 'Temperatura'})`} hasArrow>
                             <Button
@@ -333,7 +327,6 @@ export function SoilMoistureChart({
                             allowDataOverflow
                         />
 
-                        {/* As zonas só aparecem se showZones=true (controlado pelo pai) */}
                         {showZones && (
                             <>
                                 {renderZone(rangeSettings.max, 100, "rgba(52,152,219,0.3)")}
@@ -364,7 +357,21 @@ export function SoilMoistureChart({
                             stroke="#3182ce"
                             startIndex={range.startIndex}
                             endIndex={range.endIndex}
-                            tickFormatter={() => ''}
+                            tickFormatter={(value) => {
+                                try {
+                                    const d = new Date(value);
+                                    if (isNaN(d.getTime())) return '';
+
+                                    const day = String(d.getDate()).padStart(2, '0');
+                                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                                    const hour = String(d.getHours()).padStart(2, '0');
+                                    const min = String(d.getMinutes()).padStart(2, '0');
+
+                                    return `${day}/${month} ${hour}:${min}`;
+                                } catch {
+                                    return '';
+                                }
+                            }}
                             onChange={(r) => {
                                 const range = r as { startIndex?: number, endIndex?: number };
                                 if (typeof range?.startIndex === 'number' && typeof range?.endIndex === 'number') {
