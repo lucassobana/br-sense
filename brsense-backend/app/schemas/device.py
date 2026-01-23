@@ -22,6 +22,9 @@ class DeviceRead(BaseModel):
     farm_id: Optional[int] = None 
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    
+    config_moisture_min: Optional[int] = 45
+    config_moisture_max: Optional[int] = 55
 
     readings: List[DeviceReadingSchema] = [] 
 
@@ -33,6 +36,8 @@ class DeviceUpdate(BaseModel):
     farm_id: Optional[int] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    config_moisture_min: Optional[int] = None
+    config_moisture_max: Optional[int] = None
     
 class DeviceCreate(BaseModel):
     esn: str
@@ -40,3 +45,5 @@ class DeviceCreate(BaseModel):
     name: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    config_moisture_min: Optional[int] = 45
+    config_moisture_max: Optional[int] = 55

@@ -102,3 +102,11 @@ export const getUserFarms = async () => {
   const response = await api.get<import('../types').Farm[]>('/api/farms');
   return response.data;
 };
+
+export const updateDeviceConfig = async (esn: string, min: number, max: number) => {
+  const response = await api.patch(`/api/devices/${esn}`, {
+    config_moisture_min: min,
+    config_moisture_max: max
+  });
+  return response.data;
+};

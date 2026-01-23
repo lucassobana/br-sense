@@ -6,7 +6,7 @@ export interface Measurement {
   timestamp: string;
 
   value?: number;
-  sensor_index?: number; 
+  sensor_index?: number;
 }
 
 export interface Probe {
@@ -23,6 +23,8 @@ export interface Probe {
   farm_id?: number;
   latitude?: number;
   longitude?: number;
+  config_moisture_min?: number;
+  config_moisture_max?: number;
 }
 
 export interface Farm {

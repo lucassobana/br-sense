@@ -317,6 +317,10 @@ export function Dashboard() {
                       showZones={true}
                       metric="moisture"
                       isAdmin={userIsAdmin}
+                      esn={selectedProbe.esn}
+                      initialMin={selectedProbe.config_moisture_min ?? 45}
+                      initialMax={selectedProbe.config_moisture_max ?? 55}
+                      onConfigUpdate={() => loadData()}
                     />
                   ) : (
                     <Flex h="300px" justify="center" align="center">

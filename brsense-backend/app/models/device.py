@@ -1,7 +1,7 @@
 # app/models/device.py
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
-from sqlalchemy import String, DateTime, ForeignKey, Float # <--- Adicionado Float
+from sqlalchemy import String, DateTime, ForeignKey, Float, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.models.device_config import DeviceConfig
@@ -18,7 +18,9 @@ class Device(Base):
     name: Mapped[str] = mapped_column(String(64), nullable=True)
     location: Mapped[str] = mapped_column(String(128), nullable=True)
     
-    # NOVAS COLUNAS (Latitude e Longitude)
+    config_moisture_min = mapped_column(Integer, default=45, nullable=True)
+    config_moisture_max = mapped_column(Integer, default=55, nullable=True)
+    
     latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 

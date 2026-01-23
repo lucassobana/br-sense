@@ -9,7 +9,8 @@ import {
     Button,
     Icon,
     useDisclosure,
-    Tooltip as ChakraTooltip
+    Tooltip as ChakraTooltip,
+    useToast
 } from '@chakra-ui/react';
 import {
     LineChart,
@@ -24,6 +25,7 @@ import {
 import { MdZoomOutMap, MdSettings } from 'react-icons/md';
 import { COLORS, DEPTH_COLORS } from '../../colors/colors';
 import { MoistureRangeModal } from '../MoistureRangeModal/MoistureRangeModal';
+import { updateDeviceConfig } from '../../services/api';
 
 export interface RawApiData {
     timestamp: string;
@@ -45,6 +47,10 @@ interface ChartProps {
     showZones?: boolean;
     metric?: 'moisture' | 'temperature';
     isAdmin?: boolean;
+    esn?: string;
+    initialMin?: number;
+    initialMax?: number;
+    onConfigUpdate?: () => void;
 }
 
 export function SoilMoistureChart({
@@ -53,8 +59,41 @@ export function SoilMoistureChart({
     yDomain = [0, 100],
     showZones = true,
     metric = 'moisture',
-    isAdmin = false
+    isAdmin = false,
+    esn,
+    initialMin = 45,
+    initialMax = 55,
+    onConfigUpdate
 }: ChartProps) {
+
+    const toast = useToast();
+
+    // Função chamada quando o usuário clica em "Aplicar" no Modal
+    const handleSaveConfig = async (newRanges: { min: number; max: number }) => {
+        // 1. Atualiza visualmente na hora
+        setRangeSettings(newRanges);
+
+        // 2. Salva no Backend se tiver ID
+        if (esn && isAdmin) {
+            try {
+                await updateDeviceConfig(esn, newRanges.min, newRanges.max);
+                toast({
+                    title: "Configuração salva!",
+                    status: "success",
+                    duration: 2000,
+                    isClosable: true,
+                });
+                if (onConfigUpdate) onConfigUpdate();
+            } catch (error) {
+                console.error(error);
+                toast({
+                    title: "Erro ao salvar",
+                    description: "Não foi possível persistir a configuração.",
+                    status: "error",
+                });
+            }
+        }
+    };
     const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
         depth10: true, depth20: true, depth30: true, depth40: true, depth50: true, depth60: true,
     });
@@ -79,8 +118,8 @@ export function SoilMoistureChart({
     const { isOpen, onOpen, onClose } = useDisclosure();
 
     useEffect(() => {
-        localStorage.setItem(storageKey, JSON.stringify(rangeSettings));
-    }, [rangeSettings, storageKey]);
+        setRangeSettings({ min: initialMin, max: initialMax });
+    }, [initialMin, initialMax]);
 
     const chartData = useMemo(() => {
         if (!data || data.length === 0) return [];
@@ -257,7 +296,7 @@ export function SoilMoistureChart({
                 isOpen={isOpen}
                 onClose={onClose}
                 initialRanges={rangeSettings}
-                onSave={setRangeSettings}
+                onSave={handleSaveConfig}
             />
 
             <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={2}>
