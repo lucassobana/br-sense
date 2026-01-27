@@ -201,11 +201,22 @@ export function Dashboard() {
     <Box minH="100vh" bg={COLORS.background} pb={10}>
       {viewMode === 'map' && (
         <>
-          <Container maxW="container.xl" p={0} mt={6} borderRadius="xl" overflow="hidden" boxShadow="2xl">
-            <Box w="100%" h="80vh" position="relative" bg="black">
-              <SatelliteMap points={mapPoints} onViewGraph={handleMapGraphClick} />
+          <Box
+            w="100%"
+            mt={6}
+            pr={6}
+            pl={6}
+            borderRadius="xl"
+            overflow="hidden"
+            boxShadow="2xl"
+          >
+            <Box w="100%" h="90vh" position="relative" bg="black">
+              <SatelliteMap
+                points={mapPoints}
+                onViewGraph={handleMapGraphClick}
+              />
             </Box>
-          </Container>
+          </Box>
 
           <Container maxW="container.xl" mt={8} mb={10}>
             <Heading size="md" mb={6} color={COLORS.textPrimary} borderLeft="4px solid" borderColor="blue.500" pl={3}>

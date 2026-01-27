@@ -208,7 +208,7 @@ const MapControls = ({ onLocationFound }: { onLocationFound: (pos: [number, numb
 
 export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     points,
-    center = [-15.793889, -47.882778],
+    center = [-22.4319, -46.9578],
     zoom = 13,
     onViewGraph
 }) => {

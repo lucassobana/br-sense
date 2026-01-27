@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { Box, Flex } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
-import { Header } from '../Header/Header';
+import { Sidebar } from '../Sidebar/Sidebar';
 import { COLORS } from '../../colors/colors';
 
 interface LayoutProps {
@@ -13,23 +13,27 @@ export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // REGRA DE SEGURANÇA:
-    // Verifica se o usuário tem o token de acesso.
     const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-
     if (!token) {
-      // Se não estiver logado, redireciona imediatamente para o login
-      navigate('/login'); // Garanta que a rota de login é '/login'
+      navigate('/login');
     }
   }, [navigate]);
 
   return (
-    <Flex direction="column" minH="100vh" bg={COLORS.background}>
-      {/* Removemos o 'onOpen={...}' pois o Header não precisa mais dele */}
-      <Header />
+    <Flex minH="100vh" bg={COLORS.background}>
+      <Sidebar />
 
-      {/* O conteúdo da página */}
-      <Box flex="1" p={{ base: 4, md: 6 }}>
+      {/* marginLeft fixo em 80px (tamanho da sidebar recolhida) 
+          para que o conteúdo não se mova quando a sidebar expandir por cima 
+      */}
+      <Box
+        flex="1"
+        ml="80px"
+        h="100vh"
+        overflowY="auto"
+        // p={{ base: 4, md: 6 }}
+        p={0}
+      >
         {children}
       </Box>
     </Flex>

@@ -41,45 +41,61 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
     const [isDragging, setIsDragging] = useState<'val1' | 'val2' | null>(null);
     const trackRef = useRef<HTMLDivElement>(null);
 
-    // REF PATTERN: 
-    // Guardamos os valores em refs para acessá-los dentro do event listener
-    // sem precisar recriar a função handleMouseMove a cada renderização.
+    // Refs para acesso dentro dos event listeners
     const valuesRef = useRef({ val1, val2 });
 
-    // Mantém as refs sincronizadas com o estado visual
     useEffect(() => {
         valuesRef.current = { val1, val2 };
     }, [val1, val2]);
 
-    // Reseta os valores quando o modal abre (Correção do Erro 1)
     useEffect(() => {
         if (isOpen) {
             setVal1(initialRanges.min);
             setVal2(initialRanges.max);
         }
-        // Removemos 'initialRanges' das deps para evitar reset se a prop mudar enquanto edita
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);
 
-    const handleMouseDown = (thumb: 'val1' | 'val2') => {
+    // --- LÓGICA DE EVENTOS HÍBRIDA (MOUSE + TOUCH) ---
+
+    // 1. Iniciar o arraste (Funciona para MouseDown e TouchStart)
+    const handleStartDrag = (thumb: 'val1' | 'val2') => {
         setIsDragging(thumb);
     };
 
-    // Effect separado para gerenciar os listeners globais (Correção do Erro 2)
     useEffect(() => {
         if (!isDragging) return;
 
-        const onMove = (e: MouseEvent) => {
+        // 2. Helper para pegar a posição X independente do dispositivo
+        const getClientX = (e: MouseEvent | TouchEvent) => {
+            if ('touches' in e) {
+                return e.touches[0].clientX;
+            }
+            return (e as MouseEvent).clientX;
+        };
+
+        const onMove = (e: MouseEvent | TouchEvent) => {
+            // Previne scroll da tela enquanto arrasta no mobile
+            if (e.type === 'touchmove') {
+                // Não previne default se for mouse, pois pode travar seleções
+                // Mas no touch é essencial
+                // e.preventDefault(); // (Opcional, depende do comportamento desejado, mas ajuda)
+            }
+
             if (!trackRef.current) return;
 
+            const clientX = getClientX(e);
             const rect = trackRef.current.getBoundingClientRect();
-            const offsetX = e.clientX - rect.left;
+
+            // Cálculo da posição relativa
+            const offsetX = clientX - rect.left;
             let percent = (offsetX / rect.width) * 100;
+
+            // Limites (0 a 100)
             percent = Math.max(0, Math.min(100, percent));
             const newVal = Math.round(percent);
             const margin = 5;
 
-            // Lemos os valores atuais das refs para colisão
             const { val1: v1, val2: v2 } = valuesRef.current;
 
             if (isDragging === 'val1') {
@@ -93,14 +109,21 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
             setIsDragging(null);
         };
 
+        // Adiciona listeners para AMBOS (Mouse e Touch)
         window.addEventListener('mousemove', onMove);
         window.addEventListener('mouseup', onUp);
+
+        // Listeners Mobile (passive: false permite usar preventDefault se necessário)
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('touchend', onUp);
 
         return () => {
             window.removeEventListener('mousemove', onMove);
             window.removeEventListener('mouseup', onUp);
+            window.removeEventListener('touchmove', onMove);
+            window.removeEventListener('touchend', onUp);
         };
-    }, [isDragging]); // Depende apenas de isDragging iniciar ou parar
+    }, [isDragging]);
 
     const handleSave = () => {
         onSave({ min: val1, max: val2 });
@@ -113,19 +136,28 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} size="xl" isCentered motionPreset="slideInBottom">
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            // Responsividade: Fullscreen no mobile, XL no desktop
+            size={{ base: "full", md: "xl" }}
+            isCentered
+            motionPreset="slideInBottom"
+        >
             <ModalOverlay backdropFilter="blur(8px)" bg="blackAlpha.700" />
             <ModalContent
                 bg={cardDark}
                 color="white"
-                borderRadius="2xl"
-                border="1px solid"
+                borderRadius={{ base: 0, md: "2xl" }} // Sem borda arredondada no mobile (fullscreen)
+                border={{ base: "none", md: "1px solid" }}
                 borderColor="whiteAlpha.200"
                 boxShadow="2xl"
                 overflow="hidden"
             >
+                {/* Header Responsivo */}
                 <Flex
-                    px={8} py={6}
+                    px={{ base: 4, md: 8 }}
+                    py={{ base: 4, md: 6 }}
                     borderBottom="1px solid"
                     borderColor="whiteAlpha.100"
                     justify="space-between"
@@ -134,7 +166,7 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
                     <Box>
                         <HStack spacing={2} mb={1}>
                             <Icon as={MdWaterDrop} color={COLORS.status} boxSize={6} />
-                            <Text fontSize="lg" fontWeight="bold">Configuração de Zonas</Text>
+                            <Text fontSize={{ base: "md", md: "lg" }} fontWeight="bold">Configuração de Zonas</Text>
                         </HStack>
                         <Text fontSize="xs" color="gray.400">Ajuste os limites arrastando os marcadores</Text>
                     </Box>
@@ -143,15 +175,23 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
                     </Box>
                 </Flex>
 
-                <ModalBody p={8}>
-                    <Flex justify="space-between" align="flex-end" mb={12} gap={2}>
-                        <VStack align="flex-start" spacing={2}>
+                <ModalBody p={{ base: 4, md: 8 }}>
+                    {/* Visualização dos Valores - Stack vertical no mobile, Horizontal no PC */}
+                    <Flex
+                        direction={{ base: "column", sm: "row" }}
+                        justify="space-between"
+                        align={{ base: "stretch", sm: "flex-end" }}
+                        mb={12}
+                        gap={4}
+                    >
+                        {/* Box Seco */}
+                        <VStack align={{ base: "center", sm: "flex-start" }} spacing={2} flex={1}>
                             <HStack spacing={1.5}>
                                 <Box w={2} h={2} borderRadius="full" bg={redColor} />
                                 <Text fontSize="xs" fontWeight="bold" color={redColor} letterSpacing="wider" textTransform="uppercase">Seco</Text>
                             </HStack>
-                            <Box bg={bgDark} px={4} py={2} borderRadius="lg" border="1px solid" borderColor="whiteAlpha.200">
-                                <Text fontSize="xl" fontWeight="bold">
+                            <Box w="full" bg={bgDark} px={4} py={2} borderRadius="lg" border="1px solid" borderColor="whiteAlpha.200" textAlign="center">
+                                <Text fontSize={{ base: "lg", md: "xl" }} fontWeight="bold">
                                     0<Text as="span" fontSize="sm" color="gray.500" ml={0.5}>%</Text>
                                     <Text as="span" mx={2} color="gray.600">—</Text>
                                     {val1}<Text as="span" fontSize="sm" color="gray.500" ml={0.5}>%</Text>
@@ -159,13 +199,14 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
                             </Box>
                         </VStack>
 
-                        <VStack align="center" spacing={2}>
+                        {/* Box Ideal */}
+                        <VStack align="center" spacing={2} flex={1}>
                             <HStack spacing={1.5}>
                                 <Box w={2} h={2} borderRadius="full" bg={greenColor} />
                                 <Text fontSize="xs" fontWeight="bold" color={greenColor} letterSpacing="wider" textTransform="uppercase">Ideal</Text>
                             </HStack>
-                            <Box bg={bgDark} px={4} py={2} borderRadius="lg" border="1px solid" borderColor="whiteAlpha.200">
-                                <Text fontSize="xl" fontWeight="bold">
+                            <Box w="full" bg={bgDark} px={4} py={2} borderRadius="lg" border="1px solid" borderColor="whiteAlpha.200" textAlign="center">
+                                <Text fontSize={{ base: "lg", md: "xl" }} fontWeight="bold">
                                     {val1}
                                     <Text as="span" mx={2} color="gray.600">—</Text>
                                     {val2}<Text as="span" fontSize="sm" color="gray.500" ml={0.5}>%</Text>
@@ -173,13 +214,14 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
                             </Box>
                         </VStack>
 
-                        <VStack align="flex-end" spacing={2}>
+                        {/* Box Saturado */}
+                        <VStack align={{ base: "center", sm: "flex-end" }} spacing={2} flex={1}>
                             <HStack spacing={1.5}>
                                 <Box w={2} h={2} borderRadius="full" bg={blueColor} />
                                 <Text fontSize="xs" fontWeight="bold" color={blueColor} letterSpacing="wider" textTransform="uppercase">Saturado</Text>
                             </HStack>
-                            <Box bg={bgDark} px={4} py={2} borderRadius="lg" border="1px solid" borderColor="whiteAlpha.200">
-                                <Text fontSize="xl" fontWeight="bold">
+                            <Box w="full" bg={bgDark} px={4} py={2} borderRadius="lg" border="1px solid" borderColor="whiteAlpha.200" textAlign="center">
+                                <Text fontSize={{ base: "lg", md: "xl" }} fontWeight="bold">
                                     {val2}
                                     <Text as="span" mx={2} color="gray.600">—</Text>
                                     100<Text as="span" fontSize="sm" color="gray.500" ml={0.5}>%</Text>
@@ -188,7 +230,8 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
                         </VStack>
                     </Flex>
 
-                    <Box position="relative" py={4} px={2} userSelect="none">
+                    {/* SLIDER AREA */}
+                    <Box position="relative" py={6} px={2} userSelect="none" sx={{ touchAction: 'none' }}>
                         <Box
                             ref={trackRef}
                             h="12px"
@@ -198,47 +241,64 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
                             position="relative"
                             boxShadow="inner"
                         >
+                            {/* Faixas coloridas */}
                             <Box position="absolute" top={0} bottom={0} left={0} width={`${val1}%`} bg={redColor} opacity={0.8} borderLeftRadius="full" />
                             <Box position="absolute" top={0} bottom={0} left={`${val1}%`} width={`${val2 - val1}%`} bg={greenColor} opacity={0.8} />
                             <Box position="absolute" top={0} bottom={0} left={`${val2}%`} right={0} bg={blueColor} opacity={0.8} borderRightRadius="full" />
                         </Box>
 
+                        {/* Botão 1 (Esquerda) */}
                         <Box
                             position="absolute"
                             top="50%"
                             left={`${val1}%`}
                             transform="translate(-50%, -50%)"
                             zIndex={2}
-                            cursor={isDragging === 'val1' ? 'grabbing' : 'grab'}
-                            onMouseDown={() => handleMouseDown('val1')}
-                            _active={{ transform: "translate(-50%, -50%) scale(1.1)" }}
+                            cursor="grab"
+                            // Suporte a Mouse e Touch
+                            onMouseDown={() => handleStartDrag('val1')}
+                            onTouchStart={() => handleStartDrag('val1')}
+                            _active={{ transform: "translate(-50%, -50%) scale(1.1)", cursor: 'grabbing' }}
                             transition="transform 0.1s"
+                            // Aumenta a área de toque invisível para facilitar no mobile
+                            p={3}
+                            m={-3}
                         >
+                            {/* O Círculo visível */}
                             <Box w="24px" h="24px" bg="white" borderRadius="full" border="2px solid" borderColor="gray.500" boxShadow="lg" />
-                            <Box position="absolute" top="-40px" left="50%" transform="translateX(-50%)" bg="gray.700" px={2} py={1} borderRadius="md" boxShadow="md">
+
+                            {/* Tooltip do valor */}
+                            <Box position="absolute" top="-25px" left="50%" transform="translateX(-50%)" bg="gray.700" px={2} py={1} borderRadius="md" boxShadow="md" pointerEvents="none">
                                 <Text fontSize="xs" fontWeight="bold" color="white">{val1}%</Text>
                                 <Box position="absolute" bottom="-4px" left="50%" transform="translateX(-50%)" w={0} h={0} borderLeft="4px solid transparent" borderRight="4px solid transparent" borderTop="4px solid" borderTopColor="gray.700" />
                             </Box>
                         </Box>
 
+                        {/* Botão 2 (Direita) */}
                         <Box
                             position="absolute"
                             top="50%"
                             left={`${val2}%`}
                             transform="translate(-50%, -50%)"
                             zIndex={2}
-                            cursor={isDragging === 'val2' ? 'grabbing' : 'grab'}
-                            onMouseDown={() => handleMouseDown('val2')}
-                            _active={{ transform: "translate(-50%, -50%) scale(1.1)" }}
+                            cursor="grab"
+                            // Suporte a Mouse e Touch
+                            onMouseDown={() => handleStartDrag('val2')}
+                            onTouchStart={() => handleStartDrag('val2')}
+                            _active={{ transform: "translate(-50%, -50%) scale(1.1)", cursor: 'grabbing' }}
                             transition="transform 0.1s"
+                            // Aumenta a área de toque
+                            p={3}
+                            m={-3}
                         >
                             <Box w="24px" h="24px" bg="white" borderRadius="full" border="2px solid" borderColor="gray.500" boxShadow="lg" />
-                            <Box position="absolute" top="-40px" left="50%" transform="translateX(-50%)" bg="gray.700" px={2} py={1} borderRadius="md" boxShadow="md">
+                            <Box position="absolute" top="-25px" left="50%" transform="translateX(-50%)" bg="gray.700" px={2} py={1} borderRadius="md" boxShadow="md" pointerEvents="none">
                                 <Text fontSize="xs" fontWeight="bold" color="white">{val2}%</Text>
                                 <Box position="absolute" bottom="-4px" left="50%" transform="translateX(-50%)" w={0} h={0} borderLeft="4px solid transparent" borderRight="4px solid transparent" borderTop="4px solid" borderTopColor="gray.700" />
                             </Box>
                         </Box>
 
+                        {/* Régua de % */}
                         <Flex justify="space-between" mt={4} px={1}>
                             {[0, 25, 50, 75, 100].map(val => (
                                 <Text key={val} fontSize="xs" fontWeight="bold" color="gray.500">{val}%</Text>
@@ -247,10 +307,22 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
                     </Box>
                 </ModalBody>
 
-                <Flex px={8} py={5} bg="whiteAlpha.50" justify="space-between" align="center" borderTop="1px solid" borderColor="whiteAlpha.100">
+                {/* Footer Responsivo */}
+                <Flex
+                    px={{ base: 4, md: 8 }}
+                    py={5}
+                    bg="whiteAlpha.50"
+                    direction={{ base: "column-reverse", sm: "row" }} // Botões empilhados no mobile
+                    justify="space-between"
+                    align="center"
+                    borderTop="1px solid"
+                    borderColor="whiteAlpha.100"
+                    gap={3}
+                >
                     <Button
                         variant="ghost"
                         size="sm"
+                        w={{ base: "100%", sm: "auto" }}
                         color="gray.400"
                         _hover={{ color: "white", bg: "whiteAlpha.100" }}
                         leftIcon={<Icon as={MdRestartAlt} />}
@@ -258,10 +330,11 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
                     >
                         Restaurar Padrões
                     </Button>
-                    <HStack spacing={3}>
+                    <HStack spacing={3} w={{ base: "100%", sm: "auto" }} justify="flex-end">
                         <Button
                             variant="ghost"
                             size="sm"
+                            flex={{ base: 1, sm: "none" }}
                             color="gray.300"
                             onClick={onClose}
                             _hover={{ bg: "whiteAlpha.100" }}
@@ -271,6 +344,7 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
                         <Button
                             colorScheme="blue"
                             size="sm"
+                            flex={{ base: 1, sm: "none" }}
                             px={6}
                             onClick={handleSave}
                             boxShadow="lg"
