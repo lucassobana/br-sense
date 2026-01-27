@@ -15,10 +15,10 @@ export const COLORS = {
 };
 
 export const DEPTH_COLORS = {
-    depth10: "#82aaff", // 10cm
-    depth20: "#79e2c6", // 20cm
-    depth30: "#ffc98a", // 30cm
-    depth40: "#c7a9ff", // 40cm
-    depth50: "#ffa9a9", // 50cm
-    depth60: "#ff7070", // 60cm
+  depth10: "#ffffff",  // 60cm (vermelho mais intenso)
+  depth20: "#00f5b8", // verde intenso
+  depth30: "#4FC3F7", // laranja escuro vibrante
+  depth40: "#e375f7", // roxo profundo e vivo
+  depth50: "#FDD835", // rosa/vermelho forte
+  depth60: "#f52d2d", // azul escuro vivo
 };

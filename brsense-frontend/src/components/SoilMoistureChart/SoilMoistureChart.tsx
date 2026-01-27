@@ -383,9 +383,9 @@ export function SoilMoistureChart({
 
                         {showZones && metric === 'moisture' && (
                             <>
-                                {renderZone(rangeSettings.max, 100, "rgba(52,152,219,0.3)")}
-                                {renderZone(rangeSettings.min, rangeSettings.max, "rgba(76,175,80,0.3)")}
-                                {renderZone(0, rangeSettings.min, "rgba(255,87,87,0.3)")}
+                                {renderZone(rangeSettings.max, 100, "rgba(138, 196, 235, 0.7)")}
+                                {renderZone(rangeSettings.min, rangeSettings.max, "rgba(149, 245, 152, 0.7)")}
+                                {renderZone(0, rangeSettings.min, "rgba(241, 138, 138, 0.7)")}
                             </>
                         )}
 
