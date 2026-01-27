@@ -70,10 +70,7 @@ export function SoilMoistureChart({
 
     // Função chamada quando o usuário clica em "Aplicar" no Modal
     const handleSaveConfig = async (newRanges: { min: number; max: number }) => {
-        // 1. Atualiza visualmente na hora
         setRangeSettings(newRanges);
-
-        // 2. Salva no Backend se tiver ID
         if (esn && isAdmin) {
             try {
                 await updateDeviceConfig(esn, newRanges.min, newRanges.max);
@@ -94,13 +91,12 @@ export function SoilMoistureChart({
             }
         }
     };
+
     const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
         depth10: true, depth20: true, depth30: true, depth40: true, depth50: true, depth60: true,
     });
 
-    // --- LÓGICA DE STORAGE DINÂMICA ---
     const storageKey = `BRSENSE_${metric.toUpperCase()}_RANGES`;
-
     const defaultRanges = metric === 'moisture'
         ? { min: 45, max: 55 }
         : { min: 20, max: 30 };
@@ -121,19 +117,20 @@ export function SoilMoistureChart({
         setRangeSettings({ min: initialMin, max: initialMax });
     }, [initialMin, initialMax]);
 
+    // --- PROCESSAMENTO DOS DADOS (JANELA FIXA DE 30 DIAS) ---
     const chartData = useMemo(() => {
         if (!data || data.length === 0) return [];
 
-        const hourlyMap = new Map<number, {
+        const dailyMap = new Map<number, {
             counts: Record<string, number>;
             sums: Record<string, number>
         }>();
 
+        // 1. Agrupar por Dia (Média Diária)
         data.forEach(item => {
             if (!item.timestamp) return;
 
             const rawValue = metric === 'moisture' ? item.moisture_pct : item.temperature_c;
-
             if (rawValue === null || rawValue === undefined) return;
 
             const val = Number(rawValue);
@@ -142,15 +139,14 @@ export function SoilMoistureChart({
             const date = new Date(item.timestamp);
             if (isNaN(date.getTime())) return;
 
-            const h = date.getHours();
-            date.setHours(h - (h % 2), 0, 0, 0);
-            const hourTs = date.getTime();
+            // Zera horas para agrupar pelo dia (00:00:00)
+            date.setHours(0, 0, 0, 0);
+            const dayTs = date.getTime();
 
-            if (!hourlyMap.has(hourTs)) {
-                hourlyMap.set(hourTs, { counts: {}, sums: {} });
+            if (!dailyMap.has(dayTs)) {
+                dailyMap.set(dayTs, { counts: {}, sums: {} });
             }
-            const group = hourlyMap.get(hourTs)!;
-
+            const group = dailyMap.get(dayTs)!;
             const depthKey = `depth${item.depth_cm}`;
 
             if (DEPTH_COLORS[depthKey as keyof typeof DEPTH_COLORS]) {
@@ -159,35 +155,57 @@ export function SoilMoistureChart({
             }
         });
 
-        const processed = Array.from(hourlyMap.entries())
-            .map(([ts, { sums, counts }]) => {
-                const dateObj = new Date(ts);
+        // 2. Encontrar a data de INÍCIO (primeiro dado disponível)
+        const sortedTs = Array.from(dailyMap.keys()).sort((a, b) => a - b);
+        if (sortedTs.length === 0) return [];
+
+        const firstDateTs = sortedTs[0];
+        const startDate = new Date(firstDateTs);
+
+        // 3. Gerar array fixo de 30 DIAS a partir do início
+        const processed: ChartDataPoint[] = [];
+
+        for (let i = 0; i < 30; i++) {
+            // Data atual = StartDate + i dias
+            const current = new Date(startDate);
+            current.setDate(startDate.getDate() + i);
+            const currentTs = current.getTime();
+
+            if (dailyMap.has(currentTs)) {
+                // Se existe dado neste dia, calcula e adiciona
+                const group = dailyMap.get(currentTs)!;
                 const newItem: ChartDataPoint = {
-                    time: dateObj.toISOString()
+                    time: current.toISOString()
                 };
-
-                Object.keys(sums).forEach(key => {
-                    newItem[key] = sums[key] / counts[key];
+                Object.keys(group.sums).forEach(key => {
+                    newItem[key] = group.sums[key] / group.counts[key];
                 });
-
-                return newItem;
-            })
-            .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+                processed.push(newItem);
+            } else {
+                // Se NÃO existe dado (dia futuro), adiciona apenas o tempo para manter o eixo X
+                // O gráfico vai mostrar o espaço vazio ("falta linha")
+                processed.push({
+                    time: current.toISOString()
+                });
+            }
+        }
 
         return processed;
     }, [data, metric]);
 
     const [range, setRange] = useState({
         startIndex: 0,
-        endIndex: (chartData && chartData.length > 0) ? chartData.length - 1 : 0
+        endIndex: 29 // Padrão: 30 dias (0 a 29)
     });
 
     const [prevDataLength, setPrevDataLength] = useState<number>(data.length);
     const [prevMetric, setPrevMetric] = useState<string>(metric);
 
+    // Reinicia o range se os dados mudarem drasticamente, mas mantendo a janela de 30 dias
     if (data.length !== prevDataLength || metric !== prevMetric) {
         setPrevDataLength(data.length);
         setPrevMetric(metric);
+        // Sempre reseta para ver os 30 dias gerados
         if (chartData.length > 0) {
             setRange({ startIndex: 0, endIndex: chartData.length - 1 });
         } else {
@@ -347,16 +365,13 @@ export function SoilMoistureChart({
                                     const d = new Date(val);
                                     const day = String(d.getDate()).padStart(2, '0');
                                     const month = String(d.getMonth() + 1).padStart(2, '0');
-                                    const year = d.getFullYear();
-                                    const hour = String(d.getHours()).padStart(2, '0');
-                                    const min = String(d.getMinutes()).padStart(2, '0');
-                                    return `${day}/${month}/${year} ${hour}:${min}`;
+                                    return `${day}/${month}`;
                                 } catch { return ''; }
                             }}
                             tick={{ fill: '#6b7280', fontSize: 10 }}
                             axisLine={false}
                             tickLine={false}
-                            minTickGap={60}
+                            minTickGap={30}
                         />
                         <YAxis
                             domain={activeYDomain as [number, number]}
@@ -366,7 +381,7 @@ export function SoilMoistureChart({
                             allowDataOverflow
                         />
 
-                        {showZones && (
+                        {showZones && metric === 'moisture' && (
                             <>
                                 {renderZone(rangeSettings.max, 100, "rgba(52,152,219,0.3)")}
                                 {renderZone(rangeSettings.min, rangeSettings.max, "rgba(76,175,80,0.3)")}
@@ -385,7 +400,7 @@ export function SoilMoistureChart({
                                     dot={false}
                                     activeDot={{ r: 6, fill: color, stroke: '#fff', strokeWidth: 2 }}
                                     isAnimationActive={false}
-                                    connectNulls
+                                    connectNulls={false}
                                 />
                             )
                         ))}
@@ -400,13 +415,9 @@ export function SoilMoistureChart({
                                 try {
                                     const d = new Date(value);
                                     if (isNaN(d.getTime())) return '';
-
                                     const day = String(d.getDate()).padStart(2, '0');
                                     const month = String(d.getMonth() + 1).padStart(2, '0');
-                                    const hour = String(d.getHours()).padStart(2, '0');
-                                    const min = String(d.getMinutes()).padStart(2, '0');
-
-                                    return `${day}/${month} ${hour}:${min}`;
+                                    return `${day}/${month}`;
                                 } catch {
                                     return '';
                                 }

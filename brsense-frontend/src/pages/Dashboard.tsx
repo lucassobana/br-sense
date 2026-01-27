@@ -350,7 +350,6 @@ export function Dashboard() {
                       yDomain={['auto', 'auto']}
                       showZones={true}
                       metric="temperature"
-                      isAdmin={userIsAdmin}
                     />
                   ) : (
                     <Flex h="300px" justify="center" align="center">
