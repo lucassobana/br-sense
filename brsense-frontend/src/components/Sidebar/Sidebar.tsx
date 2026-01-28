@@ -1,4 +1,3 @@
-// brsense-frontend/src/components/Sidebar/Sidebar.tsx
 import {
     Box,
     Flex,
@@ -36,6 +35,7 @@ import brsenseLogo from '../../assets/BRSense_logo.png';
 import { COLORS } from '../../colors/colors';
 
 // --- SUB-COMPONENTE: Conteúdo Interno do Menu ---
+// Extraído para reutilizar no Drawer Mobile e Sidebar Desktop
 const SidebarContent = ({
     isExpanded,
     onItemClick
@@ -63,7 +63,7 @@ const SidebarContent = ({
     return (
         <Flex direction="column" h="100%" justify="space-between">
             <Box>
-                {/* Logo e Título (Desktop) */}
+                {/* Logo e Título (Desktop/Drawer) */}
                 <Flex h="80px" align="center" px={4} overflow="hidden">
                     <HStack spacing={4} minW="200px">
                         <Box
@@ -222,9 +222,6 @@ export function Sidebar() {
                         </Text>
                     </HStack>
                 </HStack>
-
-                {/* Lado Direito: (Opcional - Ex: Avatar ou Notificações) */}
-                {/* Você pode colocar um Avatar aqui se quiser que ele fique visível sem abrir o menu */}
             </Flex>
 
             {/* 2. SIDEBAR DESKTOP (Inalterado) */}

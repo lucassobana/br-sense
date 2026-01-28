@@ -21,6 +21,7 @@ import {
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
 import { loginKeycloak, parseJwt } from '../services/auth'; // Certifique-se de ter criado este arquivo
 import brsenseLogo from '../assets/BRSense_logo.png';
+import { COLORS } from '../colors/colors';
 
 export function Login() {
     const navigate = useNavigate();
@@ -125,14 +126,17 @@ export function Login() {
         <Flex
             minH="100vh"
             w="100%"
-            bg={colors.backgroundDark}
+            bgGradient={{
+                base: "radial(circle at 50% 35%, #0A2540 0%, #0A0A0A 70%)", // mobile
+                md: "radial(circle at center, #0A2540 0%, #0A0A0A 60%)"    // desktop
+            }}
             justify="center"
             align="center"
             fontFamily="'Inter', sans-serif"
         >
             <Container maxW="container.sm" p={4}>
                 <Box
-                    bg={colors.cardBg}
+                    bg={COLORS.background}
                     p={8}
                     borderRadius="2xl"
                     border="1px solid"
@@ -146,7 +150,7 @@ export function Login() {
                         <Flex
                             justify="center"
                             align="center"
-                            bg={colors.iconBg}
+                            bg="white"
                             w="100px"
                             h="100px"
                             borderRadius="2xl"

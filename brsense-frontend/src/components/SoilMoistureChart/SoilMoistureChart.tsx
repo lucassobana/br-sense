@@ -354,7 +354,7 @@ export function SoilMoistureChart({
                 </HStack>
             </Flex>
 
-            <Box h="300px" w="100%" ref={chartContainerRef} cursor="crosshair">
+            <Box h="500px" w="100%" ref={chartContainerRef} cursor="crosshair">
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#3b4754" opacity={0.3} vertical={false} />

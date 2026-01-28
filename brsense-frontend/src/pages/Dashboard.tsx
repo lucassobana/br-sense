@@ -1,11 +1,12 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   Box, Flex, Text, useToast, Spinner, Button,
-  SimpleGrid, Container, Heading, Card, CardBody, Badge,
-  VStack, HStack, Icon
+  Container, Heading, Badge,
+  VStack,
+  Table, Thead, Tbody, Tr, Th, Td, TableContainer
 } from '@chakra-ui/react';
 import { useSearchParams } from 'react-router-dom';
-import { MdArrowBack, MdSensors, MdBarChart, MdAgriculture } from 'react-icons/md';
+import { MdArrowBack, MdBarChart } from 'react-icons/md';
 import { getProbes, getFarms, getDeviceHistory } from '../services/api';
 import type { Probe, Farm } from '../types';
 import { SoilMoistureChart, type RawApiData } from '../components/SoilMoistureChart/SoilMoistureChart';
@@ -22,7 +23,6 @@ export function Dashboard() {
   const [selectedFarm] = useState<Farm | null>(null);
 
   // Armazena TODOS os dados brutos (Temp + Umidade misturados)
-  // O componente de gráfico filtrará o que precisa
   const [chartData, setChartData] = useState<RawApiData[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -146,12 +146,11 @@ export function Dashboard() {
 
         const allReadings = [...olderHistory, ...recentHistory];
 
-        // Mapeia para garantir compatibilidade com a interface RawApiData
         const formattedData: RawApiData[] = allReadings.map(r => ({
           timestamp: r.timestamp,
           depth_cm: r.depth_cm,
-          moisture_pct: r.moisture_pct, // pode ser null
-          temperature_c: r.temperature_c // pode ser null
+          moisture_pct: r.moisture_pct,
+          temperature_c: r.temperature_c
         }));
 
         if (isMountedRef.current) {
@@ -226,75 +225,78 @@ export function Dashboard() {
             {filteredProbes.length === 0 ? (
               <Text color="gray.500" fontStyle="italic">Nenhuma sonda encontrada.</Text>
             ) : (
-              <SimpleGrid columns={{ base: 1, md: 2, lg: 3, xl: 4 }} spacing={6}>
-                {filteredProbes.map((probe) => {
-                  const mapPoint = mapPoints.find(mp => mp.id === probe.id);
-                  const status = mapPoint ? mapPoint.statusCode : 'status_offline';
-                  const farm = farms.find(f => f.id === probe.farm_id);
-                  const farmName = farm ? farm.name : 'Fazenda não definida';
+              <TableContainer bg="gray.800" borderRadius="xl" border="1px solid" borderColor="gray.700" boxShadow="lg">
+                <Table variant="simple" colorScheme="whiteAlpha">
+                  <Thead>
+                    <Tr>
+                      <Th color="gray.400" borderColor="gray.700">ESN</Th>
+                      <Th color="gray.400" borderColor="gray.700">Nome</Th>
+                      <Th color="gray.400" borderColor="gray.700">Fazenda</Th>
+                      <Th color="gray.400" borderColor="gray.700">Status</Th>
+                      <Th color="gray.400" borderColor="gray.700" textAlign="center">Bateria</Th>
+                      <Th color="gray.400" borderColor="gray.700" isNumeric>Ações</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {filteredProbes.map((probe) => {
+                      const mapPoint = mapPoints.find(mp => mp.id === probe.id);
+                      const status = mapPoint ? mapPoint.statusCode : 'status_offline';
+                      const farm = farms.find(f => f.id === probe.farm_id);
+                      const farmName = farm ? farm.name : '-';
 
-                  return (
-                    <Card
-                      key={probe.id}
-                      bg="gray.800"
-                      borderColor="gray.700"
-                      borderWidth="1px"
-                      _hover={{ borderColor: 'blue.500', transform: 'translateY(-2px)', shadow: 'xl' }}
-                      transition="all 0.3s"
-                      cursor="pointer"
-                      onClick={() => handleMapGraphClick(probe.id)}
-                    >
-                      <CardBody>
-                        <Flex justify="space-between" align="start" mb={3}>
-                          <HStack align="start">
-                            <Icon as={MdAgriculture} color="gray.500" boxSize={5} mt={1} />
-                            <VStack align="start" spacing={0}>
-                              <Text fontWeight="bold" fontSize="md" color="white" noOfLines={1}>
-                                {farmName}
-                              </Text>
-                              <Text fontSize="xs" color="blue.300" fontWeight="bold">
-                                {probe.name || probe.esn}
-                              </Text>
-                            </VStack>
-                          </HStack>
-                          <Badge
-                            colorScheme={getStatusColor(status)}
-                            variant="subtle"
-                            borderRadius="md"
-                            px={2}
-                            fontSize="0.65rem"
-                          >
-                            {getStatusLabel(status)}
-                          </Badge>
-                        </Flex>
-
-                        <Text fontSize="xs" color="gray.400" mt={3} borderTop="1px solid" borderColor="gray.700" pt={2}>
-                          <Icon as={MdSensors} mr={1} verticalAlign="middle" />
-                          ESN: {probe.esn}
-                        </Text>
-
-                        <Button
-                          mt={3}
-                          w="full"
-                          size="xs"
-                          variant="solid"
-                          colorScheme="blue"
-                          leftIcon={<MdBarChart />}
+                      return (
+                        <Tr
+                          key={probe.id}
+                          _hover={{ bg: 'whiteAlpha.50' }}
+                          transition="background 0.2s"
                         >
-                          Analisar Gráfico
-                        </Button>
-                      </CardBody>
-                    </Card>
-                  )
-                })}
-              </SimpleGrid>
+                          <Td borderColor="gray.700" fontWeight="medium" color="white">
+                            {probe.esn}
+                          </Td>
+                          <Td borderColor="gray.700" color="gray.300">
+                            {probe.name || '-'}
+                          </Td>
+                          <Td borderColor="gray.700" color="gray.300">
+                            {farmName}
+                          </Td>
+                          <Td borderColor="gray.700">
+                            <Badge
+                              colorScheme={getStatusColor(status)}
+                              variant="subtle"
+                              borderRadius="md"
+                              px={2}
+                              fontSize="0.75rem"
+                            >
+                              {getStatusLabel(status)}
+                            </Badge>
+                          </Td>
+                          <Td borderColor="gray.700" textAlign="center" color="gray.500">
+                            -
+                          </Td>
+                          <Td borderColor="gray.700" isNumeric>
+                            <Button
+                              size="sm"
+                              leftIcon={<MdBarChart />}
+                              colorScheme="blue"
+                              variant="solid"
+                              onClick={() => handleMapGraphClick(probe.id)}
+                            >
+                              Gráfico
+                            </Button>
+                          </Td>
+                        </Tr>
+                      );
+                    })}
+                  </Tbody>
+                </Table>
+              </TableContainer>
             )}
           </Container>
         </>
       )}
 
       {viewMode === 'chart' && selectedProbe && (
-        <Container maxW="container.xl" py={6} minH="100vh">
+        <Box w="100%" px={6} py={6} minH="100vh">
           <Button
             leftIcon={<MdArrowBack />}
             variant="ghost"
@@ -361,7 +363,7 @@ export function Dashboard() {
               </VStack>
             )}
           </Box>
-        </Container>
+        </Box>
       )}
     </Box>
   );
