@@ -117,7 +117,6 @@ export function SoilMoistureChart({
         setRangeSettings({ min: initialMin, max: initialMax });
     }, [initialMin, initialMax]);
 
-    // --- PROCESSAMENTO DOS DADOS (JANELA FIXA DE 30 DIAS) ---
     const chartData = useMemo(() => {
         if (!data || data.length === 0) return [];
 
@@ -126,7 +125,6 @@ export function SoilMoistureChart({
             sums: Record<string, number>
         }>();
 
-        // 1. Agrupar por Dia (Média Diária)
         data.forEach(item => {
             if (!item.timestamp) return;
 
@@ -135,7 +133,6 @@ export function SoilMoistureChart({
 
             const val = Number(rawValue);
             if (isNaN(val)) return;
-
             const date = new Date(item.timestamp);
             if (isNaN(date.getTime())) return;
 
@@ -201,11 +198,9 @@ export function SoilMoistureChart({
     const [prevDataLength, setPrevDataLength] = useState<number>(data.length);
     const [prevMetric, setPrevMetric] = useState<string>(metric);
 
-    // Reinicia o range se os dados mudarem drasticamente, mas mantendo a janela de 30 dias
     if (data.length !== prevDataLength || metric !== prevMetric) {
         setPrevDataLength(data.length);
         setPrevMetric(metric);
-        // Sempre reseta para ver os 30 dias gerados
         if (chartData.length > 0) {
             setRange({ startIndex: 0, endIndex: chartData.length - 1 });
         } else {
@@ -354,7 +349,18 @@ export function SoilMoistureChart({
                 </HStack>
             </Flex>
 
-            <Box h="500px" w="100%" ref={chartContainerRef} cursor="crosshair">
+            {/* AQUI ESTÁ A LÓGICA DE RESPONSIVIDADE PARA O GRÁFICO */}
+            <Box 
+                h={{ base: "300", md: "500px" }}
+                sx={{
+                    '@media (max-height: 430px) and (orientation: landscape)': {
+                        height: '200px'
+                    }
+                }}
+                w="100%" 
+                ref={chartContainerRef} 
+                cursor="crosshair"
+            >
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#3b4754" opacity={0.3} vertical={false} />
@@ -371,7 +377,7 @@ export function SoilMoistureChart({
                             tick={{ fill: '#6b7280', fontSize: 10 }}
                             axisLine={false}
                             tickLine={false}
-                            minTickGap={30}
+                            minTickGap={60}
                         />
                         <YAxis
                             domain={activeYDomain as [number, number]}
@@ -400,7 +406,7 @@ export function SoilMoistureChart({
                                     dot={false}
                                     activeDot={{ r: 6, fill: color, stroke: '#fff', strokeWidth: 2 }}
                                     isAnimationActive={false}
-                                    connectNulls={false}
+                                    connectNulls
                                 />
                             )
                         ))}

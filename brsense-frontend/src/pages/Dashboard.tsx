@@ -320,7 +320,7 @@ export function Dashboard() {
               <VStack spacing={8} align="stretch">
 
                 {/* GRÁFICO 1: UMIDADE */}
-                <Box bg="gray.900" borderRadius="lg" p={4} minH="400px">
+                <Box bg="gray.900" borderRadius="lg" p={4}>
                   {chartData.length > 0 ? (
                     <SoilMoistureChart
                       data={chartData}
@@ -343,7 +343,7 @@ export function Dashboard() {
                 </Box>
 
                 {/* GRÁFICO 2: TEMPERATURA */}
-                <Box bg="gray.900" borderRadius="lg" p={4} minH="400px">
+                <Box bg="gray.900" borderRadius="lg" p={4}>
                   {chartData.length > 0 ? (
                     <SoilMoistureChart
                       data={chartData}
