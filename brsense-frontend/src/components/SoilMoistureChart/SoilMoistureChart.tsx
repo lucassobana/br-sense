@@ -20,9 +20,10 @@ import {
     CartesianGrid,
     ResponsiveContainer,
     ReferenceArea,
-    Brush
+    Brush,
+    Tooltip
 } from 'recharts';
-import { MdZoomOutMap, MdSettings } from 'react-icons/md';
+import { MdZoomOutMap, MdSettings, MdCalendarToday } from 'react-icons/md';
 import { COLORS, DEPTH_COLORS } from '../../colors/colors';
 import { MoistureRangeModal } from '../MoistureRangeModal/MoistureRangeModal';
 import { updateDeviceConfig } from '../../services/api';
@@ -95,6 +96,15 @@ export function SoilMoistureChart({
     const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
         depth10: true, depth20: true, depth30: true, depth40: true, depth50: true, depth60: true,
     });
+
+    const [hoveredData, setHoveredData] = useState<ChartDataPoint | null>(null);
+    const [selectedData, setSelectedData] = useState<ChartDataPoint | null>(null);
+
+
+    const isTouchDevice = useMemo(() => {
+        if (typeof window === 'undefined') return false;
+        return window.matchMedia('(pointer: coarse)').matches;
+    }, []);
 
     const storageKey = `BRSENSE_${metric.toUpperCase()}_RANGES`;
     const defaultRanges = metric === 'moisture'
@@ -292,8 +302,51 @@ export function SoilMoistureChart({
         return d.toLocaleDateString('pt-BR');
     };
 
+    useEffect(() => {
+        if (!isTouchDevice || !selectedData) return;
+
+        const handleTouchOutside = (e: TouchEvent) => {
+            const container = chartContainerRef.current;
+            if (container && !container.contains(e.target as Node)) {
+                setSelectedData(null);
+            }
+        };
+
+        document.addEventListener('touchstart', handleTouchOutside);
+        return () => document.removeEventListener('touchstart', handleTouchOutside);
+    }, [isTouchDevice, selectedData]);
+
+
     const startDate = chartData[range.startIndex]?.time;
     const endDate = chartData[range.endIndex]?.time;
+    const activeData: ChartDataPoint | null = selectedData ?? hoveredData;
+
+    const handleTouch = (e: React.TouchEvent<HTMLDivElement>) => {
+        if (!chartContainerRef.current || chartData.length === 0) return;
+
+        const touch = e.touches[0];
+        if (!touch) return;
+
+        const rect = chartContainerRef.current.getBoundingClientRect();
+        const x = touch.clientX - rect.left;
+
+        const ratio = x / rect.width;
+        const index = Math.round(
+            range.startIndex +
+            ratio * (range.endIndex - range.startIndex)
+        );
+
+        const clamped = Math.max(
+            range.startIndex,
+            Math.min(range.endIndex, index)
+        );
+
+        const point = chartData[clamped];
+        if (point) {
+            setSelectedData(point);
+        }
+    };
+
 
     return (
         <Box
@@ -349,20 +402,74 @@ export function SoilMoistureChart({
                 </HStack>
             </Flex>
 
+            <Box
+                transition="all 0.25s ease"
+                opacity={activeData ? 1 : 0}
+                transform={activeData ? "translateY(0)" : "translateY(-6px)"}
+                pointerEvents={activeData ? "auto" : "none"}
+                mb={activeData ? 2 : 0}
+            >
+                {activeData && (
+                    <Flex
+                        bg="rgba(30, 41, 59, 0.5)"
+                        px={3}
+                        py={1}
+                        borderRadius="md"
+                        align="center"
+                        gap={4}
+                        wrap="wrap"
+                    >
+                        <HStack borderRight="1px solid" borderColor="gray.700" pr={4} spacing={2}>
+                            <Icon as={MdCalendarToday} color="gray.400" boxSize={3} />
+                            <Text fontSize="xs" fontWeight="bold">
+                                {formatDateHeader(activeData.time)}
+                            </Text>
+                        </HStack>
+
+                        <HStack spacing={4} wrap="wrap">
+                            {Object.entries(DEPTH_COLORS)
+                                .filter(([key]) => visibleLines[key] && typeof activeData[key] === 'number')
+                                .sort(([a], [b]) => parseInt(a.replace('depth', '')) - parseInt(b.replace('depth', '')))
+                                .map(([key, color]) => (
+                                    <HStack key={key} spacing={1.5}>
+                                        <Box w="6px" h="6px" borderRadius="full" bg={color} />
+                                        <Text fontSize="10px" color="gray.400">
+                                            {key.replace('depth', '')}cm
+                                        </Text>
+                                        <Text fontSize="xs" fontWeight="bold">
+                                            {(activeData[key] as number).toFixed(0)}
+                                            {metric === 'moisture' ? '%' : '°C'}
+                                        </Text>
+                                    </HStack>
+                                ))}
+                        </HStack>
+                    </Flex>
+                )}
+            </Box>
+
+
             {/* AQUI ESTÁ A LÓGICA DE RESPONSIVIDADE PARA O GRÁFICO */}
-            <Box 
+            <Box
                 h={{ base: "300", md: "500px" }}
                 sx={{
                     '@media (max-height: 430px) and (orientation: landscape)': {
                         height: '200px'
-                    }
+                    },
+                    touchAction: 'none'
                 }}
-                w="100%" 
-                ref={chartContainerRef} 
+                w="100%"
+                ref={chartContainerRef}
                 cursor="crosshair"
+                onTouchStart={handleTouch}
+                onTouchMove={handleTouch}
             >
                 <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                    <LineChart
+                        data={chartData}
+                        margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
+                        onMouseLeave={() => !isTouchDevice && setHoveredData(null)}
+                    >
+
                         <CartesianGrid strokeDasharray="3 3" stroke="#3b4754" opacity={0.3} vertical={false} />
                         <XAxis
                             dataKey="time"
@@ -410,6 +517,19 @@ export function SoilMoistureChart({
                                 />
                             )
                         ))}
+                        <Tooltip
+                            content={({ active, payload }) => {
+                                if (!isTouchDevice) {
+                                    if (active && payload && payload.length) {
+                                        setHoveredData(payload[0].payload);
+                                    } else if (hoveredData) {
+                                        setHoveredData(null);
+                                    }
+                                }
+                                return null;
+                            }}
+                            cursor={{ stroke: 'rgba(255,255,255,0.3)', strokeWidth: 1 }}
+                        />
 
                         <Brush
                             dataKey="time"
