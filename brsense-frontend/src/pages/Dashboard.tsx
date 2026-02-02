@@ -3,10 +3,18 @@ import {
   Box, Flex, Text, useToast, Spinner, Button,
   Container, Heading, Badge,
   VStack,
-  Table, Thead, Tbody, Tr, Th, Td, TableContainer
+  Table, Thead, Tbody, Tr, Th, Td, TableContainer,
+  Icon, Tooltip as ChakraTooltip // Adicionado Tooltip
 } from '@chakra-ui/react';
 import { useSearchParams } from 'react-router-dom';
-import { MdArrowBack, MdBarChart } from 'react-icons/md';
+import {
+  MdArrowBack,
+  MdBarChart,
+  MdBatteryFull,
+  MdBattery60,
+  MdBatteryAlert,
+  MdBatteryUnknown
+} from 'react-icons/md';
 import { getProbes, getFarms, getDeviceHistory } from '../services/api';
 import type { Probe, Farm } from '../types';
 import { SoilMoistureChart, type RawApiData } from '../components/SoilMoistureChart/SoilMoistureChart';
@@ -150,7 +158,9 @@ export function Dashboard() {
           timestamp: r.timestamp,
           depth_cm: r.depth_cm,
           moisture_pct: r.moisture_pct,
-          temperature_c: r.temperature_c
+          temperature_c: r.temperature_c,
+          // Se quiser passar bateria para o gráfico no futuro, adicione aqui
+          // battery_status: r.battery_status 
         }));
 
         if (isMountedRef.current) {
@@ -186,6 +196,30 @@ export function Dashboard() {
     if (status.includes('status_ok')) return 'Ideal';
     if (status.includes('status_saturated')) return 'Saturado';
     return 'Offline';
+  };
+
+  // --- HELPER PARA ÍCONE DE BATERIA (0-7) ---
+  const getBatteryIcon = (level: number | null | undefined) => {
+    if (level === null || level === undefined)
+      return <Icon as={MdBatteryUnknown} color="gray.600" boxSize={6} />;
+
+    // Nível 7: Bateria Nova/Cheia -> Verde
+    if (level >= 7) {
+      return <Icon as={MdBatteryFull} color="green.400" boxSize={6} />;
+    }
+
+    // Nível 6: Bateria Média -> Amarelo (Atenção)
+    if (level === 6) {
+      return <Icon as={MdBattery60} color="yellow.400" boxSize={6} />;
+    }
+
+    // Nível 5 ou menor: Bateria Fraca/Crítica -> Vermelho (Trocar)
+    // Usamos <= 5 para garantir que se vier um 4 ou 0 (erro), também mostre crítico
+    if (level <= 5) {
+      return <Icon as={MdBatteryAlert} color="red.500" boxSize={6} />;
+    }
+
+    return <Icon as={MdBatteryUnknown} color="gray.600" boxSize={6} />;
   };
 
   if (loading) {
@@ -244,21 +278,19 @@ export function Dashboard() {
                       const farm = farms.find(f => f.id === probe.farm_id);
                       const farmName = farm ? farm.name : '-';
 
+                      // --- BUSCA A LEITURA MAIS RECENTE COM BATERIA ---
+                      const batteryReading = probe.readings
+                        ?.filter(r => r.battery_status !== null && r.battery_status !== undefined)
+                        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+
+                      const batteryLevel = batteryReading?.battery_status;
+                      const batteryDate = batteryReading ? new Date(batteryReading.timestamp).toLocaleDateString() : '';
+
                       return (
-                        <Tr
-                          key={probe.id}
-                          _hover={{ bg: 'whiteAlpha.50' }}
-                          transition="background 0.2s"
-                        >
-                          <Td borderColor="gray.700" fontWeight="medium" color="white">
-                            {probe.esn}
-                          </Td>
-                          <Td borderColor="gray.700" color="gray.300">
-                            {probe.name || '-'}
-                          </Td>
-                          <Td borderColor="gray.700" color="gray.300">
-                            {farmName}
-                          </Td>
+                        <Tr key={probe.id} _hover={{ bg: 'whiteAlpha.50' }} transition="background 0.2s">
+                          <Td borderColor="gray.700" fontWeight="medium" color="white">{probe.esn}</Td>
+                          <Td borderColor="gray.700" color="gray.300">{probe.name || '-'}</Td>
+                          <Td borderColor="gray.700" color="gray.300">{farmName}</Td>
                           <Td borderColor="gray.700">
                             <Badge
                               colorScheme={getStatusColor(status)}
@@ -270,8 +302,19 @@ export function Dashboard() {
                               {getStatusLabel(status)}
                             </Badge>
                           </Td>
-                          <Td borderColor="gray.700" textAlign="center" color="gray.500">
-                            -
+
+                          {/* COLUNA DE BATERIA ATUALIZADA */}
+                          <Td borderColor="gray.700" textAlign="center">
+                            <ChakraTooltip
+                              label={batteryLevel !== undefined ? `Nível: ${batteryLevel} / 7 (${batteryDate})` : 'Sem dados'}
+                              hasArrow
+                              bg="gray.700"
+                              color="white"
+                            >
+                              <Flex justify="center" align="center">
+                                {getBatteryIcon(batteryLevel)}
+                              </Flex>
+                            </ChakraTooltip>
                           </Td>
                           <Td borderColor="gray.700" isNumeric>
                             <Button

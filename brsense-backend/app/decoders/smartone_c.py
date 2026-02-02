@@ -1,6 +1,7 @@
 # app/decoders/smartone_c.py
+from datetime import datetime
 
-def decode_soil_payload(hex_payload: str) -> list[dict]:
+def decode_soil_payload(hex_payload: str, timestamp: datetime) -> list[dict]:
     """
     Decodifica o payload hexadecimal do SmartOne C (Tipo 2 - Soil Sensor).
     Retorna uma lista de leituras com profundidade, umidade OU temperatura,
@@ -40,10 +41,35 @@ def decode_soil_payload(hex_payload: str) -> list[dict]:
                     readings.append({
                         "depth_cm": depths_cm[i],
                         "moisture_pct": float(val), # Valor bruto (0-255) ou calibrado
-                        "temperature_c": None       # Não há temperatura neste pacote
+                        "temperature_c": None,       # Não há temperatura neste pacote
+                        "battery_status": None,
+                        "solar_status": None
                     })
         
         elif type_char == 'T':
+            
+            # Byte 8: Status de energia (bateria/solar)
+            power_val = raw[8]
+            is_solar = False
+            
+            if power_val > 7:
+                is_solar = True
+            # Regra 2: Cenário Noturno (Solar tende a 0 à noite)
+            # Se for noite (22h-05h) e valor muito baixo, assumimos Solar (painel desligado)
+            elif (timestamp.hour >= 22 or timestamp.hour < 5) and power_val <= 1:
+                is_solar = True
+            elif timestamp.hour % 2 != 0:
+                is_solar = True
+            else:
+                is_solar = False # Hora par = Bateria
+                
+            battery_val = None
+            solar_val = None
+
+            if is_solar:
+                solar_val = power_val
+            else:
+                battery_val = power_val
             # --- PROCESSAMENTO DE TEMPERATURA ---
             # Aplicando o offset de -50 (baseado na lógica anterior do seu código)
             for i, val in enumerate(data_bytes):
@@ -51,7 +77,9 @@ def decode_soil_payload(hex_payload: str) -> list[dict]:
                     readings.append({
                         "depth_cm": depths_cm[i],
                         "moisture_pct": None,       # Não há umidade neste pacote
-                        "temperature_c": float(val) 
+                        "temperature_c": float(val),
+                        "battery_status": battery_val,
+                        "solar_status": solar_val
                     })
         
         else:

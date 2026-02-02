@@ -99,18 +99,17 @@ def ingest_envelope(payload: Dict[str, Any], db: Session) -> dict:
             device = _ensure_device(db, esn)
             device.updated_at = datetime.now(timezone.utc)
             
+            ts = datetime.now(timezone.utc)
+            if msg.get("unixTime"):
+                try:
+                    ts = datetime.fromtimestamp(int(msg["unixTime"]), tz=timezone.utc)
+                except:
+                    pass
+            
             # 2. Decodificação
             if raw_payload and isinstance(raw_payload, str):
-                decoded = decode_soil_payload(raw_payload)
-                if decoded:
-                    # Tenta converter timestamp da mensagem
-                    ts = datetime.now(timezone.utc)
-                    if msg.get("unixTime"):
-                        try:
-                            ts = datetime.fromtimestamp(int(msg["unixTime"]), tz=timezone.utc)
-                        except:
-                            pass
-                    
+                decoded = decode_soil_payload(raw_payload, timestamp=ts)
+                if decoded:                    
                     for r in decoded:
                         # Determina o tipo: se tem umidade é 'H', senão assumimos que é temperatura 'T'
                         # (Lembrando que o decoder coloca None no campo que não existe no pacote)
@@ -122,6 +121,8 @@ def ingest_envelope(payload: Dict[str, Any], db: Session) -> dict:
                             depth_cm=r["depth_cm"],
                             moisture_pct=r["moisture_pct"],
                             temperature_c=r["temperature_c"],
+                            battery_status=r.get("battery_status"),
+                            solar_status=r.get("solar_status"),
                             timestamp=ts
                         )
                         db.add(reading)

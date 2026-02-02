@@ -3,6 +3,8 @@ export interface Measurement {
   depth_cm: number;
   moisture_pct: number | null;
   temperature_c?: number | null;
+  battery_status?: number | null;
+  solar_status?: number | null;
   timestamp: string;
 
   value?: number;

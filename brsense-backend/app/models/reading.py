@@ -1,6 +1,6 @@
 # app/models/reading.py
 from datetime import datetime
-from sqlalchemy import Float, DateTime, ForeignKey, String
+from sqlalchemy import Float, DateTime, ForeignKey, String, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
@@ -18,5 +18,8 @@ class Reading(Base):
     temperature_c: Mapped[float] = mapped_column(Float, nullable=True)
     
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    battery_status: Mapped[int] = mapped_column(Integer, nullable=True)
+    solar_status: Mapped[int] = mapped_column(Integer, nullable=True)
 
     device = relationship("Device", back_populates="readings")

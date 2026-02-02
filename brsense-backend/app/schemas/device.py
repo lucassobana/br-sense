@@ -7,6 +7,8 @@ class DeviceReadingSchema(BaseModel):
     depth_cm: Optional[float] = None
     temperature_c: Optional[float] = None 
     timestamp: Optional[datetime] = None
+    battery_status: Optional[int] = None
+    solar_status: Optional[int] = None
     
     class Config:
         from_attributes = True
