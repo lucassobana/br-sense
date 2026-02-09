@@ -27,6 +27,7 @@ export interface ReadingHistory {
   depth_cm: number;
   moisture_pct: number;
   temperature_c: number;
+  rain_cm?: number | null;
 }
 
 export interface CreateFarmDTO {

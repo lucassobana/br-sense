@@ -35,15 +35,26 @@ def decode_soil_payload(hex_payload: str, timestamp: datetime) -> list[dict]:
         readings = []
 
         if type_char == 'H':
+            # --- PROCESSAMENTO DE CHUVA (NOVO) ---
+            # Byte 8: Contador do pluviômetro
+            rain_raw = raw[8]
+            
+            # Regra: 1 unidade = 0.25 cm
+            rain_val_cm = float(rain_raw) * 0.25
+            
             # --- PROCESSAMENTO DE UMIDADE ---
             for i, val in enumerate(data_bytes):
                 if i < len(depths_cm):
+                    
+                    current_rain = rain_val_cm if i == 0 else 0.0
+                    
                     readings.append({
                         "depth_cm": depths_cm[i],
                         "moisture_pct": float(val), # Valor bruto (0-255) ou calibrado
                         "temperature_c": None,       # Não há temperatura neste pacote
                         "battery_status": None,
-                        "solar_status": None
+                        "solar_status": None,
+                        "rain_cm": current_rain,
                     })
         
         elif type_char == 'T':
@@ -52,7 +63,7 @@ def decode_soil_payload(hex_payload: str, timestamp: datetime) -> list[dict]:
             power_val = raw[8]
             is_solar = False
             
-            if power_val > 7:
+            if power_val > 8:
                 is_solar = True
             # Regra 2: Cenário Noturno (Solar tende a 0 à noite)
             # Se for noite (22h-05h) e valor muito baixo, assumimos Solar (painel desligado)

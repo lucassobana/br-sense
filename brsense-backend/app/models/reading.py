@@ -16,6 +16,7 @@ class Reading(Base):
     depth_cm: Mapped[float] = mapped_column(Float, nullable=True)
     moisture_pct: Mapped[float] = mapped_column(Float, nullable=True)
     temperature_c: Mapped[float] = mapped_column(Float, nullable=True)
+    rain_cm: Mapped[float] = mapped_column(Float, nullable=True)
     
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     

@@ -19,6 +19,7 @@ class ReadingResponse(BaseModel):
     depth_cm: float
     moisture_pct: Optional[float] = None
     temperature_c: Optional[float] = None
+    rain_cm: Optional[float] = None
     
     class Config:
         from_attributes = True

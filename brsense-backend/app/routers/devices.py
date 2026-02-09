@@ -1,19 +1,48 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, joinedload # <--- 1. IMPORTANTE: Adicionado joinedload
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 from typing import List, Optional
+from datetime import datetime, timedelta
 
 from app.db.session import get_db
 from app.models.farm import Farm
 from app.models.device import Device
+from app.models.reading import Reading
 from app.models.user import User
 from app.schemas.device import DeviceRead, DeviceUpdate, DeviceCreate
 from app.core.security import get_current_user_token, get_user_and_roles
 
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from fastapi import APIRouter, Depends
-
 router = APIRouter()
+
+# --- FUNÇÃO AUXILIAR PARA CALCULAR CHUVA (Reutilizável) ---
+def populate_rain_metrics(db: Session, devices: List[Device]) -> List[Device]:
+    """
+    Recebe uma lista de dispositivos, calcula a chuva acumulada (1h, 24h, 7d)
+    e injeta os valores nos objetos antes de retornar.
+    """
+    now = datetime.utcnow()
+    time_1h = now - timedelta(hours=1)
+    time_24h = now - timedelta(hours=24)
+    time_7d = now - timedelta(days=7)
+
+    for dev in devices:
+        # Query auxiliar para somar
+        def get_sum(since_date):
+            total = db.query(func.sum(Reading.rain_cm))\
+                .filter(Reading.device_id == dev.id)\
+                .filter(Reading.timestamp >= since_date)\
+                .scalar()
+            return float(total) if total is not None else 0.0
+
+        # Injeta os valores no objeto SQLAlchemy
+        # O Pydantic (DeviceRead) lerá esses atributos automaticamente
+        dev.rain_1h = get_sum(time_1h)
+        dev.rain_24h = get_sum(time_24h)
+        dev.rain_7d = get_sum(time_7d)
+    
+    return devices
+
+# ---------------------------------------------------------
 
 @router.get("/devices", response_model=List[DeviceRead])
 def read_devices(
@@ -32,9 +61,13 @@ def read_devices(
         pass
     else:
         query = query.join(Farm, Device.farm_id == Farm.id).filter(Farm.user_id == user.id)
-
-    # Ordenar para garantir consistência (opcional, mas recomendado)
-    return query.offset(skip).limit(limit).all()
+        
+    devices = query.offset(skip).limit(limit).all()
+    
+    # APLICA O CÁLCULO DE CHUVA AQUI
+    devices = populate_rain_metrics(db, devices)
+            
+    return devices
 
 @router.get("/devices/user/{user_id}", response_model=List[DeviceRead])
 def read_user_devices(
@@ -60,6 +93,8 @@ def read_user_devices(
         .limit(limit)
         .all()
     )
+    devices = populate_rain_metrics(db, devices)
+
     return devices
 
 @router.post("/devices", response_model=DeviceRead)
@@ -106,6 +141,11 @@ def create_or_associate_device(
     
     db.commit()
     db.refresh(db_device)
+    
+    db_device.rain_1h = 0.0
+    db_device.rain_24h = 0.0
+    db_device.rain_7d = 0.0
+    
     return db_device
 
 @router.patch("/devices/{esn}", response_model=DeviceRead)
@@ -134,7 +174,11 @@ def update_device(
     db.add(db_device)
     db.commit()
     db.refresh(db_device)
-    return db_device
+    
+    # Recalcula chuva para devolver atualizado
+    # (Envolvemos numa lista pois a função espera lista)
+    updated_list = populate_rain_metrics(db, [db_device])
+    return updated_list[0]
 
 @router.delete("/devices/{esn}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_device(esn: str, db: Session = Depends(get_db)):

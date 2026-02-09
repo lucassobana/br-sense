@@ -5,6 +5,7 @@ export interface Measurement {
   temperature_c?: number | null;
   battery_status?: number | null;
   solar_status?: number | null;
+  rain_cm?: number | null;
   timestamp: string;
 
   value?: number;
@@ -27,6 +28,10 @@ export interface Probe {
   longitude?: number;
   config_moisture_min?: number;
   config_moisture_max?: number;
+
+  rain_1h?: number;
+  rain_24h?: number;
+  rain_7d?: number;
 }
 
 export interface Farm {

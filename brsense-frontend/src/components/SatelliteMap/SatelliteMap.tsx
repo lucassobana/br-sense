@@ -1,40 +1,39 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap, CircleMarker } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap, CircleMarker, Polyline } from 'react-leaflet';
 import { Box, Text, Button, VStack, HStack, Progress, CloseButton, Fade, IconButton, useToast, Tooltip } from '@chakra-ui/react';
 import { MdAdd, MdRemove, MdMyLocation } from 'react-icons/md';
-// Adicionado FaMapMarker conforme sua alteração
-import { FaTint, FaExclamationTriangle, FaCheckCircle, FaExclamationCircle, FaMapMarker } from 'react-icons/fa';
+import { FaTint, FaExclamationTriangle, FaCheckCircle, FaMapMarker, FaExclamationCircle } from 'react-icons/fa';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Measurement } from '../../types';
 import { COLORS } from '../../colors/colors';
 
-// --- Configuração de Ícones ---
+// --- Configuração de Ícones (Mantida) ---
 const createCustomIcon = (status: string) => {
     let color = '#CBD5E0';
-    let IconComponent = FaMapMarker; // SEU AJUSTE: Default agora é FaMapMarker
+    let IconComponent = FaMapMarker;
 
     switch (status) {
         case 'status_critical':
-            color = '#F56565'; // red.400
+            color = '#F56565';
             IconComponent = FaExclamationTriangle;
             break;
         case 'status_alert':
-            color = '#ECC94B'; // yellow.400
+            color = '#ECC94B';
             IconComponent = FaExclamationCircle;
             break;
         case 'status_ok':
-            color = '#48BB78'; // green.400
+            color = '#48BB78';
             IconComponent = FaCheckCircle;
             break;
         case 'status_saturated':
-            color = '#0BC5EA'; // cyan.400
+            color = '#0BC5EA';
             IconComponent = FaTint;
             break;
         default:
-            color = '#A0AEC0'; // gray.400
-            IconComponent = FaMapMarker; // Mantendo sua alteração
+            color = '#A0AEC0';
+            IconComponent = FaMapMarker;
     }
 
     const iconMarkup = renderToStaticMarkup(
@@ -68,6 +67,15 @@ export interface MapPoint {
     lng: number;
     statusCode: string;
     readings: Measurement[];
+    config_min?: number;
+    config_max?: number;
+}
+
+// Interface interna para pontos processados com deslocamento visual
+interface DisplayMapPoint extends MapPoint {
+    displayLat: number;
+    displayLng: number;
+    isDisplaced: boolean;
 }
 
 interface SatelliteMapProps {
@@ -75,7 +83,18 @@ interface SatelliteMapProps {
     center?: [number, number];
     zoom?: number;
     onViewGraph: (deviceId: number) => void;
+    initialCenter?: { lat: number; lng: number } | null;
 }
+
+const MapRecenter = ({ center, zoom }: { center: [number, number] | null, zoom: number }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (center) {
+            map.flyTo(center, zoom, { duration: 1.5 });
+        }
+    }, [center, zoom, map]);
+    return null;
+};
 
 const MapClickHandler = ({ onMapClick }: { onMapClick: () => void }) => {
     useMapEvents({
@@ -84,25 +103,20 @@ const MapClickHandler = ({ onMapClick }: { onMapClick: () => void }) => {
     return null;
 };
 
-// --- Controles do Mapa (Zoom e Localização) ---
 const MapControls = ({ onLocationFound }: { onLocationFound: (pos: [number, number]) => void }) => {
     const map = useMap();
     const toast = useToast();
     const [loadingLoc, setLoadingLoc] = useState(false);
-    const hasLocated = useRef(false); // Para evitar múltiplas chamadas em React StrictMode
 
-    // Função de localização com opção 'silent' para não mostrar erro no auto-load
-    const handleLocate = (silent: boolean = false) => {
+    const handleLocate = () => {
         if (!navigator.geolocation) {
-            if (!silent) {
-                toast({
-                    title: "Erro",
-                    description: "Geolocalização não suportada.",
-                    status: "error",
-                    duration: 3000,
-                    isClosable: true,
-                });
-            }
+            toast({
+                title: "Erro",
+                description: "Geolocalização não suportada.",
+                status: "error",
+                duration: 3000,
+                isClosable: true,
+            });
             return;
         }
 
@@ -112,7 +126,6 @@ const MapControls = ({ onLocationFound }: { onLocationFound: (pos: [number, numb
             (position) => {
                 const { latitude, longitude } = position.coords;
                 const newPos: [number, number] = [latitude, longitude];
-
                 map.flyTo(newPos, 15, { duration: 1.5 });
                 onLocationFound(newPos);
                 setLoadingLoc(false);
@@ -120,10 +133,6 @@ const MapControls = ({ onLocationFound }: { onLocationFound: (pos: [number, numb
             (error) => {
                 console.error("Erro de localização:", error);
                 setLoadingLoc(false);
-
-                // Se for silencioso (auto-load), não mostra toast
-                if (silent) return;
-
                 let msg = "Não foi possível obter sua localização.";
                 if (error.code === error.PERMISSION_DENIED) msg = "Permissão de localização negada.";
 
@@ -138,15 +147,6 @@ const MapControls = ({ onLocationFound }: { onLocationFound: (pos: [number, numb
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
     };
-
-    // NOVO: Executa ao carregar o componente (montagem)
-    useEffect(() => {
-        if (!hasLocated.current) {
-            handleLocate(true); // true = silencioso em caso de erro
-            hasLocated.current = true;
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     return (
         <Box
@@ -164,41 +164,26 @@ const MapControls = ({ onLocationFound }: { onLocationFound: (pos: [number, numb
                         aria-label="Zoom In"
                         icon={<MdAdd size={20} />}
                         onClick={() => map.zoomIn()}
-                        bg="white"
-                        color="gray.600"
-                        size="sm"
-                        isRound
-                        boxShadow="md"
-                        _hover={{ bg: "gray.100" }}
+                        bg="white" color="gray.600" size="sm" isRound boxShadow="md" _hover={{ bg: "gray.100" }}
                     />
                 </Tooltip>
-
                 <Tooltip label="Diminuir Zoom" placement="left">
                     <IconButton
                         aria-label="Zoom Out"
                         icon={<MdRemove size={20} />}
                         onClick={() => map.zoomOut()}
-                        bg="white"
-                        color="gray.600"
-                        size="sm"
-                        isRound
-                        boxShadow="md"
-                        _hover={{ bg: "gray.100" }}
+                        bg="white" color="gray.600" size="sm" isRound boxShadow="md" _hover={{ bg: "gray.100" }}
                     />
                 </Tooltip>
-
                 <Tooltip label="Minha Localização" placement="left">
                     <IconButton
                         aria-label="Minha Localização"
                         icon={<MdMyLocation size={18} />}
-                        onClick={() => handleLocate(false)} // false = mostra erros (clique manual)
+                        onClick={handleLocate}
                         isLoading={loadingLoc}
                         bg="white"
                         color={loadingLoc ? "blue.400" : "gray.600"}
-                        size="sm"
-                        isRound
-                        boxShadow="md"
-                        _hover={{ bg: "gray.100" }}
+                        size="sm" isRound boxShadow="md" _hover={{ bg: "gray.100" }}
                     />
                 </Tooltip>
             </VStack>
@@ -210,23 +195,101 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     points,
     center = [-22.4319, -46.9578],
     zoom = 13,
-    onViewGraph
+    onViewGraph,
+    initialCenter
 }) => {
     const [selectedPoint, setSelectedPoint] = useState<MapPoint | null>(null);
     const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
 
-    // Helpers de Estilo
-    const getProgressColor = (value: number) => {
-        if (value < 25) return 'red';
-        if (value < 50) return 'yellow';
-        if (value < 75) return 'green';
-        return 'cyan';
-    };
+    const [activeCenter, setActiveCenter] = useState<[number, number]>(() => {
+        if (initialCenter) {
+            return [initialCenter.lat, initialCenter.lng];
+        }
+        return center;
+    });
+
+    const [activeZoom, setActiveZoom] = useState(() => {
+        return initialCenter ? 15 : zoom;
+    });
+
+    const [isInitialized, setIsInitialized] = useState(() => {
+        if (initialCenter) return true;
+        if (!navigator.geolocation) return true;
+        return false;
+    });
+
+    // --- NOVA LÓGICA: Dispersão de Pontos (Spiderify Manual) ---
+    // 
+    const processedPoints = useMemo(() => {
+        // Agrupa pontos pela mesma localização (com precisão de 5 casas decimais)
+        const grouped: Record<string, MapPoint[]> = {};
+
+        points.forEach(p => {
+            // Arredonda para considerar pontos "muito próximos" como o mesmo local
+            const key = `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(p);
+        });
+
+        const result: DisplayMapPoint[] = [];
+
+        Object.values(grouped).forEach(group => {
+            if (group.length === 1) {
+                // Se o ponto está sozinho, usa coordenadas originais
+                result.push({
+                    ...group[0],
+                    displayLat: group[0].lat,
+                    displayLng: group[0].lng,
+                    isDisplaced: false
+                });
+            } else {
+                // Se houver sobreposição, distribui em círculo
+                const count = group.length;
+                const angleStep = (2 * Math.PI) / count;
+                // Raio de deslocamento: 0.0003 graus (~33 metros)
+                // Suficiente para separar visualmente no zoom alto, mas agrupar no zoom baixo
+                const radius = 0.0003;
+
+                group.forEach((p, index) => {
+                    const angle = index * angleStep;
+                    // Calcula novo deslocamento
+                    const latOffset = radius * Math.cos(angle);
+                    const lngOffset = radius * Math.sin(angle);
+
+                    result.push({
+                        ...p,
+                        displayLat: p.lat + latOffset,
+                        displayLng: p.lng + lngOffset,
+                        isDisplaced: true
+                    });
+                });
+            }
+        });
+        return result;
+    }, [points]);
+    // -----------------------------------------------------------
+
+    useEffect(() => {
+        if (isInitialized) return;
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+                setActiveCenter([latitude, longitude]);
+                setActiveZoom(15);
+                setUserLocation([latitude, longitude]);
+                setIsInitialized(true);
+            },
+            (error) => {
+                console.warn("Auto-locate falhou no inicio", error);
+                setIsInitialized(true);
+            }
+        );
+    }, [isInitialized]);
 
     const getStatusLabel = (code: string) => {
         switch (code) {
             case 'status_critical': return 'Crítico';
-            case 'status_alert': return 'Atenção';
             case 'status_ok': return 'Ideal';
             case 'status_saturated': return 'Saturado';
             default: return 'Offline';
@@ -236,11 +299,16 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     const getStatusColor = (code: string) => {
         switch (code) {
             case 'status_critical': return 'red.400';
-            case 'status_alert': return 'yellow.400';
             case 'status_ok': return 'green.400';
             case 'status_saturated': return 'cyan.400';
             default: return 'gray.400';
         }
+    };
+
+    const getProgressColor = (value: number, min: number = 45, max: number = 55) => {
+        if (value < min) return 'red';
+        if (value > max) return 'cyan';
+        return 'green';
     };
 
     const getLatestReadingsByDepth = (readings: Measurement[]) => {
@@ -276,20 +344,23 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
             </style>
 
             <MapContainer
-                center={center}
-                zoom={zoom}
+                center={activeCenter}
+                zoom={activeZoom}
                 scrollWheelZoom={true}
                 style={{ height: '100%', width: '100%', borderRadius: '12px' }}
                 zoomControl={false}
             >
+                <MapRecenter center={activeCenter} zoom={activeZoom} />
+
                 <TileLayer
                     attribution='&copy; Google Maps'
                     url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
                     maxZoom={20}
                 />
 
-                {/* Controles com Auto-Load */}
-                <MapControls onLocationFound={setUserLocation} />
+                <MapControls onLocationFound={(pos) => {
+                    setUserLocation(pos);
+                }} />
 
                 {userLocation && (
                     <CircleMarker
@@ -306,18 +377,35 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
 
                 <MapClickHandler onMapClick={() => setSelectedPoint(null)} />
 
-                {points.map((point) => (
-                    <Marker
-                        key={point.id}
-                        position={[point.lat, point.lng]}
-                        icon={createCustomIcon(point.statusCode)}
-                        eventHandlers={{
-                            click: (e) => {
-                                L.DomEvent.stopPropagation(e);
-                                setSelectedPoint(point);
-                            }
-                        }}
-                    />
+                {/* Renderização dos pontos processados (com dispersão) */}
+                {processedPoints.map((point) => (
+                    <React.Fragment key={point.id}>
+                        {/* Se o ponto foi deslocado, desenha uma linha pontilhada até a origem real */}
+                        {point.isDisplaced && (
+                            <Polyline
+                                positions={[
+                                    [point.lat, point.lng], // Centro real
+                                    [point.displayLat, point.displayLng] // Posição visual
+                                ]}
+                                pathOptions={{
+                                    color: 'rgba(255,255,255,0.4)',
+                                    weight: 1,
+                                    dashArray: '3, 5'
+                                }}
+                            />
+                        )}
+
+                        <Marker
+                            position={[point.displayLat, point.displayLng]} // Usa posição calculada
+                            icon={createCustomIcon(point.statusCode)}
+                            eventHandlers={{
+                                click: (e) => {
+                                    L.DomEvent.stopPropagation(e);
+                                    setSelectedPoint(point);
+                                }
+                            }}
+                        />
+                    </React.Fragment>
                 ))}
             </MapContainer>
 
@@ -374,7 +462,11 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                                                 value={r.moisture_pct}
                                                 size="xs"
                                                 borderRadius="full"
-                                                colorScheme={getProgressColor(r.moisture_pct)}
+                                                colorScheme={getProgressColor(
+                                                    r.moisture_pct,
+                                                    selectedPoint.config_min,
+                                                    selectedPoint.config_max
+                                                )}
                                                 bg="whiteAlpha.200"
                                             />
                                         </Box>

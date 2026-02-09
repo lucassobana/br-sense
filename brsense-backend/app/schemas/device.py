@@ -9,6 +9,7 @@ class DeviceReadingSchema(BaseModel):
     timestamp: Optional[datetime] = None
     battery_status: Optional[int] = None
     solar_status: Optional[int] = None
+    rain_cm: Optional[float] = None
     
     class Config:
         from_attributes = True
@@ -27,6 +28,10 @@ class DeviceRead(BaseModel):
     
     config_moisture_min: Optional[int] = 45
     config_moisture_max: Optional[int] = 55
+    
+    rain_1h: float = 0.0
+    rain_24h: float = 0.0
+    rain_7d: float = 0.0
 
     readings: List[DeviceReadingSchema] = [] 
 

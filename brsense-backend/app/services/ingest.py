@@ -121,6 +121,7 @@ def ingest_envelope(payload: Dict[str, Any], db: Session) -> dict:
                             depth_cm=r["depth_cm"],
                             moisture_pct=r["moisture_pct"],
                             temperature_c=r["temperature_c"],
+                            rain_cm=r.get("rain_cm"),                          
                             battery_status=r.get("battery_status"),
                             solar_status=r.get("solar_status"),
                             timestamp=ts
