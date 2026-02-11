@@ -40,7 +40,7 @@ def decode_soil_payload(hex_payload: str, timestamp: datetime) -> list[dict]:
             rain_raw = raw[8]
             
             # Regra: 1 unidade = 0.25 cm
-            rain_val_cm = float(rain_raw) * 0.25
+            rain_val_cm = float(rain_raw) * 0.1
             
             # --- PROCESSAMENTO DE UMIDADE ---
             for i, val in enumerate(data_bytes):
