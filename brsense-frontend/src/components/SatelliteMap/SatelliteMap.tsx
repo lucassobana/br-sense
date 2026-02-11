@@ -3,11 +3,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap, CircleMarker, Polyline } from 'react-leaflet';
 import { Box, Text, Button, VStack, HStack, Progress, CloseButton, Fade, IconButton, useToast, Tooltip } from '@chakra-ui/react';
 import { MdAdd, MdRemove, MdMyLocation } from 'react-icons/md';
-import { FaTint, FaExclamationTriangle, FaCheckCircle, FaMapMarker, FaExclamationCircle } from 'react-icons/fa';
+import { FaMapMarker } from 'react-icons/fa';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Measurement } from '../../types';
 import { COLORS } from '../../colors/colors';
+import { PiAlignTopSimpleFill } from "react-icons/pi"; // sonda
+// import { FaGlassWaterDroplet } from "react-icons/fa6"; // pluviometro
 
 // --- Configuração de Ícones (Mantida) ---
 const createCustomIcon = (status: string) => {
@@ -17,23 +19,25 @@ const createCustomIcon = (status: string) => {
     switch (status) {
         case 'status_critical':
             color = '#F56565';
-            IconComponent = FaExclamationTriangle;
+            IconComponent = PiAlignTopSimpleFill;
             break;
         case 'status_alert':
             color = '#ECC94B';
-            IconComponent = FaExclamationCircle;
+            IconComponent = PiAlignTopSimpleFill;
             break;
         case 'status_ok':
             color = '#48BB78';
-            IconComponent = FaCheckCircle;
+            // IconComponent = FaCheckCircle;
+            IconComponent = PiAlignTopSimpleFill;
             break;
         case 'status_saturated':
             color = '#0BC5EA';
-            IconComponent = FaTint;
+            // IconComponent = FaTint;
+            IconComponent = PiAlignTopSimpleFill;
             break;
         default:
             color = '#A0AEC0';
-            IconComponent = FaMapMarker;
+            IconComponent = PiAlignTopSimpleFill;
     }
 
     const iconMarkup = renderToStaticMarkup(

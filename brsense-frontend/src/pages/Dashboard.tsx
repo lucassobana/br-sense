@@ -404,7 +404,7 @@ export function Dashboard() {
                         borderBottomWidth="1px"
                         pt={2}
                       >
-                        PRECIPITAÇÃO (Chuva)
+                        PRECIPITAÇÃO (mm)
                       </Th>
 
                       <Th rowSpan={2} color="gray.400" borderColor="gray.700" textAlign="center" cursor="pointer" onClick={() => handleSort('batteryLevel')} verticalAlign="bottom" pb={4}>
