@@ -337,7 +337,7 @@ export function SoilMoistureChart({
         const effectiveY1 = Math.max(y1, currentMin);
         const effectiveY2 = Math.min(y2, currentMax);
         if (effectiveY1 < effectiveY2) {
-            return <ReferenceArea key={`${y1}-${y2}`} yAxisId="left" y1={effectiveY1} y2={effectiveY2} fill={fill} strokeOpacity={0} />;
+            return <ReferenceArea key={`${y1}-${y2}`} yAxisId="left" y1={effectiveY1} y2={effectiveY2} fill={fill} fillOpacity={1} strokeOpacity={0} />;
         }
         return null;
     };
@@ -523,6 +523,27 @@ export function SoilMoistureChart({
                         // Handler nativo para DESKTOP (Mouse)
                         onMouseLeave={() => !isTouchDevice && setHoveredData(null)}
                     >
+                        <defs>
+                            {/* Zona ALTA */}
+                            <linearGradient id="zone-high" x1="0" y1="1" x2="0" y2="0">
+                                <stop offset="0%" stopColor="#39a883" />
+                                <stop offset="100%" stopColor="#307dd6" />
+                            </linearGradient>
+
+                            {/* Zona IDEAL */}
+                            <linearGradient id="zone-ideal" x1="0" y1="1" x2="0" y2="0">
+                                <stop offset="0%" stopColor="#ddc255" />
+                                <stop offset="100%" stopColor="#39a883" />
+                            </linearGradient>
+
+                            {/* Zona BAIXA */}
+                            <linearGradient id="zone-low" x1="0" y1="1" x2="0" y2="0">
+                                <stop offset="0%" stopColor="#993636" />
+                                <stop offset="100%" stopColor="#ddc255" />
+                            </linearGradient>
+
+                        </defs>
+
                         <CartesianGrid strokeDasharray="3 3" stroke="#3b4754" opacity={0.3} vertical={false} />
 
                         <XAxis
@@ -570,18 +591,27 @@ export function SoilMoistureChart({
                         )}
 
 
-                        {showZones && metric === 'moisture' && (
+                        {/* {showZones && metric === 'moisture' && (
                             <>
                                 {renderZone(rangeSettings.max, 100, "rgba(138, 196, 235, 0.7)")}
                                 {renderZone(rangeSettings.min, rangeSettings.max, "rgba(149, 245, 152, 0.7)")}
                                 {renderZone(0, rangeSettings.min, "rgba(241, 138, 138, 0.7)")}
                             </>
+                        )} */}
+                        {showZones && metric === 'moisture' && (
+                            <>
+                                {renderZone(rangeSettings.max, 100, "url(#zone-high)")}
+                                {renderZone(rangeSettings.min, rangeSettings.max, "url(#zone-ideal)")}
+                                {renderZone(0, rangeSettings.min, "url(#zone-low)")}
+                            </>
                         )}
+
+
                         {metric === 'moisture' && (
                             <Bar
                                 dataKey="precipitacao"
                                 yAxisId="right"
-                                fill="#4299E1"
+                                fill="#0010f1"
                                 opacity={0.8}
                                 barSize={selectedPeriod === '30d' || selectedPeriod === '15d' ? 15 : 6}
                                 isAnimationActive={false}
@@ -672,6 +702,6 @@ export function SoilMoistureChart({
                         </Checkbox>
                     ))}
             </Flex>
-        </Box>
+        </Box >
     );
 }
