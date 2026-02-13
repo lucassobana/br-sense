@@ -614,7 +614,8 @@ export function SoilMoistureChart({
                                 fill="#0010f1"
                                 opacity={0.8}
                                 barSize={selectedPeriod === '30d' || selectedPeriod === '15d' ? 15 : 6}
-                                isAnimationActive={false}
+                                isAnimationActive={true}
+                                animationDuration={800}
                                 name="Chuva"
                             >
                                 <LabelList dataKey="precipitacao" content={<RainLabel />} />
@@ -628,14 +629,16 @@ export function SoilMoistureChart({
                                 visibleLines[key] && (
                                     <Line
                                         yAxisId="left"
-                                        key={key}
+                                        key={`${key}-${selectedPeriod}`}
                                         type="monotone"
                                         dataKey={key}
                                         stroke={color}
                                         strokeWidth={2.5}
                                         dot={false}
                                         activeDot={{ r: 5, fill: color, stroke: '#fff', strokeWidth: 1 }}
-                                        isAnimationActive={false}
+                                        isAnimationActive={true}
+                                        animationDuration={1000}
+                                        animationEasing="ease-in-out"
                                         connectNulls
                                     />
                                 )
@@ -658,7 +661,10 @@ export function SoilMoistureChart({
                                 return null;
                             }}
                         />
-
+                        {/* <Tooltip
+                            cursor={{ stroke: 'rgba(255,255,255,0.3)', strokeWidth: 1 }}
+                            content={() => null}
+                        /> */}
 
                         <Brush
                             dataKey="time"

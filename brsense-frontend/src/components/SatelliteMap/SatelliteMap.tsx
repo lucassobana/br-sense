@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap, CircleMarker, Polyline } from 'react-leaflet';
-import { Box, Text, Button, VStack, HStack, Progress, CloseButton, Fade, IconButton, useToast, Tooltip } from '@chakra-ui/react';
+import { Box, VStack, Fade, IconButton, useToast, Tooltip } from '@chakra-ui/react';
 import { MdAdd, MdRemove, MdMyLocation } from 'react-icons/md';
 import { FaMapMarker } from 'react-icons/fa';
 import L from 'leaflet';
@@ -10,6 +10,7 @@ import type { Measurement } from '../../types';
 import { COLORS } from '../../colors/colors';
 import { PiAlignTopSimpleFill } from "react-icons/pi"; // sonda
 // import { FaGlassWaterDroplet } from "react-icons/fa6"; // pluviometro
+import { ProbeCard } from '../ProbeCard/ProbeCard';
 
 // --- Configuração de Ícones (Mantida) ---
 const createCustomIcon = (status: string) => {
@@ -291,42 +292,42 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
         );
     }, [isInitialized]);
 
-    const getStatusLabel = (code: string) => {
-        switch (code) {
-            case 'status_critical': return 'Crítico';
-            case 'status_ok': return 'Ideal';
-            case 'status_saturated': return 'Saturado';
-            default: return 'Offline';
-        }
-    };
+    // const getStatusLabel = (code: string) => {
+    //     switch (code) {
+    //         case 'status_critical': return 'Crítico';
+    //         case 'status_ok': return 'Ideal';
+    //         case 'status_saturated': return 'Saturado';
+    //         default: return 'Offline';
+    //     }
+    // };
 
-    const getStatusColor = (code: string) => {
-        switch (code) {
-            case 'status_critical': return 'red.400';
-            case 'status_ok': return 'green.400';
-            case 'status_saturated': return 'cyan.400';
-            default: return 'gray.400';
-        }
-    };
+    // const getStatusColor = (code: string) => {
+    //     switch (code) {
+    //         case 'status_critical': return 'red.400';
+    //         case 'status_ok': return 'green.400';
+    //         case 'status_saturated': return 'cyan.400';
+    //         default: return 'gray.400';
+    //     }
+    // };
 
-    const getProgressColor = (value: number, min: number = 45, max: number = 55) => {
-        if (value < min) return 'red';
-        if (value > max) return 'cyan';
-        return 'green';
-    };
+    // const getProgressColor = (value: number, min: number = 45, max: number = 55) => {
+    //     if (value < min) return 'red';
+    //     if (value > max) return 'cyan';
+    //     return 'green';
+    // };
 
-    const getLatestReadingsByDepth = (readings: Measurement[]) => {
-        const uniqueDepths = new Map<number, Measurement>();
-        const sorted = [...readings].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        sorted.forEach(reading => {
-            if (reading.moisture_pct !== null && !uniqueDepths.has(reading.depth_cm)) {
-                uniqueDepths.set(reading.depth_cm, reading);
-            }
-        });
-        return Array.from(uniqueDepths.values()).sort((a, b) => a.depth_cm - b.depth_cm);
-    };
+    // const getLatestReadingsByDepth = (readings: Measurement[]) => {
+    //     const uniqueDepths = new Map<number, Measurement>();
+    //     const sorted = [...readings].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    //     sorted.forEach(reading => {
+    //         if (reading.moisture_pct !== null && !uniqueDepths.has(reading.depth_cm)) {
+    //             uniqueDepths.set(reading.depth_cm, reading);
+    //         }
+    //     });
+    //     return Array.from(uniqueDepths.values()).sort((a, b) => a.depth_cm - b.depth_cm);
+    // };
 
-    const profileData = selectedPoint ? getLatestReadingsByDepth(selectedPoint.readings) : [];
+    // const profileData = selectedPoint ? getLatestReadingsByDepth(selectedPoint.readings) : [];
 
     return (
         <Box
@@ -421,76 +422,19 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                         left={4}
                         zIndex={1000}
                         bg="rgba(26, 32, 44, 0.95)"
-                        backdropFilter="blur(5px)"
+                        // backdropFilter="blur(5px)"
                         borderRadius="xl"
-                        boxShadow="2xl"
-                        width="260px"
-                        p={3}
-                        border="1px solid"
-                        borderColor="whiteAlpha.200"
+                        // boxShadow="2xl"
+                        // width="260px"
+                        // p={3}
+                        // border="1px solid"
+                        // borderColor="whiteAlpha.200"
                     >
-                        <HStack justify="space-between" align="start" mb={1}>
-                            <VStack align="start" spacing={0}>
-                                <Text fontWeight="bold" fontSize="md" color="white">
-                                    Sonda - {selectedPoint.esn}
-                                </Text>
-                                <Text
-                                    fontSize="xs"
-                                    fontWeight="bold"
-                                    color={getStatusColor(selectedPoint.statusCode)}
-                                    textTransform="uppercase"
-                                    letterSpacing="wide"
-                                >
-                                    Status: {getStatusLabel(selectedPoint.statusCode)}
-                                </Text>
-                            </VStack>
-                            <CloseButton
-                                size="sm"
-                                color="gray.400"
-                                onClick={() => setSelectedPoint(null)}
-                                _hover={{ color: "white" }}
-                            />
-                        </HStack>
-
-                        <VStack align="stretch" spacing={2} mt={2} mb={3}>
-                            {profileData.map((r) => {
-                                if (r.moisture_pct === null) return null;
-
-                                return (
-                                    <HStack key={r.depth_cm} spacing={2}>
-                                        <Text fontSize="2xs" color="gray.400" w="30px" fontWeight="medium">
-                                            {r.depth_cm}cm
-                                        </Text>
-                                        <Box flex="1">
-                                            <Progress
-                                                value={r.moisture_pct}
-                                                size="xs"
-                                                borderRadius="full"
-                                                colorScheme={getProgressColor(
-                                                    r.moisture_pct,
-                                                    selectedPoint.config_min,
-                                                    selectedPoint.config_max
-                                                )}
-                                                bg="whiteAlpha.200"
-                                            />
-                                        </Box>
-                                    </HStack>
-                                );
-                            })}
-                        </VStack>
-
-                        <Button
-                            colorScheme="blue"
-                            size="xs"
-                            h="28px"
-                            w="full"
-                            fontSize="xs"
-                            fontWeight="bold"
-                            onClick={() => onViewGraph(selectedPoint.id)}
-                            _hover={{ bg: "blue.400" }}
-                        >
-                            VER GRÁFICO
-                        </Button>
+                        <ProbeCard
+                            point={selectedPoint}
+                            onViewGraph={onViewGraph}
+                            onClose={() => setSelectedPoint(null)}
+                        />
                     </Box>
                 )}
             </Fade>

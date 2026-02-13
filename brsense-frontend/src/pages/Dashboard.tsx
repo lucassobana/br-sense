@@ -5,7 +5,7 @@ import {
   VStack,
   Table, Thead, Tbody, Tr, Th, Td, TableContainer,
   Icon, Tooltip as ChakraTooltip,
-  Input, InputGroup, InputLeftElement, HStack
+  Input, InputGroup, InputLeftElement, HStack, Menu, MenuButton, MenuList, MenuItem,
 } from '@chakra-ui/react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -16,8 +16,10 @@ import {
   MdBatteryUnknown,
   MdSearch,
   MdArrowUpward,
-  MdArrowDownward
+  MdArrowDownward,
+  MdArrowDropDown,
 } from 'react-icons/md';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getProbes, getFarms, getDeviceHistory } from '../services/api';
 import type { Probe, Farm } from '../types';
 // Importamos o componente e o Tipo TimeRange exportado dele
@@ -66,6 +68,7 @@ export function Dashboard() {
   const toast = useToast();
   const isMountedRef = useRef(true);
   const userIsAdmin = isUserAdmin();
+  const [direction, setDirection] = useState(1);
 
   const selectedProbe = useMemo(() => {
     if (!probeIdParam) return null;
@@ -85,11 +88,13 @@ export function Dashboard() {
   }, [selectedFarm, probes]);
 
   const handleMapGraphClick = (deviceId: number) => {
+    setDirection(1);
     setSearchParams({ probeId: String(deviceId) });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleBackToMap = () => {
+    setDirection(-1);
     setSearchParams({});
     setChartData([]);
     setSelectedPeriod('30d'); // Reseta o filtro ao voltar para o mapa
@@ -336,221 +341,353 @@ export function Dashboard() {
     );
   }
 
+  const handleProbeSelect = (probeId: number) => {
+    setSearchParams({ probeId: String(probeId) });
+    // O useEffect já existente detectará a mudança na URL e recarregará o gráfico
+  };
+
+  const MotionBox = motion(Box);
+
+  const pageVariants = {
+    initial: (direction: number) => ({
+      x: direction > 0 ? 100 : -100,
+      opacity: 0
+    }),
+    animate: {
+      x: 0,
+      opacity: 1
+    },
+    exit: (direction: number) => ({
+      x: direction > 0 ? -100 : 100,
+      opacity: 0
+    })
+  };
+
   return (
     <Box minH="100vh" bg={COLORS.background} pb={10}>
-      {viewMode === 'map' && (
-        <>
-          <Box w="100%" mt={6} pr={6} pl={6} borderRadius="xl" overflow="hidden" boxShadow="2xl">
-            <Box w="100%" h="90vh" position="relative" bg="black">
-              <SatelliteMap
-                points={mapPoints}
-                onViewGraph={handleMapGraphClick}
-                initialCenter={initialMapPosition}
-              />
-            </Box>
-          </Box>
-
-          <Container maxW="container.xl" mt={8} mb={10}>
-            <Flex justify="space-between" align="center" mb={6} wrap="wrap" gap={4}>
-              <Heading size="md" color={COLORS.textPrimary} borderLeft="4px solid" borderColor="blue.500" pl={3}>
-                Monitoramento Detalhado
-              </Heading>
-
-              <InputGroup maxW="300px">
-                <InputLeftElement pointerEvents="none">
-                  <Icon as={MdSearch} color="gray.500" />
-                </InputLeftElement>
-                <Input
-                  placeholder="Buscar por nome ou ESN..."
-                  value={filterText}
-                  onChange={(e) => setFilterText(e.target.value)}
-                  bg="gray.800"
-                  color="white"
-                  borderColor="gray.700"
-                  _placeholder={{ color: 'gray.500' }}
-                  _focus={{ borderColor: 'blue.500' }}
-                />
-              </InputGroup>
-            </Flex>
-
-            {filteredProbes.length === 0 ? (
-              <Text color="gray.500" fontStyle="italic">Nenhuma sonda encontrada.</Text>
-            ) : (
-              <TableContainer bg="gray.800" borderRadius="xl" border="1px solid" borderColor="gray.700" boxShadow="lg">
-                <Table variant="simple" colorScheme="whiteAlpha" size="md">
-                  <Thead>
-                    {/* LINHA 1 DO CABEÇALHO */}
-                    <Tr>
-                      {/* Colunas Padrão (Ocupam 2 linhas de altura) */}
-                      <Th rowSpan={2} color="gray.400" borderColor="gray.700" cursor="pointer" onClick={() => handleSort('esn')} verticalAlign="bottom" pb={4}>
-                        <HStack spacing={0}><Text>ESN</Text><SortIcon column="esn" /></HStack>
-                      </Th>
-                      <Th rowSpan={2} color="gray.400" borderColor="gray.700" cursor="pointer" onClick={() => handleSort('name')} verticalAlign="bottom" pb={4}>
-                        <HStack spacing={0}><Text>Nome</Text><SortIcon column="name" /></HStack>
-                      </Th>
-                      <Th rowSpan={2} color="gray.400" borderColor="gray.700" cursor="pointer" onClick={() => handleSort('farmName')} verticalAlign="bottom" pb={4}>
-                        <HStack spacing={0}><Text>Fazenda</Text><SortIcon column="farmName" /></HStack>
-                      </Th>
-                      <Th rowSpan={2} color="gray.400" borderColor="gray.700" cursor="pointer" onClick={() => handleSort('status')} verticalAlign="bottom" pb={4}>
-                        <HStack spacing={0}><Text>Status</Text><SortIcon column="status" /></HStack>
-                      </Th>
-
-                      {/* Header Agrupador de Chuva (Ocupa 3 colunas de largura) */}
-                      <Th
-                        colSpan={3}
-                        color="blue.300"
-                        borderColor="gray.600"
-                        textAlign="center"
-                        borderBottomWidth="1px"
-                        pt={2}
-                      >
-                        PRECIPITAÇÃO (mm)
-                      </Th>
-
-                      <Th rowSpan={2} color="gray.400" borderColor="gray.700" textAlign="center" cursor="pointer" onClick={() => handleSort('batteryLevel')} verticalAlign="bottom" pb={4}>
-                        <HStack spacing={0} justify="center"><Text>Bateria</Text><SortIcon column="batteryLevel" /></HStack>
-                      </Th>
-                    </Tr>
-
-                    {/* LINHA 2 DO CABEÇALHO (Sub-colunas da Chuva) */}
-                    <Tr>
-                      <Th color="blue.200" borderColor="gray.700" textAlign="center" fontSize="xs" py={1}>1h</Th>
-                      <Th color="blue.300" borderColor="gray.700" textAlign="center" fontSize="xs" py={1}>24h</Th>
-                      <Th color="blue.400" borderColor="gray.700" textAlign="center" fontSize="xs" py={1}>7 Dias</Th>
-                    </Tr>
-                  </Thead>
-
-                  <Tbody>
-                    {processedTableData.map((data) => (
-                      <Tr
-                        key={data.id}
-                        onClick={() => handleMapGraphClick(data.id)}
-                        cursor="pointer"
-                        _hover={{ bg: 'whiteAlpha.100', transform: "translateY(-1px)", boxShadow: "sm" }}
-                        transition="all 0.2s"
-                      >
-                        <Td borderColor="gray.700" fontWeight="medium" color="white">{data.esn}</Td>
-                        <Td borderColor="gray.700" color="gray.300">{data.name || '-'}</Td>
-                        <Td borderColor="gray.700" color="gray.300">{data.farmName}</Td>
-                        <Td borderColor="gray.700">
-                          <Badge
-                            colorScheme={getStatusColor(data.status)}
-                            variant="subtle"
-                            borderRadius="md"
-                            px={2}
-                            fontSize="0.75rem"
-                          >
-                            {getStatusLabel(data.status)}
-                          </Badge>
-                        </Td>
-
-                        {/* Células de Chuva (Alinhadas com o sub-header) */}
-                        <Td borderColor="gray.700" textAlign="center" fontWeight="bold" color="blue.200">
-                          {formatRain(data.rain_1h)}
-                        </Td>
-                        <Td borderColor="gray.700" textAlign="center" fontWeight="bold" color="blue.300">
-                          {formatRain(data.rain_24h)}
-                        </Td>
-                        <Td borderColor="gray.700" textAlign="center" color="blue.400">
-                          {formatRain(data.rain_7d)}
-                        </Td>
-
-                        <Td borderColor="gray.700" textAlign="center">
-                          <ChakraTooltip
-                            label={data.batteryLevel !== undefined ? `Nível: ${data.batteryLevel} / 7 (${data.batteryDate})` : 'Sem dados'}
-                            hasArrow
-                            bg="gray.700"
-                            color="white"
-                          >
-                            <Flex justify="center" align="center">
-                              {getBatteryIcon(data.batteryLevel)}
-                            </Flex>
-                          </ChakraTooltip>
-                        </Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              </TableContainer>
-            )}
-          </Container>
-        </>
-      )}
-
-      {viewMode === 'chart' && selectedProbe && (
-        <Box w="100%" px={6} py={6} minH="100vh">
-          <Button
-            leftIcon={<MdArrowBack />}
-            variant="ghost"
-            color="white"
-            mb={4}
-            onClick={handleBackToMap}
-            _hover={{ bg: 'whiteAlpha.200' }}
+      <AnimatePresence mode="wait" custom={direction}>
+        {viewMode === 'map' && (
+          <MotionBox
+            key="map"
+            custom={direction}
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={{ duration: 0.4, ease: "easeInOut" }}
+            position="absolute"
+            w="100%"
+            bg={COLORS.background}
+            minH="100vh"
           >
-            Voltar ao Mapa
-          </Button>
+            <Box w="100%" mt={6} pr={6} pl={6} borderRadius="xl" overflow="hidden" boxShadow="2xl">
+              <Box w="100%" h="90vh" position="relative" bg="black">
+                <SatelliteMap
+                  points={mapPoints}
+                  onViewGraph={handleMapGraphClick}
+                  initialCenter={initialMapPosition}
+                />
+              </Box>
+            </Box>
 
-          <Heading size="lg" color="white" mb={2}>
+            <Container maxW="container.xl" mt={8} mb={10}>
+              <Flex justify="space-between" align="center" mb={6} wrap="wrap" gap={4}>
+                <Heading size="md" color={COLORS.textPrimary} borderLeft="4px solid" borderColor="blue.500" pl={3}>
+                  Monitoramento Detalhado
+                </Heading>
+
+                <InputGroup maxW="300px">
+                  <InputLeftElement pointerEvents="none">
+                    <Icon as={MdSearch} color="gray.500" />
+                  </InputLeftElement>
+                  <Input
+                    placeholder="Buscar por nome ou ESN..."
+                    value={filterText}
+                    onChange={(e) => setFilterText(e.target.value)}
+                    bg="gray.800"
+                    color="white"
+                    borderColor="gray.700"
+                    _placeholder={{ color: 'gray.500' }}
+                    _focus={{ borderColor: 'blue.500' }}
+                  />
+                </InputGroup>
+              </Flex>
+
+              {filteredProbes.length === 0 ? (
+                <Text color="gray.500" fontStyle="italic">Nenhuma sonda encontrada.</Text>
+              ) : (
+                <TableContainer bg="gray.800" borderRadius="xl" border="1px solid" borderColor="gray.700" boxShadow="lg">
+                  <Table variant="simple" colorScheme="whiteAlpha" size="md">
+                    <Thead>
+                      {/* LINHA 1 DO CABEÇALHO */}
+                      <Tr>
+                        {/* Colunas Padrão (Ocupam 2 linhas de altura) */}
+                        <Th rowSpan={2} color="gray.400" borderColor="gray.700" cursor="pointer" onClick={() => handleSort('esn')} verticalAlign="bottom" pb={4}>
+                          <HStack spacing={0}><Text>ESN</Text><SortIcon column="esn" /></HStack>
+                        </Th>
+                        <Th rowSpan={2} color="gray.400" borderColor="gray.700" cursor="pointer" onClick={() => handleSort('name')} verticalAlign="bottom" pb={4}>
+                          <HStack spacing={0}><Text>Nome</Text><SortIcon column="name" /></HStack>
+                        </Th>
+                        <Th rowSpan={2} color="gray.400" borderColor="gray.700" cursor="pointer" onClick={() => handleSort('farmName')} verticalAlign="bottom" pb={4}>
+                          <HStack spacing={0}><Text>Fazenda</Text><SortIcon column="farmName" /></HStack>
+                        </Th>
+                        <Th rowSpan={2} color="gray.400" borderColor="gray.700" cursor="pointer" onClick={() => handleSort('status')} verticalAlign="bottom" pb={4}>
+                          <HStack spacing={0}><Text>Status</Text><SortIcon column="status" /></HStack>
+                        </Th>
+
+                        {/* Header Agrupador de Chuva (Ocupa 3 colunas de largura) */}
+                        <Th
+                          colSpan={3}
+                          color="blue.300"
+                          borderColor="gray.600"
+                          textAlign="center"
+                          borderBottomWidth="1px"
+                          pt={2}
+                        >
+                          PRECIPITAÇÃO (mm)
+                        </Th>
+
+                        <Th rowSpan={2} color="gray.400" borderColor="gray.700" textAlign="center" cursor="pointer" onClick={() => handleSort('batteryLevel')} verticalAlign="bottom" pb={4}>
+                          <HStack spacing={0} justify="center"><Text>Bateria</Text><SortIcon column="batteryLevel" /></HStack>
+                        </Th>
+                      </Tr>
+
+                      {/* LINHA 2 DO CABEÇALHO (Sub-colunas da Chuva) */}
+                      <Tr>
+                        <Th color="blue.200" borderColor="gray.700" textAlign="center" fontSize="xs" py={1}>1h</Th>
+                        <Th color="blue.300" borderColor="gray.700" textAlign="center" fontSize="xs" py={1}>24h</Th>
+                        <Th color="blue.400" borderColor="gray.700" textAlign="center" fontSize="xs" py={1}>7 Dias</Th>
+                      </Tr>
+                    </Thead>
+
+                    <Tbody>
+                      {processedTableData.map((data) => (
+                        <Tr
+                          key={data.id}
+                          onClick={() => handleMapGraphClick(data.id)}
+                          cursor="pointer"
+                          _hover={{ bg: 'whiteAlpha.100', transform: "translateY(-1px)", boxShadow: "sm" }}
+                          transition="all 0.2s"
+                        >
+                          <Td borderColor="gray.700" fontWeight="medium" color="white">{data.esn}</Td>
+                          <Td borderColor="gray.700" color="gray.300">{data.name || '-'}</Td>
+                          <Td borderColor="gray.700" color="gray.300">{data.farmName}</Td>
+                          <Td borderColor="gray.700">
+                            <Badge
+                              colorScheme={getStatusColor(data.status)}
+                              variant="subtle"
+                              borderRadius="md"
+                              px={2}
+                              fontSize="0.75rem"
+                            >
+                              {getStatusLabel(data.status)}
+                            </Badge>
+                          </Td>
+
+                          {/* Células de Chuva (Alinhadas com o sub-header) */}
+                          <Td borderColor="gray.700" textAlign="center" fontWeight="bold" color="blue.200">
+                            {formatRain(data.rain_1h)}
+                          </Td>
+                          <Td borderColor="gray.700" textAlign="center" fontWeight="bold" color="blue.300">
+                            {formatRain(data.rain_24h)}
+                          </Td>
+                          <Td borderColor="gray.700" textAlign="center" color="blue.400">
+                            {formatRain(data.rain_7d)}
+                          </Td>
+
+                          <Td borderColor="gray.700" textAlign="center">
+                            <ChakraTooltip
+                              label={data.batteryLevel !== undefined ? `Nível: ${data.batteryLevel} / 7 (${data.batteryDate})` : 'Sem dados'}
+                              hasArrow
+                              bg="gray.700"
+                              color="white"
+                            >
+                              <Flex justify="center" align="center">
+                                {getBatteryIcon(data.batteryLevel)}
+                              </Flex>
+                            </ChakraTooltip>
+                          </Td>
+                        </Tr>
+                      ))}
+                    </Tbody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Container>
+          </MotionBox>
+        )}
+        {viewMode === 'chart' && selectedProbe && (
+          <MotionBox
+            key={selectedProbe.id}
+            w="100%"
+            px={6}
+            py={6}
+            minH="100vh"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.4 }}
+            custom={direction}
+          >
+            <Button
+              leftIcon={<MdArrowBack />}
+              variant="ghost"
+              color="white"
+              mb={4}
+              onClick={handleBackToMap}
+              _hover={{ bg: 'whiteAlpha.200' }}
+            >
+              Voltar ao Mapa
+            </Button>
+
+            <MotionBox
+              mb={6}
+            >
+              <Menu>
+                <MenuButton
+                  as={Button}
+                  variant="unstyled" // Remove estilo padrão de botão para parecer texto
+                  display="flex"
+                  alignItems="center"
+                  _hover={{ color: "gray.300" }} // Feedback visual ao passar o mouse
+                  _active={{ color: "gray.400" }}
+                  sx={{
+                    textAlign: 'left',
+                    height: 'auto',
+                    p: 0,
+                    minW: 0
+                  }}
+                >
+                  <Heading
+                    size="lg"
+                    color="white"
+                    display="flex"
+                    alignItems="center"
+                    gap={2}
+                  >
+                    {selectedProbe.name || selectedProbe.esn}
+                    <motion.div
+                      animate={{ rotate: selectedProbe ? 0 : 180 }}
+                      transition={{ duration: 0.4 }}
+                    >
+                      <Icon as={MdArrowDropDown} boxSize={8} />
+                    </motion.div>
+                  </Heading>
+                </MenuButton>
+
+                <MenuList bg="gray.800" borderColor="gray.600" maxH="300px" overflowY="auto" zIndex={10}>
+                  {filteredProbes.map((probe) => (
+                    <MenuItem
+                      key={probe.id}
+                      onClick={() => handleProbeSelect(probe.id)}
+                      bg={probe.id === selectedProbe.id ? COLORS.primary : "gray.800"}
+                      color="white"
+                      _hover={{ bg: probe.id === selectedProbe.id ? COLORS.primaryDark : "gray.700" }}
+                      _focus={{ bg: probe.id === selectedProbe.id ? COLORS.primaryDark : "gray.700" }}
+                      justifyContent="space-between"
+                    >
+                      <Text>{probe.name || probe.esn}</Text>
+                    </MenuItem>
+                  ))}
+                </MenuList>
+              </Menu>
+              <Text color="gray.400" mt={1}>Análise detalhada do solo</Text>
+            </MotionBox>
+            {/* <Heading size="lg" color="white" mb={2}>
             {selectedProbe.name || selectedProbe.esn}
-          </Heading>
-          <Text color="gray.400" mb={6}>Análise detalhada do solo</Text>
+          </Heading> 
+           <Text color="gray.400" mb={6}>Análise detalhada do solo</Text> */}
 
-          <Box bg="gray.800" borderRadius="xl" p={6} border="1px solid" borderColor="gray.700">
-            {loadingChart ? (
-              <Flex justify="center" align="center" h="300px"><Spinner size="xl" color="blue.500" /></Flex>
-            ) : (
-              <VStack spacing={8} align="stretch">
-                <Box bg="gray.900" borderRadius="lg" p={4}>
-                  {chartData.length > 0 ? (
-                    <SoilMoistureChart
-                      data={chartData}
-                      title="Perfil de Umidade (%)"
-                      unit="%"
-                      yDomain={[0, 100]}
-                      showZones={true}
-                      metric="moisture"
-                      isAdmin={userIsAdmin}
-                      esn={selectedProbe.esn}
-                      initialMin={selectedProbe.config_moisture_min ?? 45}
-                      initialMax={selectedProbe.config_moisture_max ?? 55}
-                      onConfigUpdate={() => loadData()}
+            <Box bg="gray.800" borderRadius="xl" p={6} border="1px solid" borderColor="gray.700">
+              {loadingChart ? (
+                <Flex justify="center" align="center" h="300px"><Spinner size="xl" color="blue.500" /></Flex>
+              ) : (
+                <VStack spacing={8} align="stretch" as={motion.div}
+                  initial="hidden"
+                  animate="visible"
+                  variants={{
+                    hidden: {},
+                    visible: {
+                      transition: {
+                        staggerChildren: 0.15
+                      }
+                    }
+                  }}
+                >
+                  <MotionBox
+                    bg="gray.900"
+                    borderRadius="lg"
+                    p={4}
+                    variants={{
+                      hidden: { opacity: 0, y: 30 },
+                      visible: { opacity: 1, y: 0 }
+                    }}
+                    transition={{ duration: 0.4 }}
+                  >
 
-                      // --- Passando os controles de período ---
-                      selectedPeriod={selectedPeriod}
-                      onPeriodChange={setSelectedPeriod}
-                    />
-                  ) : (
-                    <Flex h="300px" justify="center" align="center">
-                      <Text color="gray.500">Sem dados de umidade recentes.</Text>
-                    </Flex>
-                  )}
-                </Box>
+                    {chartData.length > 0 ? (
+                      <SoilMoistureChart
+                        data={chartData}
+                        title="Perfil de Umidade (%)"
+                        unit="%"
+                        yDomain={[0, 100]}
+                        showZones={true}
+                        metric="moisture"
+                        isAdmin={userIsAdmin}
+                        esn={selectedProbe.esn}
+                        initialMin={selectedProbe.config_moisture_min ?? 45}
+                        initialMax={selectedProbe.config_moisture_max ?? 55}
+                        onConfigUpdate={() => loadData()}
 
-                <Box bg="gray.900" borderRadius="lg" p={4}>
-                  {chartData.length > 0 ? (
-                    <SoilMoistureChart
-                      data={chartData}
-                      title="Perfil de Temperatura (°C)"
-                      unit="°C"
-                      yDomain={['auto', 'auto']}
-                      showZones={true}
-                      metric="temperature"
+                        // --- Passando os controles de período ---
+                        selectedPeriod={selectedPeriod}
+                        onPeriodChange={setSelectedPeriod}
+                      />
+                    ) : (
+                      <Flex h="300px" justify="center" align="center">
+                        <Text color="gray.500">Sem dados de umidade recentes.</Text>
+                      </Flex>
+                    )}
+                  </MotionBox>
 
-                      // --- Também passamos para o gráfico de temp ---
-                      selectedPeriod={selectedPeriod}
-                      onPeriodChange={setSelectedPeriod}
-                    />
-                  ) : (
-                    <Flex h="300px" justify="center" align="center">
-                      <Text color="gray.500">Sem dados de temperatura recentes.</Text>
-                    </Flex>
-                  )}
-                </Box>
-              </VStack>
-            )}
-          </Box>
-        </Box>
-      )}
-    </Box>
+                  <MotionBox
+                    bg="gray.900"
+                    borderRadius="lg"
+                    p={4}
+                    variants={{
+                      hidden: { opacity: 0, y: 30 },
+                      visible: { opacity: 1, y: 0 }
+                    }}
+                    transition={{ duration: 0.4 }}
+                  >
+
+                    {chartData.length > 0 ? (
+                      <SoilMoistureChart
+                        data={chartData}
+                        title="Perfil de Temperatura (°C)"
+                        unit="°C"
+                        yDomain={['auto', 'auto']}
+                        showZones={true}
+                        metric="temperature"
+
+                        // --- Também passamos para o gráfico de temp ---
+                        selectedPeriod={selectedPeriod}
+                        onPeriodChange={setSelectedPeriod}
+                      />
+                    ) : (
+                      <Flex h="300px" justify="center" align="center">
+                        <Text color="gray.500">Sem dados de temperatura recentes.</Text>
+                      </Flex>
+                    )}
+                  </MotionBox>
+                </VStack>
+              )}
+            </Box>
+          </MotionBox>
+        )
+        }
+
+      </AnimatePresence >
+    </Box >
   );
 }
