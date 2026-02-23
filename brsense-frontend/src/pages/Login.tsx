@@ -240,7 +240,7 @@ export function Login() {
 
                 <Flex justify="center" pt={6}>
                     <Text fontSize="xs" color={colors.textPlaceholder}>
-                        Powered by BR Sense - Soil & Climate Intelligence.
+                        Powered by BR Sense - Tecnologia Agrícola.
                     </Text>
                 </Flex>
             </Container>

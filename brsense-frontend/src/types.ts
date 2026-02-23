@@ -48,3 +48,8 @@ export interface RequestLog {
   status: string;
   log_message: string;
 }
+
+export interface RadarFrame {
+    time: number;   // Unix timestamp
+    path: string;   // Path do tile
+}

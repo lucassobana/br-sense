@@ -22,13 +22,11 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { getProbes, getFarms, getDeviceHistory } from '../services/api';
 import type { Probe, Farm } from '../types';
-// Importamos o componente e o Tipo TimeRange exportado dele
 import { SoilMoistureChart, type RawApiData, type TimeRange } from '../components/SoilMoistureChart/SoilMoistureChart';
 import { COLORS } from '../colors/colors';
 import { SatelliteMap, type MapPoint } from '../components/SatelliteMap/SatelliteMap';
 import { isUserAdmin } from '../services/auth';
 
-// Tipo auxiliar para os dados da tabela processados
 interface TableRowData extends Probe {
   farmName: string;
   status: string;
@@ -38,7 +36,6 @@ interface TableRowData extends Probe {
 
 type SortKey = 'esn' | 'name' | 'farmName' | 'status' | 'batteryLevel';
 
-// Helper para formatar chuva
 const formatRain = (val?: number) => {
   if (val === undefined || val === null) return '-';
   return `${val.toFixed(1)} mm`;
@@ -59,8 +56,10 @@ export function Dashboard() {
   });
 
   // --- ESTADO DO FILTRO DE PERÍODO ---
-  // Mantemos o estado aqui porque é o Dashboard que busca os dados na API
   const [selectedPeriod, setSelectedPeriod] = useState<TimeRange>('30d');
+
+  // Novos estados para guardar as datas customizadas caso o usuário navegue entre abas
+  const [customRange, setCustomRange] = useState<{ start?: string, end?: string }>({});
 
   const [chartData, setChartData] = useState<RawApiData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,9 +77,15 @@ export function Dashboard() {
   const viewMode = selectedProbe ? 'chart' : 'map';
 
   useEffect(() => {
+    if (selectedProbe) {
+      // Sempre que trocar de sonda, volta para o padrão de 30 dias
+      setSelectedPeriod('30d');
+      setCustomRange({});
+      // O fetchHistory será disparado automaticamente pela mudança do selectedPeriod
+    }
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
-  }, []);
+  }, [selectedProbe]);
 
   const filteredProbes = useMemo(() => {
     if (!selectedFarm) return probes;
@@ -97,7 +102,8 @@ export function Dashboard() {
     setDirection(-1);
     setSearchParams({});
     setChartData([]);
-    setSelectedPeriod('30d'); // Reseta o filtro ao voltar para o mapa
+    // Opcional: Resetar filtro ao voltar
+    // setSelectedPeriod('30d'); 
   };
 
   const handleSort = (key: SortKey) => {
@@ -107,29 +113,7 @@ export function Dashboard() {
     }));
   };
 
-  // --- HELPER: CALCULAR DATA DE INÍCIO ---
-  const getStartDate = (period: TimeRange): string => {
-    const now = new Date();
-    const target = new Date(now);
-
-    switch (period) {
-      case '24h':
-        target.setHours(now.getHours() - 24);
-        break;
-      case '7d':
-        target.setDate(now.getDate() - 7);
-        break;
-      case '15d':
-        target.setDate(now.getDate() - 15);
-        break;
-      case '30d':
-        target.setDate(now.getDate() - 30);
-        break;
-    }
-    return target.toISOString();
-  };
-
-  // --- LÓGICA DO MAPA ---
+  // --- LÓGICA DO MAPA (Mantida) ---
   const mapPoints: MapPoint[] = useMemo(() => {
     return filteredProbes.map((probe) => {
       const hasLocation =
@@ -190,7 +174,7 @@ export function Dashboard() {
     };
   }, [probes]);
 
-  // --- TABELA ---
+  // --- TABELA (Mantida) ---
   const processedTableData = useMemo(() => {
     const mapped: TableRowData[] = filteredProbes.map(probe => {
       const mapPoint = mapPoints.find(mp => mp.id === probe.id);
@@ -233,7 +217,6 @@ export function Dashboard() {
 
   }, [filteredProbes, mapPoints, farms, filterText, sortConfig]);
 
-
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -254,55 +237,114 @@ export function Dashboard() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // --- BUSCA DE HISTÓRICO COM PERÍODO DINÂMICO ---
-  useEffect(() => {
-    if (!selectedProbe || viewMode !== 'chart') return;
+  // --- [NOVO] FUNÇÃO CENTRAL DE BUSCA DE HISTÓRICO ---
+  const fetchHistory = useCallback(async (period: TimeRange, startDateStr?: string, endDateStr?: string) => {
+    if (!selectedProbe) return;
 
-    const fetchHistory = async () => {
-      try {
-        setLoadingChart(true);
-        setChartData([]);
+    try {
+      setLoadingChart(true);
+      // Opcional: limpar dados antigos ou manter enquanto carrega (melhor UX manter)
+      // setChartData([]); 
 
-        // 1. Calcula Data baseada no selectedPeriod
-        const startDate = getStartDate(selectedPeriod);
+      let finalStart: string | undefined;
+      let finalEnd: string | undefined;
 
-        // 2. Chama API
-        const history = await getDeviceHistory(selectedProbe.esn, {
-          start_date: startDate,
-          limit: 50000
-        });
+      // Lógica de Datas
+      if (period === 'Personalizado' && startDateStr && endDateStr) {
+        // Ajusta para o formato ISO completo esperado pelo backend
+        finalStart = new Date(startDateStr).toISOString();
 
-        if (!isMountedRef.current) return;
+        // Ajusta o fim para o final do dia (23:59:59)
+        const endObj = new Date(endDateStr);
+        endObj.setHours(23, 59, 59, 999);
+        finalEnd = endObj.toISOString();
 
-        // 3. Ordena e Formata
-        const sortedHistory = [...history].sort((a, b) =>
-          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-        );
+      } else if (period !== 'Personalizado') {
+        // Lógica para períodos pré-definidos (24h, 7d, etc)
+        const now = new Date();
+        const target = new Date(now);
 
-        const formattedData: RawApiData[] = sortedHistory.map(r => ({
-          timestamp: r.timestamp,
-          depth_cm: r.depth_cm,
-          moisture_pct: r.moisture_pct,
-          temperature_c: r.temperature_c,
-          rain_cm: r.rain_cm
-        }));
-
-        setChartData(formattedData);
-
-      } catch (error) {
-        console.error("Erro ao carregar histórico", error);
-        if (isMountedRef.current) {
-          toast({ title: 'Erro ao carregar dados', status: 'error' });
+        switch (period) {
+          case '24h': target.setHours(now.getHours() - 24); break;
+          case '7d': target.setDate(now.getDate() - 7); break;
+          case '15d': target.setDate(now.getDate() - 15); break;
+          case '30d': target.setDate(now.getDate() - 30); break;
         }
-      } finally {
-        if (isMountedRef.current) {
-          setLoadingChart(false);
-        }
+        finalStart = target.toISOString();
+        finalEnd = now.toISOString();
+      } else {
+        // Custom sem datas definidas: não faz fetch ou limpa
+        setLoadingChart(false);
+        return;
       }
-    };
 
-    fetchHistory();
-  }, [selectedProbe, viewMode, toast, selectedPeriod]); // Recarrega se o período mudar
+      const history = await getDeviceHistory(selectedProbe.esn, {
+        start_date: finalStart,
+        end_date: finalEnd,
+        limit: 50000
+      });
+
+      if (!isMountedRef.current) return;
+
+      const sortedHistory = [...history].sort((a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+
+      const formattedData: RawApiData[] = sortedHistory.map(r => ({
+        timestamp: r.timestamp,
+        depth_cm: r.depth_cm,
+        moisture_pct: r.moisture_pct,
+        temperature_c: r.temperature_c,
+        rain_cm: r.rain_cm
+      }));
+
+      setChartData(formattedData);
+
+    } catch (error) {
+      console.error("Erro ao carregar histórico", error);
+      if (isMountedRef.current) {
+        toast({ title: 'Erro ao carregar histórico', status: 'error' });
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setLoadingChart(false);
+      }
+    }
+  }, [selectedProbe, toast]);
+
+  // --- [NOVO] HANDLER QUE RECEBE O EVENTO DO GRÁFICO ---
+  // const handlePeriodChange = (period: TimeRange, start?: string, end?: string) => {
+  //   setSelectedPeriod(period);
+  //   if (period === 'Personalizado' && start && end) {
+  //     setCustomRange({ start, end });
+  //     fetchHistory(period, start, end);
+  //   } else if (period !== 'Personalizado') {
+  //     fetchHistory(period);
+  //   }
+  // };
+
+  const handlePeriodChange = (period: TimeRange, start?: string, end?: string) => {
+    setSelectedPeriod(period);
+
+    if (period === 'Personalizado' && start && end) {
+      setCustomRange({ start, end });
+    }
+  };
+
+  // Carrega dados iniciais quando seleciona a sonda
+  useEffect(() => {
+    if (viewMode !== 'chart' || !selectedProbe) return;
+
+    if (selectedPeriod === 'Personalizado') {
+      if (customRange.start && customRange.end) {
+        fetchHistory('Personalizado', customRange.start, customRange.end);
+      }
+    } else {
+      fetchHistory(selectedPeriod);
+    }
+  }, [selectedProbe, viewMode, selectedPeriod, customRange, fetchHistory]);
+  // Dependências controladas
+
 
   const getStatusColor = (status: string) => {
     if (status.includes('status_critical')) return 'red';
@@ -343,10 +385,9 @@ export function Dashboard() {
 
   const handleProbeSelect = (probeId: number) => {
     setSearchParams({ probeId: String(probeId) });
-    // O useEffect já existente detectará a mudança na URL e recarregará o gráfico
   };
 
-  const MotionBox = motion(Box);
+  const MotionBox = motion.create(Box);
 
   const pageVariants = {
     initial: (direction: number) => ({
@@ -419,9 +460,7 @@ export function Dashboard() {
                 <TableContainer bg="gray.800" borderRadius="xl" border="1px solid" borderColor="gray.700" boxShadow="lg">
                   <Table variant="simple" colorScheme="whiteAlpha" size="md">
                     <Thead>
-                      {/* LINHA 1 DO CABEÇALHO */}
                       <Tr>
-                        {/* Colunas Padrão (Ocupam 2 linhas de altura) */}
                         <Th rowSpan={2} color="gray.400" borderColor="gray.700" cursor="pointer" onClick={() => handleSort('esn')} verticalAlign="bottom" pb={4}>
                           <HStack spacing={0}><Text>ESN</Text><SortIcon column="esn" /></HStack>
                         </Th>
@@ -435,15 +474,7 @@ export function Dashboard() {
                           <HStack spacing={0}><Text>Status</Text><SortIcon column="status" /></HStack>
                         </Th>
 
-                        {/* Header Agrupador de Chuva (Ocupa 3 colunas de largura) */}
-                        <Th
-                          colSpan={3}
-                          color="blue.300"
-                          borderColor="gray.600"
-                          textAlign="center"
-                          borderBottomWidth="1px"
-                          pt={2}
-                        >
+                        <Th colSpan={3} color="blue.300" borderColor="gray.600" textAlign="center" borderBottomWidth="1px" pt={2}>
                           PRECIPITAÇÃO (mm)
                         </Th>
 
@@ -451,8 +482,6 @@ export function Dashboard() {
                           <HStack spacing={0} justify="center"><Text>Bateria</Text><SortIcon column="batteryLevel" /></HStack>
                         </Th>
                       </Tr>
-
-                      {/* LINHA 2 DO CABEÇALHO (Sub-colunas da Chuva) */}
                       <Tr>
                         <Th color="blue.200" borderColor="gray.700" textAlign="center" fontSize="xs" py={1}>1h</Th>
                         <Th color="blue.300" borderColor="gray.700" textAlign="center" fontSize="xs" py={1}>24h</Th>
@@ -473,35 +502,15 @@ export function Dashboard() {
                           <Td borderColor="gray.700" color="gray.300">{data.name || '-'}</Td>
                           <Td borderColor="gray.700" color="gray.300">{data.farmName}</Td>
                           <Td borderColor="gray.700">
-                            <Badge
-                              colorScheme={getStatusColor(data.status)}
-                              variant="subtle"
-                              borderRadius="md"
-                              px={2}
-                              fontSize="0.75rem"
-                            >
+                            <Badge colorScheme={getStatusColor(data.status)} variant="subtle" borderRadius="md" px={2} fontSize="0.75rem">
                               {getStatusLabel(data.status)}
                             </Badge>
                           </Td>
-
-                          {/* Células de Chuva (Alinhadas com o sub-header) */}
-                          <Td borderColor="gray.700" textAlign="center" fontWeight="bold" color="blue.200">
-                            {formatRain(data.rain_1h)}
-                          </Td>
-                          <Td borderColor="gray.700" textAlign="center" fontWeight="bold" color="blue.300">
-                            {formatRain(data.rain_24h)}
-                          </Td>
-                          <Td borderColor="gray.700" textAlign="center" color="blue.400">
-                            {formatRain(data.rain_7d)}
-                          </Td>
-
+                          <Td borderColor="gray.700" textAlign="center" fontWeight="bold" color="blue.200">{formatRain(data.rain_1h)}</Td>
+                          <Td borderColor="gray.700" textAlign="center" fontWeight="bold" color="blue.300">{formatRain(data.rain_24h)}</Td>
+                          <Td borderColor="gray.700" textAlign="center" color="blue.400">{formatRain(data.rain_7d)}</Td>
                           <Td borderColor="gray.700" textAlign="center">
-                            <ChakraTooltip
-                              label={data.batteryLevel !== undefined ? `Nível: ${data.batteryLevel} / 7 (${data.batteryDate})` : 'Sem dados'}
-                              hasArrow
-                              bg="gray.700"
-                              color="white"
-                            >
+                            <ChakraTooltip label={data.batteryLevel !== undefined ? `Nível: ${data.batteryLevel} / 7 (${data.batteryDate})` : 'Sem dados'} hasArrow bg="gray.700" color="white">
                               <Flex justify="center" align="center">
                                 {getBatteryIcon(data.batteryLevel)}
                               </Flex>
@@ -516,6 +525,7 @@ export function Dashboard() {
             </Container>
           </MotionBox>
         )}
+
         {viewMode === 'chart' && selectedProbe && (
           <MotionBox
             key={selectedProbe.id}
@@ -540,36 +550,20 @@ export function Dashboard() {
               Voltar ao Mapa
             </Button>
 
-            <MotionBox
-              mb={6}
-            >
+            <MotionBox mb={6}>
               <Menu>
                 <MenuButton
                   as={Button}
-                  variant="unstyled" // Remove estilo padrão de botão para parecer texto
+                  variant="unstyled"
                   display="flex"
                   alignItems="center"
-                  _hover={{ color: "gray.300" }} // Feedback visual ao passar o mouse
+                  _hover={{ color: "gray.300" }}
                   _active={{ color: "gray.400" }}
-                  sx={{
-                    textAlign: 'left',
-                    height: 'auto',
-                    p: 0,
-                    minW: 0
-                  }}
+                  sx={{ textAlign: 'left', height: 'auto', p: 0, minW: 0 }}
                 >
-                  <Heading
-                    size="lg"
-                    color="white"
-                    display="flex"
-                    alignItems="center"
-                    gap={2}
-                  >
+                  <Heading size="lg" color="white" display="flex" alignItems="center" gap={2}>
                     {selectedProbe.name || selectedProbe.esn}
-                    <motion.div
-                      animate={{ rotate: selectedProbe ? 0 : 180 }}
-                      transition={{ duration: 0.4 }}
-                    >
+                    <motion.div animate={{ rotate: selectedProbe ? 0 : 180 }} transition={{ duration: 0.4 }}>
                       <Icon as={MdArrowDropDown} boxSize={8} />
                     </motion.div>
                   </Heading>
@@ -593,38 +587,21 @@ export function Dashboard() {
               </Menu>
               <Text color="gray.400" mt={1}>Análise detalhada do solo</Text>
             </MotionBox>
-            {/* <Heading size="lg" color="white" mb={2}>
-            {selectedProbe.name || selectedProbe.esn}
-          </Heading> 
-           <Text color="gray.400" mb={6}>Análise detalhada do solo</Text> */}
 
-            <Box bg="gray.800" borderRadius="xl" p={6} border="1px solid" borderColor="gray.700">
+            <Box bg={{ md: "gray.800" }} borderRadius="xl" p={{ base: 0, md: 4 }} border="1px solid" borderColor="gray.700">
               {loadingChart ? (
                 <Flex justify="center" align="center" h="300px"><Spinner size="xl" color="blue.500" /></Flex>
               ) : (
                 <VStack spacing={8} align="stretch" as={motion.div}
-                  initial="hidden"
-                  animate="visible"
-                  variants={{
-                    hidden: {},
-                    visible: {
-                      transition: {
-                        staggerChildren: 0.15
-                      }
-                    }
-                  }}
+                  initial="hidden" animate="visible"
+                  variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.15 } } }}
                 >
+                  {/* GRÁFICO DE UMIDADE */}
                   <MotionBox
-                    bg="gray.900"
-                    borderRadius="lg"
-                    p={4}
-                    variants={{
-                      hidden: { opacity: 0, y: 30 },
-                      visible: { opacity: 1, y: 0 }
-                    }}
+                    bg="gray.900" borderRadius="lg" p={4}
+                    variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0 } }}
                     transition={{ duration: 0.4 }}
                   >
-
                     {chartData.length > 0 ? (
                       <SoilMoistureChart
                         data={chartData}
@@ -638,29 +615,23 @@ export function Dashboard() {
                         initialMin={selectedProbe.config_moisture_min ?? 45}
                         initialMax={selectedProbe.config_moisture_max ?? 55}
                         onConfigUpdate={() => loadData()}
-
-                        // --- Passando os controles de período ---
+                        // --- PROPS DE FILTRO ATUALIZADAS ---
                         selectedPeriod={selectedPeriod}
-                        onPeriodChange={setSelectedPeriod}
+                        onPeriodChange={handlePeriodChange}
                       />
                     ) : (
                       <Flex h="300px" justify="center" align="center">
-                        <Text color="gray.500">Sem dados de umidade recentes.</Text>
+                        <Text color="gray.500">Sem dados de umidade para este período.</Text>
                       </Flex>
                     )}
                   </MotionBox>
 
+                  {/* GRÁFICO DE TEMPERATURA */}
                   <MotionBox
-                    bg="gray.900"
-                    borderRadius="lg"
-                    p={4}
-                    variants={{
-                      hidden: { opacity: 0, y: 30 },
-                      visible: { opacity: 1, y: 0 }
-                    }}
+                    bg="gray.900" borderRadius="lg" p={4}
+                    variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0 } }}
                     transition={{ duration: 0.4 }}
                   >
-
                     {chartData.length > 0 ? (
                       <SoilMoistureChart
                         data={chartData}
@@ -669,14 +640,13 @@ export function Dashboard() {
                         yDomain={['auto', 'auto']}
                         showZones={true}
                         metric="temperature"
-
-                        // --- Também passamos para o gráfico de temp ---
+                        // --- PROPS DE FILTRO ATUALIZADAS ---
                         selectedPeriod={selectedPeriod}
-                        onPeriodChange={setSelectedPeriod}
+                        onPeriodChange={handlePeriodChange}
                       />
                     ) : (
                       <Flex h="300px" justify="center" align="center">
-                        <Text color="gray.500">Sem dados de temperatura recentes.</Text>
+                        <Text color="gray.500">Sem dados de temperatura para este período.</Text>
                       </Flex>
                     )}
                   </MotionBox>
@@ -684,9 +654,7 @@ export function Dashboard() {
               )}
             </Box>
           </MotionBox>
-        )
-        }
-
+        )}
       </AnimatePresence >
     </Box >
   );

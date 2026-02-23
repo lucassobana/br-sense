@@ -22,6 +22,7 @@ import {
 } from 'react-icons/md';
 import type { MapPoint } from '../SatelliteMap/SatelliteMap';
 import type { Measurement } from '../../types';
+import { calculateRainStats } from '../../utils/rainUtils';
 
 interface ProbeCardProps {
     point: MapPoint | null; // Permitir null para evitar erros de tipagem na checagem
@@ -73,30 +74,36 @@ export function ProbeCard({ point, onViewGraph, onClose }: ProbeCardProps) {
 
     // --- Dados de Chuva (Verso) ---
     // Hook chamado INCONDICIONALMENTE
-    const rainStats = useMemo(() => {
-        const stats = { '1h': 0, '24h': 0, '7d': 0, '15d': 0, '30d': 0 };
-        if (point && point.readings && point.readings.length > 0) {
-            const now = new Date();
-            const time1h = new Date(now.getTime() - 60 * 60 * 1000);
-            const time24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-            const time7d = new Date(); time7d.setDate(now.getDate() - 7);
-            const time15d = new Date(); time15d.setDate(now.getDate() - 15);
-            const time30d = new Date(); time30d.setDate(now.getDate() - 30);
+    // const rainStats = useMemo(() => {
+    //     const stats = { '1h': 0, '24h': 0, '7d': 0, '15d': 0, '30d': 0 };
+    //     if (point && point.readings && point.readings.length > 0) {
+    //         const now = new Date();
+    //         const time1h = new Date(now.getTime() - 60 * 60 * 1000);
+    //         const time24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    //         const time7d = new Date(); time7d.setDate(now.getDate() - 7);
+    //         const time15d = new Date(); time15d.setDate(now.getDate() - 15);
+    //         const time30d = new Date(); time30d.setDate(now.getDate() - 30);
 
-            point.readings.forEach(r => {
-                if (r.rain_cm && r.timestamp) {
-                    const rDate = new Date(r.timestamp);
-                    const val = Number(r.rain_cm);
-                    if (rDate >= time1h) stats['1h'] += val;
-                    if (rDate >= time24h) stats['24h'] += val;
-                    if (rDate >= time7d) stats['7d'] += val;
-                    if (rDate >= time15d) stats['15d'] += val;
-                    if (rDate >= time30d) stats['30d'] += val;
-                }
-            });
-        }
-        return stats;
-    }, [point]); // Dependência segura
+    //         point.readings.forEach(r => {
+    //             if (r.rain_cm && r.timestamp) {
+    //                 const rDate = new Date(r.timestamp);
+    //                 const val = Number(r.rain_cm);
+    //                 if (rDate >= time1h) stats['1h'] += val;
+    //                 if (rDate >= time24h) stats['24h'] += val;
+    //                 if (rDate >= time7d) stats['7d'] += val;
+    //                 if (rDate >= time15d) stats['15d'] += val;
+    //                 if (rDate >= time30d) stats['30d'] += val;
+    //             }
+    //         });
+    //     }
+    //     return stats;
+    // }, [point]); // Dependência segura
+
+    const rainStats = useMemo(() => {
+        return point?.readings ? calculateRainStats(point.readings) : {
+            '1h': 0, '24h': 0, '7d': 0, '15d': 0, '30d': 0
+        };
+    }, [point]);
 
     // --- Proteção contra renderização sem dados ---
     // Agora o return null acontece DEPOIS de todos os hooks

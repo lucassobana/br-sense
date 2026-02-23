@@ -1,58 +1,79 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap, CircleMarker, Polyline } from 'react-leaflet';
-import { Box, VStack, Fade, IconButton, useToast, Tooltip } from '@chakra-ui/react';
-import { MdAdd, MdRemove, MdMyLocation } from 'react-icons/md';
-import { FaMapMarker } from 'react-icons/fa';
+import { Box, VStack, Fade, IconButton, useToast, Tooltip, Select, Text, HStack } from '@chakra-ui/react';
+import { MdAdd, MdRemove, MdMyLocation, MdWaterDrop } from 'react-icons/md';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { Measurement } from '../../types';
+import type { Measurement, RadarFrame } from '../../types';
 import { COLORS } from '../../colors/colors';
-import { PiAlignTopSimpleFill } from "react-icons/pi"; // sonda
-// import { FaGlassWaterDroplet } from "react-icons/fa6"; // pluviometro
+import { PiAlignTopSimpleFill } from "react-icons/pi";
 import { ProbeCard } from '../ProbeCard/ProbeCard';
+import { calculateRainStats } from '../../utils/rainUtils';
+import { RainViewerRadarLayer } from "../RainViewer/RainViewer";
+import { RainViewerTimeline } from '../RainViewer/RainViewerTimeline';
 
-// --- Configuração de Ícones (Mantida) ---
-const createCustomIcon = (status: string) => {
-    let color = '#CBD5E0';
-    let IconComponent = FaMapMarker;
 
-    switch (status) {
-        case 'status_critical':
-            color = '#F56565';
-            IconComponent = PiAlignTopSimpleFill;
-            break;
-        case 'status_alert':
-            color = '#ECC94B';
-            IconComponent = PiAlignTopSimpleFill;
-            break;
-        case 'status_ok':
-            color = '#48BB78';
-            // IconComponent = FaCheckCircle;
-            IconComponent = PiAlignTopSimpleFill;
-            break;
-        case 'status_saturated':
-            color = '#0BC5EA';
-            // IconComponent = FaTint;
-            IconComponent = PiAlignTopSimpleFill;
-            break;
-        default:
-            color = '#A0AEC0';
-            IconComponent = PiAlignTopSimpleFill;
-    }
+// Profundidades disponíveis
+const AVAILABLE_DEPTHS = [10, 20, 30, 40, 50, 60];
 
+// Tipos de período de chuva
+export type RainPeriod = '1h' | '24h' | '7d' | '15d' | '30d';
+
+// --- Configuração de Ícones Dinâmicos ---
+const createCustomIcon = (color: string, rainValue: number | null, showRain: boolean) => {
+    const IconComponent = PiAlignTopSimpleFill;
+
+    // Renderiza o ícone e, opcionalmente, a badge de chuva
     const iconMarkup = renderToStaticMarkup(
-        <div style={{
-            color: color,
-            fontSize: '32px',
-            filter: 'drop-shadow(0px 2px 3px rgba(0,0,0,0.6))',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '100%',
-            height: '100%'
-        }}>
-            <IconComponent />
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            {/* Badge de Chuva (aparece apenas se showRain for true) */}
+            {showRain && (
+                <div style={{
+                    position: 'absolute',
+                    top: '-24px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    backgroundColor: '#3182CE',
+                    color: 'white',
+                    padding: '2px 6px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0px 2px 5px rgba(0,0,0,0.4)',
+                    border: '1px solid rgba(255,255,255,0.4)',
+                    zIndex: 1000
+                }}>
+                    {rainValue !== null ? `${rainValue.toFixed(1)} mm` : '--'}
+                    {/* Seta/triângulo apontando para baixo */}
+                    <div style={{
+                        position: 'absolute',
+                        bottom: '-4px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        width: '0',
+                        height: '0',
+                        borderLeft: '4px solid transparent',
+                        borderRight: '4px solid transparent',
+                        borderTop: '4px solid #3182CE',
+                    }} />
+                </div>
+            )}
+
+            {/* Ícone da Sonda */}
+            <div style={{
+                color: color,
+                fontSize: '32px',
+                filter: 'drop-shadow(0px 2px 3px rgba(0,0,0,0.6))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%',
+                height: '100%'
+            }}>
+                <IconComponent />
+            </div>
         </div>
     );
 
@@ -76,7 +97,6 @@ export interface MapPoint {
     config_max?: number;
 }
 
-// Interface interna para pontos processados com deslocamento visual
 interface DisplayMapPoint extends MapPoint {
     displayLat: number;
     displayLng: number;
@@ -108,7 +128,15 @@ const MapClickHandler = ({ onMapClick }: { onMapClick: () => void }) => {
     return null;
 };
 
-const MapControls = ({ onLocationFound }: { onLocationFound: (pos: [number, number]) => void }) => {
+const MapControls = ({
+    onLocationFound,
+    showRain,
+    onToggleRainWithZoom,
+}: {
+    onLocationFound: (pos: [number, number]) => void;
+    showRain: boolean;
+    onToggleRainWithZoom: () => void;
+}) => {
     const map = useMap();
     const toast = useToast();
     const [loadingLoc, setLoadingLoc] = useState(false);
@@ -191,10 +219,50 @@ const MapControls = ({ onLocationFound }: { onLocationFound: (pos: [number, numb
                         size="sm" isRound boxShadow="md" _hover={{ bg: "gray.100" }}
                     />
                 </Tooltip>
+
+                {/* Botão de Pluviômetro */}
+                <Tooltip label={showRain ? "Ocultar Chuva" : "Mostrar Chuva (mm)"} placement="left">
+                    <IconButton
+                        aria-label="Toggle Rain"
+                        icon={<MdWaterDrop size={18} />}
+                        onClick={onToggleRainWithZoom}
+                        bg={showRain ? "blue.500" : "white"}
+                        color={showRain ? "white" : "blue.500"}
+                        size="sm"
+                        isRound
+                        boxShadow="md"
+                        _hover={{ bg: showRain ? "blue.600" : "gray.100" }}
+                    />
+                </Tooltip>
             </VStack>
         </Box>
     );
 };
+
+const ZoomWatcher = ({
+    showRain,
+    setZoomWarning,
+}: {
+    showRain: boolean;
+    setZoomWarning: (v: boolean) => void;
+}) => {
+    const map = useMap();
+
+    useEffect(() => {
+        const handler = () => {
+            setZoomWarning(showRain && map.getZoom() > 9);
+        };
+
+        handler();
+        map.on("zoomend", handler);
+        return () => {
+            map.off("zoomend", handler);
+        };
+    }, [map, showRain, setZoomWarning]);
+
+    return null;
+};
+
 
 export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     points,
@@ -205,6 +273,11 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
 }) => {
     const [selectedPoint, setSelectedPoint] = useState<MapPoint | null>(null);
     const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+
+    // Estados para os Controles no Mapa
+    const [selectedDepth, setSelectedDepth] = useState<number>(20);
+    const [showRain, setShowRain] = useState<boolean>(false);
+    const [rainPeriod, setRainPeriod] = useState<RainPeriod>('24h'); // Padrão: 24h
 
     const [activeCenter, setActiveCenter] = useState<[number, number]>(() => {
         if (initialCenter) {
@@ -223,24 +296,43 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
         return false;
     });
 
-    // --- NOVA LÓGICA: Dispersão de Pontos (Spiderify Manual) ---
-    // 
-    const processedPoints = useMemo(() => {
-        // Agrupa pontos pela mesma localização (com precisão de 5 casas decimais)
-        const grouped: Record<string, MapPoint[]> = {};
+    // Helper para calcular a cor baseada na leitura da profundidade selecionada
+    const getMarkerColorForDepth = (point: MapPoint, depth: number) => {
+        const reading = point.readings.find(r => r.depth_cm === depth);
 
+        if (!reading || reading.moisture_pct === null) return '#A0AEC0'; // Cinza (Sem dados)
+
+        const value = reading.moisture_pct;
+        const min = point.config_min ?? 45;
+        const max = point.config_max ?? 55;
+
+        if (value < min) return '#F56565'; // Vermelho (Crítico/Baixo)
+        if (value > max) return '#0BC5EA'; // Azul (Saturado/Alto)
+        return '#48BB78'; // Verde (OK)
+    };
+
+    const rainStatsByPoint = useMemo(() => {
+        const map: Record<number, Record<RainPeriod, number>> = {};
+
+        points.forEach(point => {
+            map[point.id] = calculateRainStats(point.readings);
+        });
+
+        return map;
+    }, [points]);
+
+    // --- Dispersão de Pontos ---
+    const processedPoints = useMemo(() => {
+        const grouped: Record<string, MapPoint[]> = {};
         points.forEach(p => {
-            // Arredonda para considerar pontos "muito próximos" como o mesmo local
             const key = `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
             if (!grouped[key]) grouped[key] = [];
             grouped[key].push(p);
         });
 
         const result: DisplayMapPoint[] = [];
-
         Object.values(grouped).forEach(group => {
             if (group.length === 1) {
-                // Se o ponto está sozinho, usa coordenadas originais
                 result.push({
                     ...group[0],
                     displayLat: group[0].lat,
@@ -248,19 +340,13 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                     isDisplaced: false
                 });
             } else {
-                // Se houver sobreposição, distribui em círculo
                 const count = group.length;
                 const angleStep = (2 * Math.PI) / count;
-                // Raio de deslocamento: 0.0003 graus (~33 metros)
-                // Suficiente para separar visualmente no zoom alto, mas agrupar no zoom baixo
                 const radius = 0.0003;
-
                 group.forEach((p, index) => {
                     const angle = index * angleStep;
-                    // Calcula novo deslocamento
                     const latOffset = radius * Math.cos(angle);
                     const lngOffset = radius * Math.sin(angle);
-
                     result.push({
                         ...p,
                         displayLat: p.lat + latOffset,
@@ -272,11 +358,9 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
         });
         return result;
     }, [points]);
-    // -----------------------------------------------------------
 
     useEffect(() => {
         if (isInitialized) return;
-
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const { latitude, longitude } = position.coords;
@@ -292,42 +376,39 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
         );
     }, [isInitialized]);
 
-    // const getStatusLabel = (code: string) => {
-    //     switch (code) {
-    //         case 'status_critical': return 'Crítico';
-    //         case 'status_ok': return 'Ideal';
-    //         case 'status_saturated': return 'Saturado';
-    //         default: return 'Offline';
-    //     }
-    // };
+    const rainOpacity = 1;
+    const [showZoomWarning, setShowZoomWarning] = useState(false);
 
-    // const getStatusColor = (code: string) => {
-    //     switch (code) {
-    //         case 'status_critical': return 'red.400';
-    //         case 'status_ok': return 'green.400';
-    //         case 'status_saturated': return 'cyan.400';
-    //         default: return 'gray.400';
-    //     }
-    // };
+    const [radarFrames, setRadarFrames] = useState<RadarFrame[]>([]);
+    const [frameIndex, setFrameIndex] = useState(0);
+    const [isPlaying, setIsPlaying] = useState(false);
 
-    // const getProgressColor = (value: number, min: number = 45, max: number = 55) => {
-    //     if (value < min) return 'red';
-    //     if (value > max) return 'cyan';
-    //     return 'green';
-    // };
+    useEffect(() => {
+        const fetchRadar = async () => {
+            try {
+                const res = await fetch("https://api.rainviewer.com/public/weather-maps.json");
+                const data = await res.json();
+                setRadarFrames(data.radar?.past ?? []);
+                setFrameIndex((data.radar?.past?.length ?? 1) - 1);
+            } catch (e) {
+                console.error("Erro RainViewer", e);
+            }
+        };
 
-    // const getLatestReadingsByDepth = (readings: Measurement[]) => {
-    //     const uniqueDepths = new Map<number, Measurement>();
-    //     const sorted = [...readings].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    //     sorted.forEach(reading => {
-    //         if (reading.moisture_pct !== null && !uniqueDepths.has(reading.depth_cm)) {
-    //             uniqueDepths.set(reading.depth_cm, reading);
-    //         }
-    //     });
-    //     return Array.from(uniqueDepths.values()).sort((a, b) => a.depth_cm - b.depth_cm);
-    // };
+        fetchRadar();
+        const t = setInterval(fetchRadar, 10 * 60 * 1000);
+        return () => clearInterval(t);
+    }, []);
 
-    // const profileData = selectedPoint ? getLatestReadingsByDepth(selectedPoint.readings) : [];
+    useEffect(() => {
+        if (!isPlaying || radarFrames.length === 0) return;
+
+        const timer = setInterval(() => {
+            setFrameIndex((i) => (i + 1) % radarFrames.length);
+        }, 500);
+
+        return () => clearInterval(timer);
+    }, [isPlaying, radarFrames]);
 
     return (
         <Box
@@ -355,6 +436,25 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                 style={{ height: '100%', width: '100%', borderRadius: '12px' }}
                 zoomControl={false}
             >
+                {showZoomWarning && (
+                    <Box
+                        position="absolute"
+                        top="70px"
+                        right="10px"
+                        zIndex={1000}
+                        bg="yellow.400"
+                        color="black"
+                        px={3}
+                        py={2}
+                        borderRadius="md"
+                        fontSize="xs"
+                        fontWeight="bold"
+                        boxShadow="md"
+                    >
+                        Diminua o zoom para visualizar o radar
+                    </Box>
+                )}
+
                 <MapRecenter center={activeCenter} zoom={activeZoom} />
 
                 <TileLayer
@@ -363,9 +463,104 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                     maxZoom={20}
                 />
 
-                <MapControls onLocationFound={(pos) => {
-                    setUserLocation(pos);
-                }} />
+                <RainViewerRadarLayer
+                    visible={showRain}
+                    opacity={rainOpacity}
+                    frames={radarFrames}
+                    frameIndex={frameIndex}
+                />
+
+                {showRain && radarFrames.length > 0 && (
+                    <RainViewerTimeline
+                        framesCount={radarFrames.length}
+                        frameIndex={frameIndex}
+                        setFrameIndex={setFrameIndex}
+                        isPlaying={isPlaying}
+                        setIsPlaying={setIsPlaying}
+                    />
+                )}
+
+                <ZoomWatcher
+                    showRain={showRain}
+                    setZoomWarning={setShowZoomWarning}
+                />
+
+
+                {/* <MapControls
+                    onLocationFound={(pos) => setUserLocation(pos)}
+                    showRain={showRain}
+                    toggleRain={() => setShowRain(!showRain)}
+                /> */}
+
+                <MapControls
+                    onLocationFound={(pos) => setUserLocation(pos)}
+                    showRain={showRain}
+                    onToggleRainWithZoom={() => {
+                        setShowRain((prev) => !prev);
+                    }}
+                />
+
+
+                {/* --- CONTROLES DE PROFUNDIDADE E CHUVA --- */}
+                <Box
+                    position="absolute"
+                    top="10px"
+                    left="50px"
+                    zIndex={1000}
+                    bg="rgba(255, 255, 255, 0.95)"
+                    backdropFilter="blur(5px)"
+                    borderRadius="md"
+                    boxShadow="lg"
+                    p={1.5}
+                >
+                    <HStack spacing={3} divider={<Box w="1px" h="20px" bg="gray.300" />}>
+
+                        {/* Seletor de Profundidade */}
+                        <HStack spacing={1} pl={1}>
+                            <Text fontSize="xs" fontWeight="bold" color="gray.600">Profundidade:</Text>
+                            <Select
+                                size='sm'
+                                width="88px"
+                                value={selectedDepth}
+                                onChange={(e) => setSelectedDepth(Number(e.target.value))}
+                                bg="transparent"
+                                border="none"
+                                fontWeight="bold"
+                                _focus={{ boxShadow: 'none' }}
+                                cursor="pointer"
+                            >
+                                {AVAILABLE_DEPTHS.map(depth => (
+                                    <option key={depth} value={depth}>{depth} cm</option>
+                                ))}
+                            </Select>
+                        </HStack>
+
+                        {/* Seletor de Período de Chuva (Aparece ao ativar botão) */}
+                        {showRain && (
+                            <HStack spacing={1} pr={1}>
+                                <Text fontSize="xs" fontWeight="bold" color="blue.600">Chuva:</Text>
+                                <Select
+                                    size="sm"
+                                    width="95px"
+                                    value={rainPeriod}
+                                    onChange={(e) => setRainPeriod(e.target.value as RainPeriod)}
+                                    bg="transparent"
+                                    border="none"
+                                    fontWeight="bold"
+                                    color="blue.600"
+                                    _focus={{ boxShadow: 'none' }}
+                                    cursor="pointer"
+                                >
+                                    <option value="1h">1 Hora</option>
+                                    <option value="24h">24 Horas</option>
+                                    <option value="7d">7 Dias</option>
+                                    <option value="15d">15 Dias</option>
+                                    <option value="30d">30 Dias</option>
+                                </Select>
+                            </HStack>
+                        )}
+                    </HStack>
+                </Box>
 
                 {userLocation && (
                     <CircleMarker
@@ -382,36 +577,40 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
 
                 <MapClickHandler onMapClick={() => setSelectedPoint(null)} />
 
-                {/* Renderização dos pontos processados (com dispersão) */}
-                {processedPoints.map((point) => (
-                    <React.Fragment key={point.id}>
-                        {/* Se o ponto foi deslocado, desenha uma linha pontilhada até a origem real */}
-                        {point.isDisplaced && (
-                            <Polyline
-                                positions={[
-                                    [point.lat, point.lng], // Centro real
-                                    [point.displayLat, point.displayLng] // Posição visual
-                                ]}
-                                pathOptions={{
-                                    color: 'rgba(255,255,255,0.4)',
-                                    weight: 1,
-                                    dashArray: '3, 5'
+                {/* Renderização dos pontos */}
+                {processedPoints.map((point) => {
+                    const markerColor = getMarkerColorForDepth(point, selectedDepth);
+                    const rainVal = rainStatsByPoint[point.id]?.[rainPeriod] ?? 0;
+
+                    return (
+                        <React.Fragment key={point.id}>
+                            {point.isDisplaced && (
+                                <Polyline
+                                    positions={[
+                                        [point.lat, point.lng],
+                                        [point.displayLat, point.displayLng]
+                                    ]}
+                                    pathOptions={{
+                                        color: 'rgba(255,255,255,0.4)',
+                                        weight: 1,
+                                        dashArray: '3, 5'
+                                    }}
+                                />
+                            )}
+
+                            <Marker
+                                position={[point.displayLat, point.displayLng]}
+                                icon={createCustomIcon(markerColor, rainVal, showRain)}
+                                eventHandlers={{
+                                    click: (e) => {
+                                        L.DomEvent.stopPropagation(e);
+                                        setSelectedPoint(point);
+                                    }
                                 }}
                             />
-                        )}
-
-                        <Marker
-                            position={[point.displayLat, point.displayLng]} // Usa posição calculada
-                            icon={createCustomIcon(point.statusCode)}
-                            eventHandlers={{
-                                click: (e) => {
-                                    L.DomEvent.stopPropagation(e);
-                                    setSelectedPoint(point);
-                                }
-                            }}
-                        />
-                    </React.Fragment>
-                ))}
+                        </React.Fragment>
+                    );
+                })}
             </MapContainer>
 
             <Fade in={!!selectedPoint} unmountOnExit>
@@ -422,13 +621,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                         left={4}
                         zIndex={1000}
                         bg="rgba(26, 32, 44, 0.95)"
-                        // backdropFilter="blur(5px)"
                         borderRadius="xl"
-                        // boxShadow="2xl"
-                        // width="260px"
-                        // p={3}
-                        // border="1px solid"
-                        // borderColor="whiteAlpha.200"
                     >
                         <ProbeCard
                             point={selectedPoint}
