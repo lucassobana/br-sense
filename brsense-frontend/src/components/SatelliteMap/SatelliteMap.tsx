@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap, CircleMarker, Polyline } from 'react-leaflet';
-import { Box, VStack, Fade, IconButton, useToast, Tooltip, Select, Text, HStack } from '@chakra-ui/react';
+import { Box, VStack, Fade, IconButton, useToast, Tooltip, Select, Text, HStack, Flex } from '@chakra-ui/react';
 import { MdAdd, MdRemove, MdMyLocation, MdWaterDrop } from 'react-icons/md';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -12,6 +12,7 @@ import { ProbeCard } from '../ProbeCard/ProbeCard';
 import { calculateRainStats } from '../../utils/rainUtils';
 import { RainViewerRadarLayer } from "../RainViewer/RainViewer";
 import { RainViewerTimeline } from '../RainViewer/RainViewerTimeline';
+import { GiRadarSweep } from "react-icons/gi";
 
 
 // Profundidades disponíveis
@@ -131,11 +132,15 @@ const MapClickHandler = ({ onMapClick }: { onMapClick: () => void }) => {
 const MapControls = ({
     onLocationFound,
     showRain,
-    onToggleRainWithZoom,
+    onToggleRain,
+    showRadar,
+    onToggleRadar
 }: {
     onLocationFound: (pos: [number, number]) => void;
     showRain: boolean;
-    onToggleRainWithZoom: () => void;
+    onToggleRain: () => void;
+    showRadar: boolean;
+    onToggleRadar: () => void;
 }) => {
     const map = useMap();
     const toast = useToast();
@@ -189,7 +194,8 @@ const MapControls = ({
             zIndex={1000}
             display="flex"
             flexDirection="column"
-            gap={2}
+            gap={3}
+            alignItems="center"
         >
             <VStack spacing={2}>
                 <Tooltip label="Aumentar Zoom" placement="left">
@@ -225,7 +231,7 @@ const MapControls = ({
                     <IconButton
                         aria-label="Toggle Rain"
                         icon={<MdWaterDrop size={18} />}
-                        onClick={onToggleRainWithZoom}
+                        onClick={onToggleRain}
                         bg={showRain ? "blue.500" : "white"}
                         color={showRain ? "white" : "blue.500"}
                         size="sm"
@@ -234,10 +240,96 @@ const MapControls = ({
                         _hover={{ bg: showRain ? "blue.600" : "gray.100" }}
                     />
                 </Tooltip>
+
+                <Tooltip label={showRadar ? "Desligar Radar" : "Ativar Radar"} placement="left">
+                    <IconButton
+                        aria-label="Toggle Radar"
+                        icon={<GiRadarSweep size={20} />}
+                        onClick={onToggleRadar}
+                        bg={showRadar ? "blue.500" : "white"}
+                        color={showRadar ? "white" : "blue.500"}
+                        size="sm"
+                        isRound
+                        boxShadow="md"
+                        _hover={{ bg: showRadar ? "blue.600" : "gray.100" }}
+                    />
+                </Tooltip>
             </VStack>
+            {showRadar && <RadarLegend />}
         </Box>
     );
 };
+
+const RadarController = ({ showRadar }: { showRadar: boolean }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (showRadar) {
+            // Ajuste este valor (ex: 5, 6 ou 7) para enquadrar perfeitamente sua região
+            map.setZoom(6, { animate: true, duration: 1 });
+        }
+    }, [showRadar, map]);
+    return null;
+};
+
+const RadarLegend = () => (
+    <Box
+        p={1}
+        borderRadius="full"
+        boxShadow="xl"
+        bg="rgba(255, 255, 255, 0.4)" // Fundo bem sutil em volta do gradiente
+        backdropFilter="blur(4px)"
+    >
+        <Flex align="center" justify="center">
+            <Box
+                position="relative"
+                w={{ base: "24px", md: "32px" }} // Levemente mais gordinho para caber a fonte nova
+                h="300px" // Altura otimizada para encaixar abaixo dos botões
+                borderRadius="full"
+                bgGradient="linear(to-t, #5770a0 0%, #4b4488 50%, #603046 100%)"
+                boxShadow="inset 0 0 6px rgba(0,0,0,0.5)"
+                display="flex"
+                justifyContent="center"
+            >
+                <Text
+                    position="absolute"
+                    top="16px"
+                    left="50%"
+                    transform="translateX(-50%)"
+                    fontSize="10px"
+                    fontWeight="900" // Fonte mais gordinha
+                    fontFamily="'Inter', system-ui, sans-serif" // Fonte mais limpa
+                    letterSpacing="2px"
+                    color="white"
+                    textShadow="1px 1px 2px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.6)" // Sombra para destacar o branco
+                    sx={{
+                        writingMode: "vertical-rl",
+                        textOrientation: "upright" // Deixa as letras em pé ao invés de deitadas
+                    }}
+                >
+                    FORTE
+                </Text>
+                <Text
+                    position="absolute"
+                    bottom="16px"
+                    left="50%"
+                    transform="translateX(-50%)"
+                    fontSize="10px"
+                    fontWeight="900"
+                    fontFamily="'Inter', system-ui, sans-serif"
+                    letterSpacing="2px"
+                    color="white"
+                    textShadow="1px 1px 2px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.6)"
+                    sx={{
+                        writingMode: "vertical-rl",
+                        textOrientation: "upright"
+                    }}
+                >
+                    LEVE
+                </Text>
+            </Box>
+        </Flex>
+    </Box>
+);
 
 const ZoomWatcher = ({
     showRain,
@@ -277,6 +369,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     // Estados para os Controles no Mapa
     const [selectedDepth, setSelectedDepth] = useState<number>(20);
     const [showRain, setShowRain] = useState<boolean>(false);
+    const [showRadar, setShowRadar] = useState<boolean>(false);
     const [rainPeriod, setRainPeriod] = useState<RainPeriod>('24h'); // Padrão: 24h
 
     const [activeCenter, setActiveCenter] = useState<[number, number]>(() => {
@@ -298,17 +391,22 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
 
     // Helper para calcular a cor baseada na leitura da profundidade selecionada
     const getMarkerColorForDepth = (point: MapPoint, depth: number) => {
-        const reading = point.readings.find(r => r.depth_cm === depth);
 
-        if (!reading || reading.moisture_pct === null) return '#A0AEC0'; // Cinza (Sem dados)
+        const reading = point.readings.find(r =>
+            Number(r.depth_cm) === Number(depth) &&
+            r.moisture_pct !== null &&
+            r.moisture_pct !== undefined
+        );
 
-        const value = reading.moisture_pct;
+        if (!reading) return '#A0AEC0';
+
+        const value = Number(reading.moisture_pct);
         const min = point.config_min ?? 45;
         const max = point.config_max ?? 55;
 
-        if (value < min) return '#F56565'; // Vermelho (Crítico/Baixo)
-        if (value > max) return '#0BC5EA'; // Azul (Saturado/Alto)
-        return '#48BB78'; // Verde (OK)
+        if (value < min) return '#F56565';
+        if (value > max) return '#0BC5EA';
+        return '#48BB78';
     };
 
     const rainStatsByPoint = useMemo(() => {
@@ -388,15 +486,25 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
             try {
                 const res = await fetch("https://api.rainviewer.com/public/weather-maps.json");
                 const data = await res.json();
-                setRadarFrames(data.radar?.past ?? []);
-                setFrameIndex((data.radar?.past?.length ?? 1) - 1);
+
+                // Pega todos os frames das últimas 2 horas (normalmente 13 frames)
+                const pastFrames = data.radar?.past ?? [];
+
+                // FILTRO: Mantém apenas 4 frames (pega os índices 0, 4, 8 e 12)
+                // Se a API paga for usada no futuro e trouxer 12h, essa mesma lógica dividirá o tempo.
+                const filteredFrames = pastFrames.filter((_: RadarFrame, index: number) => index % 4 === 0);
+
+                setRadarFrames(filteredFrames);
+
+                // Seleciona o último frame (o mais atual) como padrão
+                setFrameIndex(filteredFrames.length > 0 ? filteredFrames.length - 1 : 0);
             } catch (e) {
                 console.error("Erro RainViewer", e);
             }
         };
 
         fetchRadar();
-        const t = setInterval(fetchRadar, 10 * 60 * 1000);
+        const t = setInterval(fetchRadar, 10 * 60 * 1000); // Atualiza dados da API a cada 10 min
         return () => clearInterval(t);
     }, []);
 
@@ -405,7 +513,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
 
         const timer = setInterval(() => {
             setFrameIndex((i) => (i + 1) % radarFrames.length);
-        }, 500);
+        }, 1500);
 
         return () => clearInterval(timer);
     }, [isPlaying, radarFrames]);
@@ -426,6 +534,9 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                     background: transparent !important;
                     border: none !important;
                 }
+                .radar-smooth-transition {
+                    transition: opacity 0.4s ease-in-out !important;
+                }
                 `}
             </style>
 
@@ -442,7 +553,6 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                         top="70px"
                         right="10px"
                         zIndex={1000}
-                        bg="yellow.400"
                         color="black"
                         px={3}
                         py={2}
@@ -450,9 +560,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                         fontSize="xs"
                         fontWeight="bold"
                         boxShadow="md"
-                    >
-                        Diminua o zoom para visualizar o radar
-                    </Box>
+                    />
                 )}
 
                 <MapRecenter center={activeCenter} zoom={activeZoom} />
@@ -464,15 +572,15 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                 />
 
                 <RainViewerRadarLayer
-                    visible={showRain}
+                    visible={showRadar}
                     opacity={rainOpacity}
                     frames={radarFrames}
                     frameIndex={frameIndex}
                 />
 
-                {showRain && radarFrames.length > 0 && (
+                {showRadar && radarFrames.length > 0 && (
                     <RainViewerTimeline
-                        framesCount={radarFrames.length}
+                        frames={radarFrames}
                         frameIndex={frameIndex}
                         setFrameIndex={setFrameIndex}
                         isPlaying={isPlaying}
@@ -492,12 +600,15 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                     toggleRain={() => setShowRain(!showRain)}
                 /> */}
 
+                <RadarController showRadar={showRadar} />
+                {/* {showRadar && <RadarLegend />} */}
+
                 <MapControls
                     onLocationFound={(pos) => setUserLocation(pos)}
                     showRain={showRain}
-                    onToggleRainWithZoom={() => {
-                        setShowRain((prev) => !prev);
-                    }}
+                    onToggleRain={() => setShowRain((prev) => !prev)}
+                    showRadar={showRadar}
+                    onToggleRadar={() => setShowRadar((prev) => !prev)}
                 />
 
 
