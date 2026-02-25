@@ -40,5 +40,5 @@ jobs:
         run: |
           flyctl deploy -c fly.staging.toml \
             --build-arg VITE_API_URL=${{ vars.STAGING_VITE_API_URL }} \
-            --build-arg VITE_KEYCLOAK_REALM=${{ vars.STAGING_VITE_KEYCLOAK_REALM }}
+            --build-arg VITE_KEYCLOAK_REALM=${{ vars.STAGING_VITE_KEYCLOAK_REALM }} \
             --build-arg VITE_KEYCLOAK_URL=${{ vars.STAGING_VITE_KEYCLOAK_URL }}
