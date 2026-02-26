@@ -12,7 +12,7 @@ import { ProbeCard } from '../ProbeCard/ProbeCard';
 import { calculateRainStats } from '../../utils/rainUtils';
 import { RainViewerRadarLayer } from "../RainViewer/RainViewer";
 import { RainViewerTimeline } from '../RainViewer/RainViewerTimeline';
-import { GiRadarSweep } from "react-icons/gi";
+// import { GiRadarSweep } from "react-icons/gi";
 
 
 // Profundidades disponíveis
@@ -134,7 +134,7 @@ const MapControls = ({
     showRain,
     onToggleRain,
     showRadar,
-    onToggleRadar
+    // onToggleRadar
 }: {
     onLocationFound: (pos: [number, number]) => void;
     showRain: boolean;
@@ -241,7 +241,7 @@ const MapControls = ({
                     />
                 </Tooltip>
 
-                <Tooltip label={showRadar ? "Desligar Radar" : "Ativar Radar"} placement="left">
+                {/* <Tooltip label={showRadar ? "Desligar Radar" : "Ativar Radar"} placement="left">
                     <IconButton
                         aria-label="Toggle Radar"
                         icon={<GiRadarSweep size={20} />}
@@ -253,7 +253,7 @@ const MapControls = ({
                         boxShadow="md"
                         _hover={{ bg: showRadar ? "blue.600" : "gray.100" }}
                     />
-                </Tooltip>
+                </Tooltip> */}
             </VStack>
             {showRadar && <RadarLegend />}
         </Box>
