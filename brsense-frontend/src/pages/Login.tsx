@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import {
     Box,
     Flex,
-    Heading,
     Text,
     Input,
     Button,
@@ -151,25 +150,14 @@ export function Login() {
                             justify="center"
                             align="center"
                             bg="white"
-                            w="100px"
-                            h="100px"
+                            w="200px"
+                            h="200px"
                             borderRadius="2xl"
                             mb={6}
                             boxShadow="md"
                         >
-                            <Image src={brsenseLogo} alt="BR Sense Logo" w="70px" h="70px" objectFit="contain" />
+                            <Image src={brsenseLogo} alt="BR Sense Logo" w="190px" h="190px" objectFit="contain" />
                         </Flex>
-
-                        <Heading
-                            as="h1"
-                            color={colors.textMain}
-                            fontSize="28px"
-                            fontWeight="bold"
-                            textAlign="center"
-                            mb={8}
-                        >
-                            Bem-Vindo a BR Sense
-                        </Heading>
 
                         <VStack spacing={5} w="100%">
                             {/* Input de Login */}
