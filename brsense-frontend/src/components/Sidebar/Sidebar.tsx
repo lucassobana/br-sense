@@ -20,7 +20,7 @@ import {
     DrawerBody,
     useDisclosure
 } from '@chakra-ui/react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate, Link as RouterLink, useLocation } from 'react-router-dom';
 import {
     MdMap,
@@ -31,15 +31,68 @@ import {
     MdMenu,
     MdClose
 } from 'react-icons/md';
+
+// 1. Importe todas as logos necessárias
 import brsenseLogo from '../../assets/BRSense_logo.png';
+import copasulLogo from '../../assets/copasul_logo.jpeg';
 import { COLORS } from '../../colors/colors';
+import { parseJwt } from '../../services/auth'; // Importe sua função existente de decodificar token
+
+interface SidebarProps {
+    organization?: boolean;
+}
+
+// 2. Crie um Dicionário de Organizações para facilitar a escala
+// A chave deve ser EXATAMENTE o nome da "role" lá no Keycloak
+const ORG_CONFIG: Record<string, { name: string; subtitle: string; logo: string }> = {
+    'copasul': {
+        name: 'Copasul',
+        subtitle: 'Cooperativa Agricola Sul Matogrossense',
+        logo: copasulLogo
+    },
+    // Você pode adicionar infinitos revendedores aqui no futuro
+    // 'revendedor_x': { name: 'Revendedor X', subtitle: 'Parceiro BR Sense', logo: logoX },
+
+    // Configuração Padrão (Fallback)
+    'default': {
+        name: 'BR Sense',
+        subtitle: 'Tecnologia Agrícola',
+        logo: brsenseLogo
+    }
+};
+
+// Função para descobrir qual organização o usuário pertence baseado no Token
+const getUserOrganization = () => {
+    try {
+        const token = localStorage.getItem('access_token');
+        if (!token) return ORG_CONFIG.default;
+
+        const payload = parseJwt(token);
+        const roles: string[] = payload?.realm_access?.roles || [];
+
+        // Verifica se o usuário tem alguma role que corresponde às chaves do nosso Dicionário
+        // Ignora o 'default' na busca
+        const userOrgRole = Object.keys(ORG_CONFIG).find(
+            orgRole => orgRole !== 'default' && roles.includes(orgRole)
+        );
+
+        if (userOrgRole) {
+            return ORG_CONFIG[userOrgRole];
+        }
+
+        return ORG_CONFIG.default;
+    } catch (error) {
+        console.error("Erro ao ler organização do token:", error);
+        return ORG_CONFIG.default;
+    }
+};
 
 // --- SUB-COMPONENTE: Conteúdo Interno do Menu ---
-// Extraído para reutilizar no Drawer Mobile e Sidebar Desktop
 const SidebarContent = ({
     isExpanded,
-    onItemClick
-}: {
+    onItemClick,
+    organization = true // Mudado para true por padrão para exibir a logo
+}: SidebarProps & {
     isExpanded: boolean;
     onItemClick?: () => void
 }) => {
@@ -47,6 +100,9 @@ const SidebarContent = ({
     const location = useLocation();
 
     const userName = localStorage.getItem('user_name') || 'Usuário';
+
+    // 3. Usa o useMemo para calcular a organização apenas 1x ao montar o componente
+    const currentOrg = useMemo(() => getUserOrganization(), []);
 
     const handleLogout = () => {
         localStorage.clear();
@@ -67,8 +123,8 @@ const SidebarContent = ({
                 <Flex h="80px" align="center" px={4} overflow="hidden">
                     <HStack spacing={4} minW="200px">
                         <Box
-                            w="50px"
-                            h="50px"
+                            w="55px"
+                            h="55px"
                             bg="white"
                             borderRadius="lg"
                             display="flex"
@@ -76,14 +132,17 @@ const SidebarContent = ({
                             justifyContent="center"
                             flexShrink={0}
                         >
-                            <Image src={brsenseLogo} alt="Logo" w="40px" h="40px" objectFit="contain" />
+                            {organization && (
+                                // 4. Usa a logo dinâmica aqui
+                                <Image src={currentOrg.logo} alt={`Logo ${currentOrg.name}`} w="50px" h="50px" objectFit="contain" />
+                            )}
                         </Box>
                         <Box opacity={isExpanded ? 1 : 0} transition="opacity 0.2s">
-                            <Text color="white" fontWeight="bold" fontSize="lg" lineHeight="1.2" whiteSpace="nowrap">
-                                BR Sense
+                            <Text color="white" fontWeight="bold" fontSize="lg" lineHeight="1.2" noOfLines={1}>
+                                {currentOrg.name}
                             </Text>
-                            <Text color="gray.400" fontSize="xs" whiteSpace="nowrap">
-                                Tecnologia Agrícola
+                            <Text color="gray.400" fontSize="xs" lineHeight="1.2" noOfLines={2} mt={0.5}>
+                                {currentOrg.subtitle}
                             </Text>
                         </Box>
                     </HStack>
@@ -174,11 +233,13 @@ const SidebarContent = ({
 };
 
 // --- COMPONENTE PRINCIPAL ---
-export function Sidebar() {
+export function Sidebar({ organization = true }) {
     const [isHovered, setIsHovered] = useState(false);
     const { isOpen, onOpen, onClose } = useDisclosure();
 
-    // Altura da barra mobile para manter consistência
+    // Obtém a config da org também para o header mobile
+    const currentOrg = useMemo(() => getUserOrganization(), []);
+
     const MOBILE_HEADER_HEIGHT = "64px";
 
     return (
@@ -186,13 +247,13 @@ export function Sidebar() {
             {/* 1. HEADER MOBILE (Barra superior fixa) */}
             <Flex
                 as="header"
-                display={{ base: "flex", md: "none" }} // Visível apenas no Mobile
+                display={{ base: "flex", md: "none" }}
                 align="center"
                 justify="space-between"
                 w="100%"
                 h={MOBILE_HEADER_HEIGHT}
                 px={4}
-                bg={COLORS.surface} // Mesma cor do sidebar
+                bg={COLORS.surface}
                 borderBottom="1px solid"
                 borderColor="#2D2D2D"
                 position="fixed"
@@ -201,7 +262,6 @@ export function Sidebar() {
                 zIndex={1000}
                 boxShadow="md"
             >
-                {/* Lado Esquerdo: Menu + Logo */}
                 <HStack spacing={3}>
                     <IconButton
                         aria-label="Abrir menu"
@@ -215,16 +275,18 @@ export function Sidebar() {
                     {/* Logo Mobile */}
                     <HStack spacing={2}>
                         <Box w="32px" h="32px" bg="white" borderRadius="md" display="flex" alignItems="center" justifyContent="center">
-                            <Image src={brsenseLogo} alt="BR Sense" w="24px" h="24px" objectFit="contain" />
+                            {organization && (
+                                <Image src={currentOrg.logo} alt={currentOrg.name} w="24px" h="24px" objectFit="contain" />
+                            )}
                         </Box>
                         <Text color="white" fontWeight="bold" fontSize="md">
-                            BR Sense
+                            {currentOrg.name}
                         </Text>
                     </HStack>
                 </HStack>
             </Flex>
 
-            {/* 2. SIDEBAR DESKTOP (Inalterado) */}
+            {/* 2. SIDEBAR DESKTOP */}
             <Box
                 as="nav"
                 display={{ base: "none", md: "flex" }}
@@ -242,7 +304,7 @@ export function Sidebar() {
                 zIndex={1000}
                 boxShadow="xl"
             >
-                <SidebarContent isExpanded={isHovered} />
+                <SidebarContent isExpanded={isHovered} organization={organization} />
             </Box>
 
             {/* 3. DRAWER MOBILE */}
@@ -259,7 +321,7 @@ export function Sidebar() {
                                 color="white"
                             />
                         </Flex>
-                        <SidebarContent isExpanded={true} onItemClick={onClose} />
+                        <SidebarContent isExpanded={true} onItemClick={onClose} organization={organization} />
                     </DrawerBody>
                 </DrawerContent>
             </Drawer>
