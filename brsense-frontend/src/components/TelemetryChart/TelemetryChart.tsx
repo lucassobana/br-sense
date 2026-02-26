@@ -2,7 +2,7 @@ import { Box, Heading, useColorModeValue, Flex, Text } from '@chakra-ui/react';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, subHours } from 'date-fns';
 import type { Measurement } from '../../types';
 
 // 1. Atualize a interface para aceitar as props que o Dashboard envia
@@ -30,7 +30,9 @@ export function TelemetryChart({
             let timeLabel = '-';
             try {
                 if (d.timestamp) {
-                    timeLabel = format(parseISO(d.timestamp), 'HH:mm:ss');
+                    const adjustedDate = subHours(parseISO(d.timestamp), 3);
+                    timeLabel = format(adjustedDate, 'HH:mm:ss');
+                    // timeLabel = format(parseISO(d.timestamp), 'HH:mm:ss');
                 }
             } catch {
                 console.error("Erro data:", d.timestamp);

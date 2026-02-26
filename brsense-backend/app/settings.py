@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     ALLOW_STALE_TIMESTAMPS: bool = True
     
     KEYCLOAK_URL: str = "https://brsense-auth.fly.dev"
-    KEYCLOAK_REALM: str = "br-sense-prod"
+    KEYCLOAK_REALM: str = os.getenv("KEYCLOAK_REALM")
     KEYCLOAK_CLIENT_ID: str = "soil-frontend"
     # KEYCLOAK_URL: str="http://localhost:8080"
     # KEYCLOAK_REALM: str="br-sense"

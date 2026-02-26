@@ -198,6 +198,7 @@ export function SoilMoistureChart({
 
         let filteredData = data;
         let useHourly = false; // Flag para forçar modo Horário
+        // let useMinutes = false; // Flag para forçar modo Horário
 
         // 1. Filtragem por Data (se inputs existirem)
         if (startDate && endDate) {
@@ -219,8 +220,8 @@ export function SoilMoistureChart({
         // 2. Determinação da Resolução (Hora vs Dia)
         // Regra A: Seleção explícita
         useHourly = true
-        // if (selectedPeriod === '24h' || selectedPeriod === '7d' ) {
-        //     useHourly = true;
+        // if (selectedPeriod === '24h' || selectedPeriod === '7d') {
+        //     useMinutes = true;
         // }
         // // Regra B: Inputs de Data
         // else if (startDate && endDate) {
@@ -229,7 +230,7 @@ export function SoilMoistureChart({
         //     const diffDays = Math.ceil(Math.abs(endT - startT) / (1000 * 60 * 60 * 24));
         //     // SE MENOR QUE 8 DIAS -> FORÇA HORA
         //     if (diffDays < 8) {
-        //         useHourly = true;
+        //         useMinutes = true;
         //     }
         // }
         // // Regra C: Fallback baseado nos dados reais (caso api retorne pouco histórico)
@@ -239,7 +240,7 @@ export function SoilMoistureChart({
         //     const maxTs = Math.max(...timestamps);
         //     const dataSpanDays = (maxTs - minTs) / (1000 * 60 * 60 * 24);
         //     if (dataSpanDays < 7.5) {
-        //         useHourly = true;
+        //         useMinutes = true;
         //     }
         // }
 
@@ -251,14 +252,37 @@ export function SoilMoistureChart({
 
         filteredData.forEach(item => {
             if (!item.timestamp) return;
-            const date = new Date(item.timestamp);
+            // const date = new Date(item.timestamp);
+
+            const utcStr = item.timestamp.includes('Z') || item.timestamp.includes('+')
+                ? item.timestamp
+                : `${item.timestamp}Z`;
+
+            const date = new Date(utcStr);
+            // if (isNaN(date.getTime())) return;
+
+            // if (useHourly) {
+            //     date.setMinutes(0, 0, 0); // Agrupa por Hora
+            // } else {
+            //     date.setHours(0, 0, 0, 0); // Agrupa por Dia
+            // }
+
             if (isNaN(date.getTime())) return;
 
+            // 2. IMPORTANTE: Usar métodos UTC para agrupar!
+            // Isso evita que o fuso local do PC do usuário mude o balde de hora.
             if (useHourly) {
-                date.setMinutes(0, 0, 0); // Agrupa por Hora
+                date.setUTCMinutes(0, 0, 0); // Balde da hora cheia em UTC
             } else {
-                date.setHours(0, 0, 0, 0); // Agrupa por Dia
+                date.setUTCHours(0, 0, 0, 0);
             }
+
+            // if (useMinutes) {
+            //     const interval = 5 * 60 * 1000; // 5 minutos
+            //     date = new Date(Math.floor(date.getTime() / interval) * interval);
+            // } else {
+            //     date.setMinutes(0, 0, 0);
+            // }
 
             const timeKey = date.getTime();
 
@@ -287,9 +311,10 @@ export function SoilMoistureChart({
         const sortedTs = Array.from(groupedMap.keys()).sort((a, b) => a - b);
         const rawChartData = sortedTs.map((ts, index) => {
             const group = groupedMap.get(ts)!;
+            const dateInBr = new Date(ts);
             const newItem: ChartDataPoint & { index: number } = {
                 index,
-                time: new Date(ts).toISOString(),
+                time: dateInBr.toISOString(),
                 ...(metric === 'moisture' ? { precipitacao: group.rainSum } : {})
             };
             Object.keys(group.sums).forEach(key => {
@@ -302,8 +327,12 @@ export function SoilMoistureChart({
         const keysToSmooth = Object.keys(visibleLines);
         const smoothed = applyMovingAverage(rawChartData, keysToSmooth, 1);
 
+        // if (useMinutes) {
+        //     return { chartData: smoothed, isHighResolution: useMinutes };
+        // }
         return { chartData: smoothed, isHighResolution: useHourly };
 
+        // }, [data, metric, visibleLines, startDate, endDate, selectedPeriod]);
     }, [data, metric, visibleLines, startDate, endDate]);
 
     // Resetar zoom quando dados mudam
@@ -488,9 +517,15 @@ export function SoilMoistureChart({
     const toggleLine = (key: string) => setVisibleLines(prev => ({ ...prev, [key]: !prev[key] }));
 
     const renderZone = (y1: number, y2: number, fill: string) => {
-        const [currentMin, currentMax] = activeYDomain as [number, number];
-        const effectiveY1 = Math.max(y1, currentMin);
-        const effectiveY2 = Math.min(y2, currentMax);
+        const minDomain = activeYDomain[0];
+        const maxDomain = activeYDomain[1];
+        
+        // Proteção: se for 'auto' (temperatura), usamos limites extremos temporários
+        const safeMin = typeof minDomain === 'number' ? minDomain : -9999;
+        const safeMax = typeof maxDomain === 'number' ? maxDomain : 9999;
+
+        const effectiveY1 = Math.max(y1, safeMin);
+        const effectiveY2 = Math.min(y2, safeMax);
         if (effectiveY1 < effectiveY2) {
             return <ReferenceArea key={`${y1}-${y2}`} yAxisId="left" y1={effectiveY1} y2={effectiveY2} fill={fill} fillOpacity={1} strokeOpacity={0} />;
         }
@@ -499,12 +534,24 @@ export function SoilMoistureChart({
 
     const formatDateHeader = (isoStr?: string) => {
         if (!isoStr) return '';
-        const d = new Date(isoStr);
-        // Usa a flag isHighResolution calculada no useMemo
+
+        const date = new Date(isoStr);
+
         if (isHighResolution) {
-            return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+            return new Intl.DateTimeFormat('pt-BR', {
+                timeZone: 'America/Sao_Paulo',
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            }).format(date);
         }
-        return d.toLocaleDateString('pt-BR');
+
+        return new Intl.DateTimeFormat('pt-BR', {
+            timeZone: 'America/Sao_Paulo',
+            day: '2-digit',
+            month: '2-digit'
+        }).format(date);
     };
 
     // Dados ativos para exibição (Prioridade: Seleção Touch > Hover Mouse)
@@ -781,9 +828,14 @@ export function SoilMoistureChart({
                                 <stop offset="0%" stopColor="#993636" />
                                 <stop offset="100%" stopColor="#ddc255" />
                             </linearGradient>
+
+                            <linearGradient id="temp-zone" x1="0" y1="1" x2="0" y2="0">
+                                <stop offset="0%" stopColor="#7da3c9" />
+                                <stop offset="100%" stopColor="#003D7A" />
+                            </linearGradient>
                         </defs>
 
-                        <CartesianGrid strokeDasharray="3 3" stroke="#3b4754" opacity={0.3} vertical={false} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#3179c7" opacity={0.3} vertical={false} />
 
                         <XAxis
                             dataKey="time"
@@ -791,15 +843,36 @@ export function SoilMoistureChart({
                             interval="preserveStartEnd"
                             tickFormatter={(val) => {
                                 try {
-                                    const d = new Date(val);
-                                    // Se isHighResolution for true (regra < 8 dias ou 24h/7d), mostra Hora
+                                    const date = new Date(val); // Aqui o JS lê o "Z" e entende que é UTC
+
+                                    const formatter = new Intl.DateTimeFormat('pt-BR', {
+                                        timeZone: 'America/Sao_Paulo', // Aqui ele converte 19h UTC para 16h BR
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                        day: '2-digit',
+                                        month: '2-digit'
+                                    });
+
                                     if (isHighResolution) {
-                                        const h = String(d.getHours()).padStart(2, '0');
-                                        const m = String(d.getMinutes()).padStart(2, '0');
-                                        if (h === '00' && m === '00') return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
-                                        return `${h}:${m}`;
+                                        const parts = formatter.formatToParts(date);
+                                        const hour = parts.find(p => p.type === 'hour')?.value;
+                                        const minute = parts.find(p => p.type === 'minute')?.value;
+                                        const day = parts.find(p => p.type === 'day')?.value;
+                                        const month = parts.find(p => p.type === 'month')?.value;
+
+                                        // Se for meia-noite no Brasil, mostra a data
+                                        if (hour === '00' && minute === '00') {
+                                            return `${day}/${month}`;
+                                        }
+                                        return `${hour}:${minute}`;
                                     }
-                                    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+                                    return new Intl.DateTimeFormat('pt-BR', {
+                                        timeZone: 'America/Sao_Paulo',
+                                        day: '2-digit',
+                                        month: '2-digit'
+                                    }).format(date);
+
                                 } catch { return ''; }
                             }}
                             tick={{ fill: '#6b7280', fontSize: 10 }}
@@ -841,6 +914,12 @@ export function SoilMoistureChart({
                             </>
                         )}
 
+                        {metric === 'temperature' && (
+                            <>
+                                {renderZone(-9999, 9999, "url(#temp-zone)")}
+                            </>
+                        )}
+
                         {metric === 'moisture' && (
                             <Bar
                                 dataKey="precipitacao"
@@ -855,7 +934,6 @@ export function SoilMoistureChart({
                             >
                                 <LabelList dataKey="precipitacao" content={<RainLabel />} />
                             </Bar>
-                            // />
                         )}
 
                         {Object.entries(DEPTH_COLORS).map(([key, color]) => (

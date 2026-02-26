@@ -1,16 +1,19 @@
-name: Deploy Staging
+name: Deploy Production
 
 on:
-  push:
+  pull_request:
+    types:
+      - closed
     branches:
-      - staging
+      - main
 
 env:
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
 jobs:
   deploy-backend:
-    name: Deploy Backend (Staging)
+    name: Deploy Backend (Production)
+    if: github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'staging'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -21,12 +24,14 @@ jobs:
       
       - name: Deploy Backend to Fly
         working-directory: ./brsense-backend
-        run: flyctl deploy -c fly.dev.toml # ou o nome do seu arquivo toml de staging do backend
+        # Usa o fly.toml padrão (que é o seu de produção)
+        run: flyctl deploy -c fly.toml 
 
   deploy-frontend:
-    name: Deploy Frontend (Staging)
+    name: Deploy Frontend (Production)
+    if: github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'staging'
     runs-on: ubuntu-latest
-    needs: deploy-backend # Garante que o frontend só faça deploy se o backend der certo (opcional)
+    needs: deploy-backend
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,9 +41,9 @@ jobs:
       
       - name: Deploy Frontend to Fly
         working-directory: ./brsense-frontend
-        # Aqui injetamos as variáveis de build diretamente no comando do Fly
+        # Usa o fly.toml padrão e injeta as variáveis PROD
         run: |
-          flyctl deploy -c fly.staging.toml \
-            --build-arg VITE_API_URL=${{ vars.STAGING_VITE_API_URL }} \
-            --build-arg VITE_KEYCLOAK_REALM=${{ vars.STAGING_VITE_KEYCLOAK_REALM }} \
+          flyctl deploy -c fly.toml \
+            --build-arg VITE_API_URL=${{ vars.PROD_VITE_API_URL }} \
+            --build-arg VITE_KEYCLOAK_REALM=${{ vars.PROD_VITE_KEYCLOAK_REALM }} \
             --build-arg VITE_KEYCLOAK_URL=${{ vars.VITE_KEYCLOAK_URL }}

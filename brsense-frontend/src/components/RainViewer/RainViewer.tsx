@@ -1,7 +1,6 @@
 import { TileLayer } from "react-leaflet";
 import type { RadarFrame } from "../../types";
 
-
 interface RainViewerRadarLayerProps {
     visible: boolean;
     opacity?: number;
@@ -17,18 +16,27 @@ export function RainViewerRadarLayer({
 }: RainViewerRadarLayerProps) {
     if (!visible || frames.length === 0) return null;
 
-    const frame = frames[frameIndex];
+    //! Cor ainda nao foi implementada, entao o valor é fixo = 2
+    const colorScheme = 8;
 
     return (
-        <TileLayer
-            key={frame.time}
-            opacity={opacity}
-            zIndex={1000}
-            url={`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/2/1_1.png`}
-            attribution="Radar © RainViewer"
-            updateWhenIdle
-            updateWhenZooming={false}
-            keepBuffer={2}
-        />
+        <>
+            {frames.map((frame, index) => {
+                const tileUrl = `https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/${colorScheme}/1_1.png?v=${colorScheme}`;
+
+                return (
+                    <TileLayer
+                        key={`${frame.time}-cor-${colorScheme}`}
+                        opacity={index === frameIndex ? opacity : 0}
+                        zIndex={1000}
+                        url={tileUrl}
+                        attribution="Radar © RainViewer"
+                        className="radar-smooth-transition"
+                        updateWhenZooming={false}
+                        keepBuffer={4}
+                    />
+                );
+            })}
+        </>
     );
 }
