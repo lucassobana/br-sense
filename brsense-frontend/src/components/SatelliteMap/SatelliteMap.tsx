@@ -110,6 +110,10 @@ interface SatelliteMapProps {
     zoom?: number;
     onViewGraph: (deviceId: number) => void;
     initialCenter?: { lat: number; lng: number } | null;
+    selectedDepthRefs?: Record<number, number | null>;
+    onSelectDepthRef?: (probeId: number, depth: number | null) => void;
+    mapDepthFilter?: number;
+    onMapDepthFilterChange?: (depth: number) => void;
 }
 
 const MapRecenter = ({ center, zoom }: { center: [number, number] | null, zoom: number }) => {
@@ -134,7 +138,7 @@ const MapControls = ({
     showRain,
     onToggleRain,
     showRadar,
-    // onToggleRadar
+    // onToggleRadar,
 }: {
     onLocationFound: (pos: [number, number]) => void;
     showRain: boolean;
@@ -361,13 +365,17 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     center = [-22.4319, -46.9578],
     zoom = 13,
     onViewGraph,
-    initialCenter
+    initialCenter,
+    selectedDepthRefs = {},
+    onSelectDepthRef,
+    mapDepthFilter = 20,
+    onMapDepthFilterChange
 }) => {
     const [selectedPoint, setSelectedPoint] = useState<MapPoint | null>(null);
     const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
 
     // Estados para os Controles no Mapa
-    const [selectedDepth, setSelectedDepth] = useState<number>(20);
+    // const [selectedDepth, setSelectedDepth] = useState<number>(20);
     const [showRain, setShowRain] = useState<boolean>(false);
     const [showRadar, setShowRadar] = useState<boolean>(false);
     const [rainPeriod, setRainPeriod] = useState<RainPeriod>('24h'); // Padrão: 24h
@@ -632,8 +640,8 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                             <Select
                                 size='sm'
                                 width="88px"
-                                value={selectedDepth}
-                                onChange={(e) => setSelectedDepth(Number(e.target.value))}
+                                value={mapDepthFilter}
+                                onChange={(e) => onMapDepthFilterChange && onMapDepthFilterChange(Number(e.target.value))}
                                 bg="transparent"
                                 border="none"
                                 fontWeight="bold"
@@ -690,7 +698,12 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
 
                 {/* Renderização dos pontos */}
                 {processedPoints.map((point) => {
-                    const markerColor = getMarkerColorForDepth(point, selectedDepth);
+                    const probeDepthRef = selectedDepthRefs[point.id];
+                    const activeDepth = probeDepthRef !== undefined && probeDepthRef !== null
+                        ? probeDepthRef
+                        : mapDepthFilter;
+
+                    const markerColor = getMarkerColorForDepth(point, activeDepth);
                     const rainVal = rainStatsByPoint[point.id]?.[rainPeriod] ?? 0;
 
                     return (
@@ -738,6 +751,8 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                             point={selectedPoint}
                             onViewGraph={onViewGraph}
                             onClose={() => setSelectedPoint(null)}
+                            selectedDepthRef={selectedDepthRefs[selectedPoint.id] ?? null}
+                            onSelectDepthRef={(depth) => onSelectDepthRef && onSelectDepthRef(selectedPoint.id, depth)}
                         />
                     </Box>
                 )}
