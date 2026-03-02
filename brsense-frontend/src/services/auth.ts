@@ -74,3 +74,22 @@ export const isUserAdmin = (): boolean => {
         return false;
     }
 };
+
+export const refreshTokenKeycloak = async (refreshToken: string): Promise<TokenResponse> => {
+    const params = new URLSearchParams();
+    params.append('client_id', CLIENT_ID);
+    params.append('grant_type', 'refresh_token');
+    params.append('refresh_token', refreshToken);
+
+    try {
+        const response = await axios.post<TokenResponse>(KEYCLOAK_URL, params, {
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Erro ao renovar o token Keycloak:", error);
+        throw new Error("Sessão expirada. Faça login novamente.");
+    }
+};

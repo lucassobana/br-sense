@@ -1,4 +1,4 @@
-# brsense-backend/app/core/security.py
+import time
 import requests
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -14,11 +14,30 @@ CLIENT_ID = settings.KEYCLOAK_CLIENT_ID
 KEYCLOAK_ISSUER = f"{KEYCLOAK_URL}/realms/{REALM}"
 JWKS_URL = f"{KEYCLOAK_ISSUER}/protocol/openid-connect/certs"
 TOKEN_URL = f"{KEYCLOAK_ISSUER}/protocol/openid-connect/token"
+JWKS_CACHE = {"keys": None, "timestamp": 0}
+CACHE_TTL_SECONDS = 86400
 
 # Define o esquema de segurança para o Swagger UI funcionar
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl=TOKEN_URL
 )
+
+def get_jwks():
+    """Busca as chaves do Keycloak e armazena em cache por 24 horas."""
+    current_time = time.time()
+    
+    # Se não temos as chaves ou se o tempo expirou, faz a requisição
+    if JWKS_CACHE["keys"] is None or (current_time - JWKS_CACHE["timestamp"]) > CACHE_TTL_SECONDS:
+        try:
+            response = requests.get(JWKS_URL)
+            response.raise_for_status()
+            JWKS_CACHE["keys"] = response.json()
+            JWKS_CACHE["timestamp"] = current_time
+        except Exception as e:
+            print(f"Erro ao buscar JWKS: {e}")
+            raise HTTPException(status_code=500, detail="Erro de comunicação com o servidor de autenticação")
+            
+    return JWKS_CACHE["keys"]
 
 def get_current_user_token(token: str = Depends(oauth2_scheme)):
     """
@@ -28,10 +47,8 @@ def get_current_user_token(token: str = Depends(oauth2_scheme)):
         # 1. Obter cabeçalho do token para saber qual chave (kid) foi usada
         unverified_header = jwt.get_unverified_header(token)
         
-        # 2. Buscar as chaves públicas do Keycloak (JWKS)
-        # Em produção, implemente cache para não chamar essa URL toda vez
-        response = requests.get(JWKS_URL)
-        jwks = response.json()
+        # 2. Usa a função COM CACHE em vez de fazer requests.get() direto
+        jwks = get_jwks()
         
         rsa_key = {}
         for key in jwks["keys"]:
