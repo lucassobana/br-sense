@@ -28,9 +28,11 @@ interface ProbeCardProps {
     point: MapPoint | null; // Permitir null para evitar erros de tipagem na checagem
     onViewGraph: (id: number) => void;
     onClose: () => void;
+    selectedDepthRef?: number | null;
+    onSelectDepthRef?: (depth: number | null) => void;
 }
 
-export function ProbeCard({ point, onViewGraph, onClose }: ProbeCardProps) {
+export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSelectDepthRef }: ProbeCardProps) {
     const [isFlipped, setIsFlipped] = useState(false);
 
     // --- Helpers de Cor e Texto ---
@@ -112,7 +114,7 @@ export function ProbeCard({ point, onViewGraph, onClose }: ProbeCardProps) {
     return (
         <Box
             w="280px"
-            h="auto"
+            h="350px"
             minH="260px"
             sx={{ perspective: '1000px' }}
         >
@@ -134,25 +136,43 @@ export function ProbeCard({ point, onViewGraph, onClose }: ProbeCardProps) {
                     />
 
                     <VStack align="stretch" spacing={2} my={2} flex="1">
-                        {profileData.length > 0 ? profileData.map((r) => (
-                            <HStack key={r.depth_cm} spacing={2}>
-                                <Text fontSize="xs" color="gray.400" w="35px" fontWeight="medium">
-                                    {r.depth_cm}cm
-                                </Text>
-                                <Box flex="1">
-                                    <Progress
-                                        value={r.moisture_pct || 0}
-                                        size="xs"
-                                        borderRadius="full"
-                                        colorScheme={getProgressColor(r.moisture_pct || 0, point.config_min, point.config_max)}
-                                        bg="whiteAlpha.200"
-                                    />
+                        {profileData.length > 0 ? profileData.map((r) => {
+                            // Verifica se esta é a profundidade atualmente selecionada
+                            const isSelected = selectedDepthRef === r.depth_cm;
+
+                            return (
+                                <Box
+                                    key={r.depth_cm}
+                                    onClick={() => onSelectDepthRef && onSelectDepthRef(isSelected ? null : r.depth_cm)}
+                                    cursor="pointer"
+                                    bg={isSelected ? "whiteAlpha.300" : "transparent"}
+                                    p={1.5}
+                                    borderRadius="md"
+                                    border={isSelected ? "1px solid" : "1px solid transparent"}
+                                    borderColor="blue.400"
+                                    transition="all 0.2s"
+                                    _hover={{ bg: "whiteAlpha.200" }}
+                                >
+                                    <HStack spacing={2}>
+                                        <Text fontSize="xs" color={isSelected ? "blue.200" : "gray.400"} w="35px" fontWeight="medium">
+                                            {r.depth_cm}cm
+                                        </Text>
+                                        <Box flex="1">
+                                            <Progress
+                                                value={r.moisture_pct || 0}
+                                                size="xs"
+                                                borderRadius="full"
+                                                colorScheme={getProgressColor(r.moisture_pct || 0, point.config_min, point.config_max)}
+                                                bg="whiteAlpha.200"
+                                            />
+                                        </Box>
+                                        <Text fontSize="xs" color={isSelected ? "white" : "gray.300"} w="30px" textAlign="right">
+                                            {r.moisture_pct?.toFixed(0)}%
+                                        </Text>
+                                    </HStack>
                                 </Box>
-                                <Text fontSize="xs" color="gray.300" w="30px" textAlign="right">
-                                    {r.moisture_pct?.toFixed(0)}%
-                                </Text>
-                            </HStack>
-                        )) : (
+                            );
+                        }) : (
                             <Flex flex="1" align="center" justify="center">
                                 <Text color="gray.500" fontSize="sm">Sem leituras recentes.</Text>
                             </Flex>
@@ -202,7 +222,7 @@ export function ProbeCard({ point, onViewGraph, onClose }: ProbeCardProps) {
 
                     <Divider borderColor="whiteAlpha.300" mb={3} />
 
-                    <Grid templateColumns="repeat(2, 1fr)" gap={2} mb={3}>
+                    <Grid templateColumns="repeat(2, 1fr)" gap={4} flex="1" alignContent="start">
                         <RainBox label="1 Hora" value={rainStats['1h']} />
                         <RainBox label="24 Horas" value={rainStats['24h']} isHighlight />
                         <RainBox label="7 Dias" value={rainStats['7d']} />
@@ -278,6 +298,11 @@ interface RainBoxProps {
 
 const RainBox = ({ label, value, isHighlight }: RainBoxProps) => (
     <Box
+        h="100%"
+        minH="70px"
+        display="flex"
+        flexDirection="column"
+        justifyContent="center"
         bg={isHighlight ? "cyan.900" : "whiteAlpha.100"}
         p={2}
         borderRadius="md"
@@ -285,8 +310,8 @@ const RainBox = ({ label, value, isHighlight }: RainBoxProps) => (
         border="1px solid"
         borderColor={isHighlight ? "cyan.700" : "transparent"}
     >
-        <Text fontSize="2xs" color="gray.400">{label}</Text>
-        <Text fontWeight="bold" fontSize="md" color={isHighlight ? "cyan.200" : "white"}>
+        <Text fontSize={{base: "sm"}} color="gray.400">{label}</Text>
+        <Text fontWeight="bold" fontSize={{base: "sm", md: "lg"}} color={isHighlight ? "cyan.200" : "white"}>
             {value?.toFixed(1) || '0.0'} <Text as="span" fontSize="xs" color="gray.500">mm</Text>
         </Text>
     </Box>

@@ -42,7 +42,8 @@ import {
     MdFilterList,
     MdArrowDropDown,
     MdDateRange,
-    MdClose
+    MdClose,
+    MdLayers
 } from 'react-icons/md';
 import { COLORS, DEPTH_COLORS } from '../../colors/colors';
 import { MoistureRangeModal } from '../MoistureRangeModal/MoistureRangeModal';
@@ -79,6 +80,8 @@ interface ChartProps {
     onConfigUpdate?: () => void;
     selectedPeriod?: TimeRange;
     onPeriodChange?: (period: TimeRange, startDate?: string, endDate?: string) => void;
+    selectedDepthRef?: number | null;
+    onSelectDepthRef?: (depth: number | null) => void;
 }
 
 interface RainLabelProps {
@@ -132,7 +135,9 @@ export function SoilMoistureChart({
     initialMax = 55,
     onConfigUpdate,
     selectedPeriod = '24h',
-    onPeriodChange
+    onPeriodChange,
+    selectedDepthRef,
+    onSelectDepthRef
 }: ChartProps) {
 
     const toast = useToast();
@@ -519,7 +524,7 @@ export function SoilMoistureChart({
     const renderZone = (y1: number, y2: number, fill: string) => {
         const minDomain = activeYDomain[0];
         const maxDomain = activeYDomain[1];
-        
+
         // Proteção: se for 'auto' (temperatura), usamos limites extremos temporários
         const safeMin = typeof minDomain === 'number' ? minDomain : -9999;
         const safeMax = typeof maxDomain === 'number' ? maxDomain : 9999;
@@ -638,6 +643,39 @@ export function SoilMoistureChart({
                             >
                             </Button>
                         </PopoverTrigger>
+                        {onSelectDepthRef && metric === 'moisture' && (
+                            <Menu>
+                                <MenuButton
+                                    as={Button}
+                                    size="xs"
+                                    // colorScheme={selectedDepthRef ? "cyan" : "gray"}
+                                    colorScheme="blue"
+                                    variant={selectedDepthRef ? "solid" : "outline"}
+                                    rightIcon={<MdArrowDropDown />}
+                                    leftIcon={<Icon as={MdLayers} />} // Opcional
+                                >
+                                    {selectedDepthRef ? `${selectedDepthRef}cm` : 'Profundidade Ref.'}
+                                </MenuButton>
+                                <MenuList bg="gray.800" borderColor="gray.600" zIndex={2000}>
+                                    <MenuItem
+                                        bg="gray.800" _hover={{ bg: "gray.700" }}
+                                        onClick={() => onSelectDepthRef(null)}
+                                    >
+                                        Geral / Padrão (Sem trava)
+                                    </MenuItem>
+                                    {/* Profundidades comuns baseadas nas suas keys (10 a 60cm) */}
+                                    {[10, 20, 30, 40, 50, 60].map(depth => (
+                                        <MenuItem
+                                            key={depth}
+                                            bg="gray.800" _hover={{ bg: "gray.700" }}
+                                            onClick={() => onSelectDepthRef(depth)}
+                                        >
+                                            Travar em {depth}cm
+                                        </MenuItem>
+                                    ))}
+                                </MenuList>
+                            </Menu>
+                        )}
                         <PopoverContent bg="gray.800" borderColor="gray.600" p={3} w="auto" boxShadow="xl" zIndex={2000}>
                             <PopoverArrow bg="gray.800" />
                             <PopoverBody>

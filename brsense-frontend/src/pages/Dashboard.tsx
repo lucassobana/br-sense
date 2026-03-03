@@ -48,6 +48,12 @@ export function Dashboard() {
   const [probes, setProbes] = useState<Probe[]>([]);
   const [farms, setFarms] = useState<Farm[]>([]);
   const [selectedFarm] = useState<Farm | null>(null);
+  const [selectedDepthRefs, setSelectedDepthRefs] = useState<Record<number, number | null>>({});
+  const [mapDepthFilter, setMapDepthFilter] = useState<number>(20);
+
+  const handleSelectDepthRef = useCallback((probeId: number, depth: number | null) => {
+    setSelectedDepthRefs(prev => ({ ...prev, [probeId]: depth }));
+  }, []);
 
   const [filterText, setFilterText] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({
@@ -129,7 +135,18 @@ export function Dashboard() {
       let currentStatusCode = 'status_offline';
 
       const readings = probe.readings || [];
-      const validReading = readings
+
+      const probeDepthRef = selectedDepthRefs[probe.id];
+      const activeDepth = probeDepthRef !== undefined && probeDepthRef !== null
+        ? probeDepthRef
+        : mapDepthFilter;
+
+      let filteredReadings = readings;
+      if (activeDepth !== null && activeDepth !== undefined) {
+        filteredReadings = readings.filter(r => r.depth_cm === activeDepth);
+      }
+
+      const validReading = [...filteredReadings]
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .find(r => r.moisture_pct !== null && r.moisture_pct !== undefined);
 
@@ -157,7 +174,7 @@ export function Dashboard() {
         config_max: max
       };
     });
-  }, [filteredProbes]);
+  }, [filteredProbes, selectedDepthRefs, mapDepthFilter]);
 
   const initialMapPosition = useMemo(() => {
     if (probes.length === 0) return null;
@@ -427,6 +444,10 @@ export function Dashboard() {
                   points={mapPoints}
                   onViewGraph={handleMapGraphClick}
                   initialCenter={initialMapPosition}
+                  selectedDepthRefs={selectedDepthRefs}
+                  onSelectDepthRef={handleSelectDepthRef}
+                  mapDepthFilter={mapDepthFilter}
+                  onMapDepthFilterChange={setMapDepthFilter}
                 />
               </Box>
             </Box>
@@ -618,6 +639,8 @@ export function Dashboard() {
                         // --- PROPS DE FILTRO ATUALIZADAS ---
                         selectedPeriod={selectedPeriod}
                         onPeriodChange={handlePeriodChange}
+                        selectedDepthRef={selectedDepthRefs[selectedProbe.id] ?? null}
+                        onSelectDepthRef={(depth) => handleSelectDepthRef(selectedProbe.id, depth)}
                       />
                     ) : (
                       <Flex h="300px" justify="center" align="center">
