@@ -101,7 +101,7 @@ def _decode_new_v2(p: bytes, timestamp: datetime) -> list[dict]:
 
     if not is_temperatura:
         # UMIDADE (O valor extra é o Pluviômetro)
-        rain_val_cm = float(pluv_ou_bat) # Seguindo a formatação original da V4.2
+        rain_val_cm = float(pluv_ou_bat) * 0.1 # Seguindo a formatação original da V4.2
         
         for i, val in enumerate(sonda_valores):
             # A chuva é registrada apenas na primeira leitura (como no sistema legado)
