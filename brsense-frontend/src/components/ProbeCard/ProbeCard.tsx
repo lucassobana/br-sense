@@ -167,7 +167,7 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
                                             />
                                         </Box>
                                         <Text fontSize="xs" color={isSelected ? "white" : "gray.300"} w="30px" textAlign="right">
-                                            {r.moisture_pct?.toFixed(0)}%
+                                            {r.moisture_pct?.toFixed(1)}%
                                         </Text>
                                     </HStack>
                                 </Box>
