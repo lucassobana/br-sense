@@ -62,7 +62,7 @@ export function TelemetryChart({
                     <XAxis dataKey="time" />
                     <YAxis domain={yDomain as [number, number]} />
                     <Tooltip
-                        formatter={(value: number) => [`${value} ${unit}`, title]}
+                        formatter={(value: number) => [`${value.toFixed(1)} ${unit}`, title]}
                         labelStyle={{ color: 'black' }}
                     />
                     <Legend />

@@ -809,7 +809,7 @@ export function SoilMoistureChart({
                                         <Box w="6px" h="6px" borderRadius="full" bg={color} />
                                         <Text fontSize="10px" color="gray.400">{key.replace('depth', '')}cm</Text>
                                         <Text fontSize="xs" fontWeight="bold">
-                                            {(activeData[key] as number).toFixed(0)}{metric === 'moisture' ? '%' : '°C'}
+                                            {(activeData[key] as number).toFixed(1)}{metric === 'moisture' ? '%' : '°C'}
                                         </Text>
                                     </HStack>
                                 ))}
