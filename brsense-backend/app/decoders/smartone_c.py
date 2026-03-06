@@ -16,6 +16,10 @@ def decode_soil_payload(hex_payload: str, timestamp: datetime) -> list[dict]:
         if len(raw) != 9:
             print(f"SmartOne Decoder: Tamanho incorreto ({len(raw)} bytes).")
             return []
+        
+        if raw[0] == 0x00 and raw[7] == 0x0A:
+            print("SmartOne Decoder: Pacote de localização ignorado.")
+            return []
 
         # 3. Identificação da versão do Payload
         # O legado sempre começa com 0x02 no byte 0 e tem 'H'(72) ou 'T'(84) no byte 7
