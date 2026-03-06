@@ -17,19 +17,30 @@ def decode_soil_payload(hex_payload: str, timestamp: datetime) -> list[dict]:
             print(f"SmartOne Decoder: Tamanho incorreto ({len(raw)} bytes).")
             return []
         
-        if raw[0] == 0x00 and raw[7] == 0x0A:
-            print("SmartOne Decoder: Pacote de localização ignorado.")
+        tipo_mensagem = raw[0] & 0x03
+        
+        if tipo_mensagem in (0, 1):
+            # Payload de Localização/GPS (Nativo do SmartOne C)
+            print("SmartOne Decoder: Pacote de localização/GPS ignorado.")
             return []
+        
+        elif tipo_mensagem == 2:
+            # Payload de Sensores (Mensagem Raw - ESP32 V4.2 ou Legado)
+            
+            # Identificação da versão do Payload
+            # O legado sempre tem 0x02 exato no byte 0 e 'H'(72) ou 'T'(84) no byte 7
+            is_legacy = (raw[0] == 0x02) and (raw[7] in (0x48, 0x54))
 
-        # 3. Identificação da versão do Payload
-        # O legado sempre começa com 0x02 no byte 0 e tem 'H'(72) ou 'T'(84) no byte 7
-        is_legacy = raw[0] == 0x02 and raw[7] in (0x48, 0x54)
-
-        # 4. Roteamento
-        if is_legacy:
-            return _decode_legacy(raw, timestamp)
+            # Roteamento
+            if is_legacy:
+                return _decode_legacy(raw, timestamp)
+            else:
+                return _decode_new_v2(raw, timestamp)
+            
         else:
-            return _decode_new_v2(raw, timestamp)
+            # tipo_mensagem == 3 (11 em binário)
+            print("SmartOne Decoder: Tipo de mensagem não reconhecido pelo protocolo.")
+            return []
 
     except Exception as e:
         print(f"Erro na decodificação unificada SmartOne: {e}")
