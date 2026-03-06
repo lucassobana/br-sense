@@ -92,36 +92,6 @@ interface RainLabelProps {
     index?: number;
 }
 
-// --- FUNÇÃO AUXILIAR DE SUAVIZAÇÃO (MÉDIA MÓVEL) ---
-function applyMovingAverage(data: ChartDataPoint[], keys: string[], windowSize: number = 2): ChartDataPoint[] {
-    if (data.length < windowSize) return data;
-
-    return data.map((point, index) => {
-        const newPoint = { ...point };
-
-        keys.forEach(key => {
-            if (typeof point[key] === 'number') {
-                let sum = 0;
-                let count = 0;
-
-                // Pega vizinhos para trás e para frente
-                for (let i = -windowSize; i <= windowSize; i++) {
-                    const neighbor = data[index + i];
-                    if (neighbor && typeof neighbor[key] === 'number') {
-                        sum += neighbor[key] as number;
-                        count++;
-                    }
-                }
-
-                if (count > 0) {
-                    newPoint[key] = sum / count;
-                }
-            }
-        });
-
-        return newPoint;
-    });
-}
 
 export function SoilMoistureChart({
     data = [],
@@ -250,52 +220,35 @@ export function SoilMoistureChart({
         // }
 
         const groupedMap = new Map<number, {
-            counts: Record<string, number>;
-            sums: Record<string, number>;
+            firstValues: Record<string, number>;
             rainSum: number;
         }>();
 
         filteredData.forEach(item => {
             if (!item.timestamp) return;
-            // const date = new Date(item.timestamp);
 
             const utcStr = item.timestamp.includes('Z') || item.timestamp.includes('+')
                 ? item.timestamp
                 : `${item.timestamp}Z`;
 
             const date = new Date(utcStr);
-            // if (isNaN(date.getTime())) return;
-
-            // if (useHourly) {
-            //     date.setMinutes(0, 0, 0); // Agrupa por Hora
-            // } else {
-            //     date.setHours(0, 0, 0, 0); // Agrupa por Dia
-            // }
-
             if (isNaN(date.getTime())) return;
 
-            // 2. IMPORTANTE: Usar métodos UTC para agrupar!
-            // Isso evita que o fuso local do PC do usuário mude o balde de hora.
             if (useHourly) {
-                date.setUTCMinutes(0, 0, 0); // Balde da hora cheia em UTC
+                date.setUTCMinutes(0, 0, 0);
             } else {
                 date.setUTCHours(0, 0, 0, 0);
             }
 
-            // if (useMinutes) {
-            //     const interval = 5 * 60 * 1000; // 5 minutos
-            //     date = new Date(Math.floor(date.getTime() / interval) * interval);
-            // } else {
-            //     date.setMinutes(0, 0, 0);
-            // }
-
             const timeKey = date.getTime();
 
             if (!groupedMap.has(timeKey)) {
-                groupedMap.set(timeKey, { counts: {}, sums: {}, rainSum: 0 });
+                // Inicializa com firstValues
+                groupedMap.set(timeKey, { firstValues: {}, rainSum: 0 });
             }
             const group = groupedMap.get(timeKey)!;
 
+            // Mantém a soma para a chuva (precipitação normalmente se soma)
             if (item.rain_cm) {
                 group.rainSum += Number(item.rain_cm);
             }
@@ -306,8 +259,10 @@ export function SoilMoistureChart({
                 if (!isNaN(val)) {
                     const depthKey = `depth${item.depth_cm}`;
                     if (DEPTH_COLORS[depthKey as keyof typeof DEPTH_COLORS]) {
-                        group.sums[depthKey] = (group.sums[depthKey] || 0) + val;
-                        group.counts[depthKey] = (group.counts[depthKey] || 0) + 1;
+                        // 2. Só salva o valor se ele ainda não existir para esta hora (pega o primeiro)
+                        if (group.firstValues[depthKey] === undefined) {
+                            group.firstValues[depthKey] = val;
+                        }
                     }
                 }
             }
@@ -322,23 +277,17 @@ export function SoilMoistureChart({
                 time: dateInBr.toISOString(),
                 ...(metric === 'moisture' ? { precipitacao: group.rainSum } : {})
             };
-            Object.keys(group.sums).forEach(key => {
-                // Média simples da hora/dia
-                newItem[key] = group.sums[key] / group.counts[key];
+
+            // 3. Atribui o primeiro valor diretamente (sem calcular média)
+            Object.keys(group.firstValues).forEach(key => {
+                newItem[key] = group.firstValues[key];
             });
             return newItem;
         });
 
-        const keysToSmooth = Object.keys(visibleLines);
-        const smoothed = applyMovingAverage(rawChartData, keysToSmooth, 1);
+        return { chartData: rawChartData, isHighResolution: useHourly };
 
-        // if (useMinutes) {
-        //     return { chartData: smoothed, isHighResolution: useMinutes };
-        // }
-        return { chartData: smoothed, isHighResolution: useHourly };
-
-        // }, [data, metric, visibleLines, startDate, endDate, selectedPeriod]);
-    }, [data, metric, visibleLines, startDate, endDate]);
+    }, [data, metric, startDate, endDate]);
 
     // Resetar zoom quando dados mudam
     useEffect(() => {
@@ -809,7 +758,7 @@ export function SoilMoistureChart({
                                         <Box w="6px" h="6px" borderRadius="full" bg={color} />
                                         <Text fontSize="10px" color="gray.400">{key.replace('depth', '')}cm</Text>
                                         <Text fontSize="xs" fontWeight="bold">
-                                            {(activeData[key] as number).toFixed(1)}{metric === 'moisture' ? '%' : '°C'}
+                                            {Number(activeData[key]).toFixed(1)}{metric === 'moisture' ? '%' : '°C'}
                                         </Text>
                                     </HStack>
                                 ))}
@@ -979,7 +928,7 @@ export function SoilMoistureChart({
                                 <Line
                                     key={`${key}-${selectedPeriod}`}
                                     yAxisId="left"
-                                    type="monotone"
+                                    type="basis"
                                     dataKey={key}
                                     stroke={color}
                                     strokeWidth={2.5}

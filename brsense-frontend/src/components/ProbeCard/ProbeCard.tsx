@@ -113,7 +113,7 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
 
     return (
         <Box
-            w="280px"
+            w="290px"
             h="350px"
             minH="260px"
             sx={{ perspective: '1000px' }}
@@ -166,7 +166,7 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
                                                 bg="whiteAlpha.200"
                                             />
                                         </Box>
-                                        <Text fontSize="xs" color={isSelected ? "white" : "gray.300"} w="30px" textAlign="right">
+                                        <Text fontSize="xs" color={isSelected ? "white" : "gray.300"} textAlign="right">
                                             {r.moisture_pct?.toFixed(1)}%
                                         </Text>
                                     </HStack>
