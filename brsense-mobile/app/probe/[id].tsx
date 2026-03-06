@@ -64,6 +64,7 @@ export default function ProbeDetails() {
     useEffect(() => {
         const fetchHistory = async () => {
             try {
+                // Adicionado await faltante se não houver
                 const history = await getDeviceHistory(esn, { limit: 200 });
                 setHistoryData(history);
             } catch (error) {
@@ -73,7 +74,12 @@ export default function ProbeDetails() {
             }
         };
 
-        if (esn) fetchHistory();
+        if (esn) {
+            fetchHistory();
+        } else {
+            // Se por algum motivo o ESN não chegar, tira do loading para não travar a tela
+            setIsLoading(false);
+        }
     }, [esn]);
 
     // --- PROCESSAMENTO IDÊNTICO À WEB ---

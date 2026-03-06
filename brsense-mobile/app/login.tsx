@@ -1,33 +1,33 @@
-// brsense-mobile/app/login.tsx
 import React, { useState } from 'react';
 import {
     View,
     Text,
     TextInput,
-    TouchableOpacity,
     StyleSheet,
     Alert,
     ActivityIndicator,
     KeyboardAvoidingView,
     Platform, 
-    Image
+    Image,
+    Pressable
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
+import { LinearGradient } from 'expo-linear-gradient';
 import { loginKeycloak, parseJwt } from '../src/services/auth';
-import logo from '../assets/images/BRSense_logo.png'; // Certifique-se de ter um logo.png na pasta assets
+import logo from '../assets/images/BRSense_logo.png';
 
-
-// Cores baseadas no seu tema Web
+// Cores baseadas no tema Web (colors.ts e Login.tsx)
 const COLORS = {
-    background: '#0A0A0A',
-    surface: '#111111',
+    backgroundDark: '#0A0A0A',
+    cardBg: '#0A2540', // Equivalente ao COLORS.background da web
     primary: '#003d7a',
-    primaryHover: '#002a52',
+    primaryPressed: '#001a33', // Equivalente ao _active da web
+    inputBorder: '#2D2D2D',
     textMain: '#F5F5F5',
     textPlaceholder: '#9aabbc',
-    inputBorder: '#2D2D2D'
+    surface: '#111111'
 };
 
 export default function Login() {
@@ -37,6 +37,10 @@ export default function Login() {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+
+    // Estados para simular o hover/focus dos inputs
+    const [emailFocus, setEmailFocus] = useState(false);
+    const [passwordFocus, setPasswordFocus] = useState(false);
 
     const handleLogin = async () => {
         if (!email || !password) {
@@ -61,7 +65,6 @@ export default function Login() {
                 preferred_username?: string;
             }
 
-            // Usamos o 'as' para avisar o TypeScript que o payload tem esse formato
             const userPayload = parseJwt(data.access_token) as KeycloakToken | null;
 
             if (userPayload) {
@@ -69,87 +72,104 @@ export default function Login() {
                 await SecureStore.setItemAsync('user_name', nameToSave);
             }
 
-            // 4. Redireciona para o Dashboard (ecrã inicial)
+            // 4. Redireciona para o Dashboard
             router.replace('/');
 
         } catch (error: any) {
             console.error(error);
-            Alert.alert('Erro no Login', error.message || 'Erro ao ligar ao servidor');
+            Alert.alert('Erro no Login', error.message || 'Erro ao conectar com o servidor');
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        // KeyboardAvoidingView empurra o ecrã para cima quando o teclado do telemóvel abre
         <KeyboardAvoidingView
-            style={styles.container}
+            style={{ flex: 1 }}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-            <View style={styles.card}>
-
-                {/* Logo Placeholder (Pode substituir pelo require da sua imagem depois) */}
-                {/* <View style={styles.logoContainer}>
-                    <Ionicons name="leaf" size={60} color={COLORS.primary} />
-                    <Text style={styles.logoText}>BR Sense</Text>
-                </View> */}
-                <View style={styles.logoContainer}>
-                    <Image source={logo} style={{ width: 100, height: 100 }} resizeMode="contain" />
-                </View>
-
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Login</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Entre com o seu utilizador ou email"
-                        placeholderTextColor={COLORS.textPlaceholder}
-                        value={email}
-                        onChangeText={setEmail}
-                        autoCapitalize="none"
-                        keyboardType="email-address"
-                    />
-                </View>
-
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Senha</Text>
-                    <View style={styles.passwordContainer}>
-                        <TextInput
-                            style={styles.passwordInput}
-                            placeholder="Entre com a sua senha"
-                            placeholderTextColor={COLORS.textPlaceholder}
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry={!showPassword}
-                        />
-                        <TouchableOpacity
-                            style={styles.eyeIcon}
-                            onPress={() => setShowPassword(!showPassword)}
-                        >
-                            <Ionicons
-                                name={showPassword ? "eye-off" : "eye"}
-                                size={24}
-                                color={COLORS.textPlaceholder}
-                            />
-                        </TouchableOpacity>
+            <LinearGradient
+                colors={['#0A2540', '#0A0A0A']}
+                start={{ x: 0.5, y: 0.2 }}
+                end={{ x: 0.5, y: 0.8 }}
+                style={styles.container}
+            >
+                <View style={styles.card}>
+                    
+                    {/* Logo exatamente como na web: 200x200 fundo branco */}
+                    <View style={styles.logoContainer}>
+                        <Image source={logo} style={styles.logoImage} resizeMode="contain" />
                     </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Login</Text>
+                        <TextInput
+                            style={[
+                                styles.input, 
+                                emailFocus && styles.inputFocused
+                            ]}
+                            placeholder="Entre com seu usuário ou email"
+                            placeholderTextColor={COLORS.textPlaceholder}
+                            value={email}
+                            onChangeText={setEmail}
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                            onFocus={() => setEmailFocus(true)}
+                            onBlur={() => setEmailFocus(false)}
+                        />
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Senha</Text>
+                        <View style={[
+                            styles.passwordContainer,
+                            passwordFocus && styles.inputFocused
+                        ]}>
+                            <TextInput
+                                style={styles.passwordInput}
+                                placeholder="Entre com sua senha"
+                                placeholderTextColor={COLORS.textPlaceholder}
+                                value={password}
+                                onChangeText={setPassword}
+                                secureTextEntry={!showPassword}
+                                onFocus={() => setPasswordFocus(true)}
+                                onBlur={() => setPasswordFocus(false)}
+                            />
+                            <Pressable
+                                style={styles.eyeIcon}
+                                onPress={() => setShowPassword(!showPassword)}
+                                hitSlop={10}
+                            >
+                                <Ionicons
+                                    name={showPassword ? "eye-off" : "eye"}
+                                    size={24}
+                                    color={COLORS.textPlaceholder}
+                                />
+                            </Pressable>
+                        </View>
+                    </View>
+
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.button,
+                            pressed && styles.buttonPressed,
+                            isLoading && styles.buttonDisabled
+                        ]}
+                        onPress={handleLogin}
+                        disabled={isLoading}
+                    >
+                        {isLoading ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <Text style={styles.buttonText}>Login</Text>
+                        )}
+                    </Pressable>
+
+                    <Text style={styles.footerText}>
+                        Powered by BR Sense - Tecnologia Agrícola.
+                    </Text>
                 </View>
-
-                <TouchableOpacity
-                    style={styles.button}
-                    onPress={handleLogin}
-                    disabled={isLoading}
-                >
-                    {isLoading ? (
-                        <ActivityIndicator color="#fff" />
-                    ) : (
-                        <Text style={styles.buttonText}>Login</Text>
-                    )}
-                </TouchableOpacity>
-
-                <Text style={styles.footerText}>
-                    Powered by BR Sense - Tecnologia Agrícola.
-                </Text>
-            </View>
+            </LinearGradient>
         </KeyboardAvoidingView>
     );
 }
@@ -157,38 +177,42 @@ export default function Login() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0A2540', // Fundo azul escuro semelhante ao gradiente web
         justifyContent: 'center',
-        padding: 20,
+        padding: 16,
     },
     card: {
-        backgroundColor: COLORS.surface,
-        padding: 24,
-        borderRadius: 16,
+        backgroundColor: COLORS.cardBg,
+        padding: 32,
+        borderRadius: 16, // Equivalente a 2xl
         borderWidth: 1,
         borderColor: COLORS.inputBorder,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
+        shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.3,
-        shadowRadius: 5,
-        elevation: 8, // Sombra para Android
+        shadowRadius: 15,
+        elevation: 10,
+        width: '100%',
+        maxWidth: 500, // Para ficar contido em tablets/telas grandes
+        alignSelf: 'center'
     },
     logoContainer: {
         alignItems: 'center',
-        marginBottom: 32,
+        justifyContent: 'center',
         backgroundColor: 'white',
-        padding: 20,
-        borderRadius: 16,
+        borderRadius: 16, // 2xl
+        width: 200,
+        height: 200,
         alignSelf: 'center',
-        width: 140,
-        height: 140,
-        justifyContent: 'center'
+        marginBottom: 24, // mb={6}
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+        elevation: 4,
     },
-    logoText: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: COLORS.primary,
-        marginTop: 8
+    logoImage: {
+        width: 190,
+        height: 190,
     },
     inputGroup: {
         marginBottom: 20,
@@ -201,7 +225,7 @@ const styles = StyleSheet.create({
     },
     input: {
         height: 56,
-        backgroundColor: COLORS.background,
+        backgroundColor: COLORS.backgroundDark,
         borderWidth: 1,
         borderColor: COLORS.inputBorder,
         borderRadius: 8,
@@ -209,10 +233,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         fontSize: 16,
     },
+    inputFocused: {
+        borderColor: COLORS.primary,
+        // No React Native não temos box-shadow nativo igual ao CSS para bordas brilhantes,
+        // mas mudar a cor da borda já traz a fidelidade visual esperada.
+    },
     passwordContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.background,
+        backgroundColor: COLORS.backgroundDark,
         borderWidth: 1,
         borderColor: COLORS.inputBorder,
         borderRadius: 8,
@@ -223,18 +252,27 @@ const styles = StyleSheet.create({
         color: COLORS.textMain,
         paddingHorizontal: 16,
         fontSize: 16,
+        height: '100%',
     },
     eyeIcon: {
         padding: 10,
         marginRight: 6,
-    },
-    button: {
-        height: 56,
-        backgroundColor: COLORS.primary,
-        borderRadius: 8,
         justifyContent: 'center',
         alignItems: 'center',
-        marginTop: 10,
+    },
+    button: {
+        height: 48,
+        backgroundColor: COLORS.primary,
+        borderRadius: 8, // lg
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 16,
+    },
+    buttonPressed: {
+        backgroundColor: COLORS.primaryPressed,
+    },
+    buttonDisabled: {
+        opacity: 0.7,
     },
     buttonText: {
         color: 'white',
