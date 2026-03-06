@@ -15,7 +15,8 @@ import {
     VStack,
     Container,
     useToast,
-    Image
+    Image,
+    Checkbox
 } from '@chakra-ui/react';
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
 import { loginKeycloak, parseJwt } from '../services/auth'; // Certifique-se de ter criado este arquivo
@@ -31,6 +32,7 @@ export function Login() {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [rememberMe, setRememberMe] = useState(false);
 
     const handleTogglePassword = () => setShowPassword(!showPassword);
 
@@ -44,7 +46,7 @@ export function Login() {
             setIsLoading(true);
 
             // 1. Autentica diretamente no Keycloak via ROPC (Direct Grant)
-            const data = await loginKeycloak(email, password);
+            const data = await loginKeycloak(email, password, rememberMe);
 
             // 2. Salva os tokens no LocalStorage
             localStorage.setItem('access_token', data.access_token);
@@ -202,6 +204,20 @@ export function Login() {
                                     </InputRightElement>
                                 </InputGroup>
                             </FormControl>
+
+                            <Flex w="100%" justify="flex-start" mt={-2}>
+                                <Checkbox
+                                    colorScheme="blue"
+                                    isChecked={rememberMe}
+                                    onChange={(e) => setRememberMe(e.target.checked)}
+                                    sx={{
+                                        '.chakra-checkbox__control': { borderColor: colors.inputBorder },
+                                        '.chakra-checkbox__label': { color: colors.textPlaceholder, fontSize: '14px' }
+                                    }}
+                                >
+                                    Lembrar de mim
+                                </Checkbox>
+                            </Flex>
 
                             {/* Botão de Login */}
                             <Box w="100%" pt={4}>
