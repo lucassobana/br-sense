@@ -24,7 +24,7 @@ async def log_uplink_requests(request: Request, call_next):
     Lê o corpo, salva no banco de dados e restaura o corpo para a rota original.
     """
     # Verifica se é a rota de receive e método POST
-    if request.method == "POST" and "uplink/receive" in request.url.path:
+    if request.method == "POST" and (request.url.path.startswith("uplink/receive") or request.headers.get("content-type", "").startswith("text/xml")):
         
         # 1. Ler o corpo (Isso consome o stream da requisição)
         body_bytes = await request.body()
