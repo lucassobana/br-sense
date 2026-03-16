@@ -26,8 +26,10 @@ export interface Probe {
   farm_id?: number;
   latitude?: number;
   longitude?: number;
-  config_moisture_min?: number;
-  config_moisture_max?: number;
+  config_moisture_v1?: number;
+  config_moisture_v2?: number;
+  config_moisture_v3?: number;
+  config_gradient_intensity?: number;
 
   rain_1h?: number;
   rain_24h?: number;

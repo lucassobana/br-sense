@@ -96,6 +96,9 @@ export interface MapPoint {
     readings: Measurement[];
     config_min?: number;
     config_max?: number;
+    config_moisture_v1?: number;
+    config_moisture_v2?: number;
+    config_moisture_v3?: number;
 }
 
 interface DisplayMapPoint extends MapPoint {
@@ -399,22 +402,27 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
 
     // Helper para calcular a cor baseada na leitura da profundidade selecionada
     const getMarkerColorForDepth = (point: MapPoint, depth: number) => {
-
         const reading = point.readings.find(r =>
             Number(r.depth_cm) === Number(depth) &&
             r.moisture_pct !== null &&
             r.moisture_pct !== undefined
         );
 
-        if (!reading) return '#A0AEC0';
+        if (!reading) return '#A0AEC0'; // Cinza (Sem leitura)
 
+        // Pega o valor exato sem arredondamentos prévios
         const value = Number(reading.moisture_pct);
-        const min = point.config_min ?? 45;
-        const max = point.config_max ?? 55;
 
-        if (value < min) return '#F56565';
-        if (value > max) return '#0BC5EA';
-        return '#48BB78';
+        // Carrega os limites exatos (com fallback de segurança para dados antigos)
+        const v1 = point.config_moisture_v1 ?? (point.config_min ? point.config_min - 10 : 30);
+        const v2 = point.config_moisture_v2 ?? (point.config_min ?? 45);
+        const v3 = point.config_moisture_v3 ?? (point.config_max ?? 60);
+
+        // Lógica matemática estrita, idêntica ao gráfico
+        if (value < v1) return '#E53E3E';  // Vermelho (Crítico)
+        if (value < v2) return '#D69E2E';  // Amarelo (Alerta)
+        if (value <= v3) return '#38A169'; // Verde (Ideal)
+        return '#3182CE';                  // Azul (Saturado)
     };
 
     const rainStatsByPoint = useMemo(() => {

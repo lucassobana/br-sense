@@ -129,8 +129,10 @@ export function Dashboard() {
       const finalLat = hasLocation ? Number(probe.latitude) : -15.793889;
       const finalLng = hasLocation ? Number(probe.longitude) : -47.882778;
 
-      const min = probe.config_moisture_min ?? 45;
-      const max = probe.config_moisture_max ?? 55;
+      // Lê os novos valores (com fallback caso a API não retorne)
+      const v1 = probe.config_moisture_v1 ?? 30;
+      const v2 = probe.config_moisture_v2 ?? 45;
+      const v3 = probe.config_moisture_v3 ?? 60;
 
       let currentStatusCode = 'status_offline';
 
@@ -150,14 +152,17 @@ export function Dashboard() {
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .find(r => r.moisture_pct !== null && r.moisture_pct !== undefined);
 
+      // Nova lógica de status baseada nas 4 zonas
       if (validReading) {
         const val = Number(validReading.moisture_pct);
-        if (val < min) {
+        if (val < v1) {
           currentStatusCode = 'status_critical';
-        } else if (val > max) {
-          currentStatusCode = 'status_saturated';
-        } else {
+        } else if (val < v2) {
+          currentStatusCode = 'status_alert';
+        } else if (val <= v3) {
           currentStatusCode = 'status_ok';
+        } else {
+          currentStatusCode = 'status_saturated';
         }
       }
 
@@ -170,8 +175,10 @@ export function Dashboard() {
         statusCode: currentStatusCode,
         readings: readings,
         last_communication: probe.last_communication,
-        config_min: min,
-        config_max: max
+        // Passa as novas propriedades para o Mapa
+        config_moisture_v1: v1,
+        config_moisture_v2: v2,
+        config_moisture_v3: v3
       };
     });
   }, [filteredProbes, selectedDepthRefs, mapDepthFilter]);
@@ -298,7 +305,7 @@ export function Dashboard() {
       const history = await getDeviceHistory(selectedProbe.esn, {
         start_date: finalStart,
         end_date: finalEnd,
-        limit: 50000
+        limit: 5000
       });
 
       if (!isMountedRef.current) return;
@@ -633,8 +640,8 @@ export function Dashboard() {
                         metric="moisture"
                         isAdmin={userIsAdmin}
                         esn={selectedProbe.esn}
-                        initialMin={selectedProbe.config_moisture_min ?? 45}
-                        initialMax={selectedProbe.config_moisture_max ?? 55}
+                        initialMin={selectedProbe.config_moisture_v1 ?? 30}
+                        initialMax={selectedProbe.config_moisture_v3 ?? 60}
                         onConfigUpdate={() => loadData()}
                         // --- PROPS DE FILTRO ATUALIZADAS ---
                         selectedPeriod={selectedPeriod}
