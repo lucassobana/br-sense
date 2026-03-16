@@ -51,11 +51,13 @@ def get_device_history(
         query = query.filter(Reading.timestamp >= start_date)
     if end_date:
         query = query.filter(Reading.timestamp < end_date)
+    
+    safe_limit = max(1, min(limit, 5000))
 
     if start_date or end_date:
-        readings = query.order_by(Reading.timestamp.asc()).limit(50000).all()
+        readings = query.order_by(Reading.timestamp.asc()).limit(safe_limit).all()
     else:
-        readings = query.order_by(Reading.timestamp.desc()).limit(limit).all()
+        readings = query.order_by(Reading.timestamp.desc()).limit(safe_limit).all()
         readings = readings[::-1]
 
     return readings

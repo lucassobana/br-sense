@@ -24,21 +24,38 @@ def populate_rain_metrics(db: Session, devices: List[Device]) -> List[Device]:
     time_1h = now - timedelta(hours=1)
     time_24h = now - timedelta(hours=24)
     time_7d = now - timedelta(days=7)
+    
+    if not devices:
+        return devices
+
+    device_ids = [d.id for d in devices]
+
+    rain_rows = (
+        db.query(
+            Reading.device_id,
+            func.coalesce(func.sum(case((Reading.timestamp >= time_1h, Reading.rain_cm), else_=0.0)), 0.0).label("rain_1h"),
+            func.coalesce(func.sum(case((Reading.timestamp >= time_24h, Reading.rain_cm), else_=0.0)), 0.0).label("rain_24h"),
+            func.coalesce(func.sum(case((Reading.timestamp >= time_7d, Reading.rain_cm), else_=0.0)), 0.0).label("rain_7d"),
+        )
+        .filter(Reading.device_id.in_(device_ids))
+        .group_by(Reading.device_id)
+        .all()
+    )
+
+    rain_map = {
+        row.device_id: {
+            "rain_1h": float(row.rain_1h or 0.0),
+            "rain_24h": float(row.rain_24h or 0.0),
+            "rain_7d": float(row.rain_7d or 0.0),
+        }
+        for row in rain_rows
+    }
 
     for dev in devices:
-        # Query auxiliar para somar
-        def get_sum(since_date):
-            total = db.query(func.sum(Reading.rain_cm))\
-                .filter(Reading.device_id == dev.id)\
-                .filter(Reading.timestamp >= since_date)\
-                .scalar()
-            return float(total) if total is not None else 0.0
-
-        # Injeta os valores no objeto SQLAlchemy
-        # O Pydantic (DeviceRead) lerá esses atributos automaticamente
-        dev.rain_1h = get_sum(time_1h)
-        dev.rain_24h = get_sum(time_24h)
-        dev.rain_7d = get_sum(time_7d)
+        metrics = rain_map.get(dev.id, {"rain_1h": 0.0, "rain_24h": 0.0, "rain_7d": 0.0})
+        dev.rain_1h = metrics["rain_1h"]
+        dev.rain_24h = metrics["rain_24h"]
+        dev.rain_7d = metrics["rain_7d"]
     
     return devices
 
@@ -55,7 +72,8 @@ def read_devices(
     
     # 2. ADICIONADO: .options(joinedload(Device.readings))
     # Isso força o banco a trazer as leituras junto com a sonda
-    query = db.query(Device).options(joinedload(Device.readings))
+    # query = db.query(Device).options(joinedload(Device.readings))
+    query = db.query(Device)
 
     if is_admin:
         pass
@@ -86,7 +104,7 @@ def read_user_devices(
     # Faz o Join com Farm para pegar apenas devices de fazendas desse usuário
     devices = (
         db.query(Device)
-        .options(joinedload(Device.readings)) # <--- 3. ADICIONADO AQUI TAMBÉM
+        # .options(joinedload(Device.readings)) # <--- 3. ADICIONADO AQUI TAMBÉM
         .join(Farm)
         .filter(Farm.user_id == user_id)
         .offset(skip)
@@ -128,6 +146,14 @@ def create_or_associate_device(
             db_device.latitude = device_data.latitude
         if device_data.longitude is not None:
             db_device.longitude = device_data.longitude
+        if device_data.config_moisture_v1 is not None:
+            db_device.config_moisture_v1 = device_data.config_moisture_v1
+        if device_data.config_moisture_v2 is not None:
+            db_device.config_moisture_v2 = device_data.config_moisture_v2
+        if device_data.config_moisture_v3 is not None:
+            db_device.config_moisture_v3 = device_data.config_moisture_v3
+        if device_data.config_gradient_intensity is not None:
+            db_device.config_gradient_intensity = device_data.config_gradient_intensity
     else:
         # Cria nova sonda
         db_device = Device(
@@ -135,7 +161,11 @@ def create_or_associate_device(
             farm_id=device_data.farm_id,  # Pode ser None agora
             name=device_data.name or f"Sonda {clean_esn}",
             latitude=device_data.latitude,
-            longitude=device_data.longitude
+            longitude=device_data.longitude,
+            config_moisture_v1=device_data.config_moisture_v1,
+            config_moisture_v2=device_data.config_moisture_v2,
+            config_moisture_v3=device_data.config_moisture_v3,
+            config_gradient_intensity=device_data.config_gradient_intensity
         )
         db.add(db_device)
     

@@ -18,8 +18,10 @@ class Device(Base):
     name: Mapped[str] = mapped_column(String(64), nullable=True)
     location: Mapped[str] = mapped_column(String(128), nullable=True)
     
-    config_moisture_min = mapped_column(Integer, default=45, nullable=True)
-    config_moisture_max = mapped_column(Integer, default=55, nullable=True)
+    config_moisture_v1 = mapped_column(Float, default=30.0, nullable=True)
+    config_moisture_v2 = mapped_column(Float, default=45.0, nullable=True)
+    config_moisture_v3 = mapped_column(Float, default=60.0, nullable=True)
+    config_gradient_intensity = mapped_column(Integer, default=50, nullable=True)
     
     latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
