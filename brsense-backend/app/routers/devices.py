@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import func, case
 from typing import List, Optional
 from datetime import datetime, timedelta
 
@@ -70,10 +70,8 @@ def read_devices(
 ):
     user, is_admin = get_user_and_roles(db, token_payload)
     
-    # 2. ADICIONADO: .options(joinedload(Device.readings))
-    # Isso força o banco a trazer as leituras junto com a sonda
-    # query = db.query(Device).options(joinedload(Device.readings))
-    query = db.query(Device)
+    # Busca devices trazendo também as leituras de forma otimizada
+    query = db.query(Device).options(selectinload(Device.readings))
 
     if is_admin:
         pass
@@ -101,10 +99,9 @@ def read_user_devices(
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
-    # Faz o Join com Farm para pegar apenas devices de fazendas desse usuário
     devices = (
         db.query(Device)
-        # .options(joinedload(Device.readings)) # <--- 3. ADICIONADO AQUI TAMBÉM
+        .options(selectinload(Device.readings))
         .join(Farm)
         .filter(Farm.user_id == user_id)
         .offset(skip)
@@ -123,7 +120,6 @@ def create_or_associate_device(
 ):
     user, is_admin = get_user_and_roles(db, token_payload)
 
-    # Se farm_id for fornecido, valida a fazenda
     if device_data.farm_id is not None:
         farm = db.query(Farm).filter(Farm.id == device_data.farm_id).first()
         if not farm:
@@ -136,7 +132,7 @@ def create_or_associate_device(
             )
 
     clean_esn = device_data.esn.strip()
-    db_device = db.query(Device).filter(Device.esn == clean_esn).first()
+    db_device = db.query(Device).options(selectinload(Device.readings)).filter(Device.esn == clean_esn).first()
 
     if db_device:
         # Atualiza dados existentes
@@ -158,7 +154,7 @@ def create_or_associate_device(
         # Cria nova sonda
         db_device = Device(
             esn=clean_esn,
-            farm_id=device_data.farm_id,  # Pode ser None agora
+            farm_id=device_data.farm_id,
             name=device_data.name or f"Sonda {clean_esn}",
             latitude=device_data.latitude,
             longitude=device_data.longitude,
@@ -187,7 +183,7 @@ def update_device(
 ):
     user, is_admin = get_user_and_roles(db, token_payload)
 
-    db_device = db.query(Device).filter(Device.esn == esn).first()
+    db_device = db.query(Device).options(selectinload(Device.readings)).filter(Device.esn == esn).first()
     if not db_device:
         raise HTTPException(status_code=404, detail="Sonda não encontrada")
 
@@ -205,8 +201,6 @@ def update_device(
     db.commit()
     db.refresh(db_device)
     
-    # Recalcula chuva para devolver atualizado
-    # (Envolvemos numa lista pois a função espera lista)
     updated_list = populate_rain_metrics(db, [db_device])
     return updated_list[0]
 
