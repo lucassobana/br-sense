@@ -305,7 +305,7 @@ export function Dashboard() {
       const history = await getDeviceHistory(selectedProbe.esn, {
         start_date: finalStart,
         end_date: finalEnd,
-        limit: 5000
+        limit: 50000
       });
 
       if (!isMountedRef.current) return;
