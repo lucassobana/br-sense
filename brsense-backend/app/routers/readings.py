@@ -28,20 +28,18 @@ def get_device_history(
     esn: str, 
     start_date: Optional[datetime] = None, 
     end_date: Optional[datetime] = None,
-    # 1. Aumentamos o valor padrão para cobrir um bom período inicial
-    limit: int = 10000, 
+    limit: int = 50000, # 1. AUMENTADO: Padrão passa a ser 50.000 linhas
     db: Session = Depends(get_db)
 ):
     """
     Retorna o histórico de leituras de um dispositivo específico (ESN).
     """
-    # Verifica se o dispositivo existe
+    # 1. Verifica se o dispositivo existe
     device = db.query(Device).filter(Device.esn == esn).first()
     if not device:
         raise HTTPException(status_code=404, detail="Dispositivo não encontrado")
     
     query = db.query(Reading).filter(Reading.device_id == device.id)
-    
     if start_date and start_date.tzinfo:
         start_date = start_date.replace(tzinfo=None)
         
@@ -53,8 +51,7 @@ def get_device_history(
     if end_date:
         query = query.filter(Reading.timestamp < end_date)
     
-    # 2. Aumentamos o limite máximo (teto de segurança) para 100.000 
-    # para garantir que os 30 dias de múltiplas sondagens (profundidades) não sejam cortados.
+    # 2. AUMENTADO: O teto de segurança passa para 100.000 linhas para permitir 30 dias completos
     safe_limit = max(1, min(limit, 100000))
 
     if start_date or end_date:
