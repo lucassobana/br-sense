@@ -5,7 +5,6 @@ from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 
-
 from app.db.session import get_db
 from app.models.reading import Reading
 from app.models.device import Device
@@ -29,18 +28,20 @@ def get_device_history(
     esn: str, 
     start_date: Optional[datetime] = None, 
     end_date: Optional[datetime] = None,
-    limit: int = 1000, # Padrão leve para carga inicial
+    # 1. Aumentamos o valor padrão para cobrir um bom período inicial
+    limit: int = 10000, 
     db: Session = Depends(get_db)
 ):
     """
     Retorna o histórico de leituras de um dispositivo específico (ESN).
     """
-    # 1. Verifica se o dispositivo existe
+    # Verifica se o dispositivo existe
     device = db.query(Device).filter(Device.esn == esn).first()
     if not device:
         raise HTTPException(status_code=404, detail="Dispositivo não encontrado")
     
     query = db.query(Reading).filter(Reading.device_id == device.id)
+    
     if start_date and start_date.tzinfo:
         start_date = start_date.replace(tzinfo=None)
         
@@ -52,7 +53,9 @@ def get_device_history(
     if end_date:
         query = query.filter(Reading.timestamp < end_date)
     
-    safe_limit = max(1, min(limit, 5000))
+    # 2. Aumentamos o limite máximo (teto de segurança) para 100.000 
+    # para garantir que os 30 dias de múltiplas sondagens (profundidades) não sejam cortados.
+    safe_limit = max(1, min(limit, 100000))
 
     if start_date or end_date:
         readings = query.order_by(Reading.timestamp.asc()).limit(safe_limit).all()

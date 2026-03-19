@@ -119,7 +119,7 @@ export function SoilMoistureChart({
     const [refAreaRight, setRefAreaRight] = useState<string | null>(null);
 
     // --- CONFIGURAÇÃO DE ZONAS ---
-    const storageKey = `BRSENSE_${metric.toUpperCase()}_RANGES_${esn || 'DEFAULT'}`; // Usando ESN para não misturar sondas diferentes no cache local
+    const storageKey = `BRSENSE_${metric.toUpperCase()}_RANGES_${esn || 'DEFAULT'}`;
 
     const defaultRanges = metric === 'moisture'
         ? { v1: 30, v2: 45, v3: 60, intensity: 50 }
@@ -138,8 +138,6 @@ export function SoilMoistureChart({
             return defaultRanges;
         } catch { return defaultRanges; }
     });
-
-    // 🚨 ATENÇÃO: O useEffect sabotador que existia aqui usando initialMin/initialMax FOI REMOVIDO! 🚨
 
     const handleSaveConfig = async (newRanges: { v1: number; v2: number; v3: number; intensity: number }) => {
         setRangeSettings(newRanges);
@@ -161,7 +159,6 @@ export function SoilMoistureChart({
         depth10: true, depth20: true, depth30: true, depth40: true, depth50: true, depth60: true,
     });
 
-    // Estados para interação manual (Hover/Click)
     const [hoveredData, setHoveredData] = useState<ChartDataPoint | null>(null);
     const [selectedData, setSelectedData] = useState<ChartDataPoint | null>(null);
     const [range, setRange] = useState({ startIndex: 0, endIndex: 0 });
@@ -171,16 +168,14 @@ export function SoilMoistureChart({
         return window.matchMedia('(pointer: coarse)').matches;
     }, []);
 
-    // --- PROCESSAMENTO DE DADOS (Lógica Robusta de Horas vs Dias) ---
-    // Retorna um objeto: { chartData, isHighResolution }
+    // --- PROCESSAMENTO DE DADOS E FILTRAGEM ---
     const { chartData, isHighResolution } = useMemo(() => {
         if (!data || data.length === 0) return { chartData: [], isHighResolution: true };
 
         let filteredData = data;
-        let useHourly = false; // Flag para forçar modo Horário
-        // let useMinutes = false; // Flag para forçar modo Horário
+        let isHighRes = true; // Por padrão, mostramos as horas no Eixo X
 
-        // 1. Filtragem por Data (se inputs existirem)
+        // 1. Filtragem por Data Customizada
         if (startDate && endDate) {
             const startObj = new Date(startDate);
             startObj.setHours(0, 0, 0, 0);
@@ -195,37 +190,42 @@ export function SoilMoistureChart({
                 const t = new Date(item.timestamp).getTime();
                 return t >= startTime && t <= endTime;
             });
+
+            // Se o utilizador filtrar mais de 8 dias manualmente, o Eixo X muda para exibir apenas Datas
+            const diffDays = (endTime - startTime) / (1000 * 3600 * 24);
+            if (diffDays > 8) isHighRes = false;
+
+        } else if (selectedPeriod) {
+            // 2. Filtragem pelo Menu (24h, 7d, 15d, 30d)
+            // Pegamos na data da última leitura recebida para ser o nosso "Agora"
+            let now = new Date().getTime();
+            const allTimestamps = data.map(d => new Date(d.timestamp).getTime()).filter(t => !isNaN(t));
+            if (allTimestamps.length > 0) {
+                now = Math.max(...allTimestamps);
+            }
+
+            let past = now;
+
+            if (selectedPeriod === '24h') {
+                past = now - (24 * 3600 * 1000);
+            } else if (selectedPeriod === '7d') {
+                past = now - (7 * 24 * 3600 * 1000);
+            } else if (selectedPeriod === '15d') {
+                past = now - (15 * 24 * 3600 * 1000);
+                isHighRes = false; // Em 15 dias mostramos DD/MM no eixo X
+            } else if (selectedPeriod === '30d') {
+                past = now - (30 * 24 * 3600 * 1000);
+                isHighRes = false; // Em 30 dias mostramos DD/MM no eixo X
+            }
+
+            filteredData = data.filter(item => {
+                const t = new Date(item.timestamp).getTime();
+                return t >= past;
+            });
         }
 
-        // 2. Determinação da Resolução (Hora vs Dia)
-        // Regra A: Seleção explícita
-        useHourly = true
-        // if (selectedPeriod === '24h' || selectedPeriod === '7d') {
-        //     useMinutes = true;
-        // }
-        // // Regra B: Inputs de Data
-        // else if (startDate && endDate) {
-        //     const startT = new Date(startDate).getTime();
-        //     const endT = new Date(endDate).getTime();
-        //     const diffDays = Math.ceil(Math.abs(endT - startT) / (1000 * 60 * 60 * 24));
-        //     // SE MENOR QUE 8 DIAS -> FORÇA HORA
-        //     if (diffDays < 8) {
-        //         useMinutes = true;
-        //     }
-        // }
-        // // Regra C: Fallback baseado nos dados reais (caso api retorne pouco histórico)
-        // else if (filteredData.length > 0) {
-        //     const timestamps = filteredData.map(d => new Date(d.timestamp).getTime());
-        //     const minTs = Math.min(...timestamps);
-        //     const maxTs = Math.max(...timestamps);
-        //     const dataSpanDays = (maxTs - minTs) / (1000 * 60 * 60 * 24);
-        //     if (dataSpanDays < 7.5) {
-        //         useMinutes = true;
-        //     }
-        // }
-
         const groupedMap = new Map<number, {
-            firstValues: Record<string, number>;
+            values: Record<string, number>;
             rainSum: number;
         }>();
 
@@ -239,21 +239,15 @@ export function SoilMoistureChart({
             const date = new Date(utcStr);
             if (isNaN(date.getTime())) return;
 
-            if (useHourly) {
-                date.setUTCMinutes(0, 0, 0);
-            } else {
-                date.setUTCHours(0, 0, 0, 0);
-            }
+            date.setUTCSeconds(0, 0);
 
             const timeKey = date.getTime();
 
             if (!groupedMap.has(timeKey)) {
-                // Inicializa com firstValues
-                groupedMap.set(timeKey, { firstValues: {}, rainSum: 0 });
+                groupedMap.set(timeKey, { values: {}, rainSum: 0 });
             }
             const group = groupedMap.get(timeKey)!;
 
-            // Mantém a soma para a chuva (precipitação normalmente se soma)
             if (item.rain_cm) {
                 group.rainSum += Number(item.rain_cm);
             }
@@ -264,10 +258,7 @@ export function SoilMoistureChart({
                 if (!isNaN(val)) {
                     const depthKey = `depth${item.depth_cm}`;
                     if (DEPTH_COLORS[depthKey as keyof typeof DEPTH_COLORS]) {
-                        // 2. Só salva o valor se ele ainda não existir para esta hora (pega o primeiro)
-                        if (group.firstValues[depthKey] === undefined) {
-                            group.firstValues[depthKey] = val;
-                        }
+                        group.values[depthKey] = val;
                     }
                 }
             }
@@ -283,16 +274,15 @@ export function SoilMoistureChart({
                 ...(metric === 'moisture' ? { precipitacao: group.rainSum } : {})
             };
 
-            // 3. Atribui o primeiro valor diretamente (sem calcular média)
-            Object.keys(group.firstValues).forEach(key => {
-                newItem[key] = group.firstValues[key];
+            Object.keys(group.values).forEach(key => {
+                newItem[key] = group.values[key];
             });
             return newItem;
         });
 
-        return { chartData: rawChartData, isHighResolution: useHourly };
+        return { chartData: rawChartData, isHighResolution: isHighRes };
 
-    }, [data, metric, startDate, endDate]);
+    }, [data, metric, startDate, endDate, selectedPeriod]);
 
     // Resetar zoom quando dados mudam
     useEffect(() => {
@@ -305,7 +295,7 @@ export function SoilMoistureChart({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chartData.length]);
 
-    // --- LÓGICA DE ZOOM MANUAL COM MOUSE (ATUALIZA DATAS) ---
+    // --- LÓGICA DE ZOOM MANUAL COM MOUSE ---
     const handleZoom = () => {
         if (!refAreaLeft || !refAreaRight || !chartData.length) {
             setRefAreaLeft(null);
@@ -313,56 +303,46 @@ export function SoilMoistureChart({
             return;
         }
 
-        // 1. Encontrar índices selecionados
         let leftIndex = chartData.findIndex(d => d.time === refAreaLeft);
         let rightIndex = chartData.findIndex(d => d.time === refAreaRight);
 
-        // Ajustes de limites e inversão
         if (leftIndex < 0) leftIndex = 0;
         if (rightIndex < 0) rightIndex = chartData.length - 1;
         if (leftIndex > rightIndex) {
             [leftIndex, rightIndex] = [rightIndex, leftIndex];
         }
 
-        // Evita zoom muito pequeno
         if (rightIndex - leftIndex < 2) {
             setRefAreaLeft(null);
             setRefAreaRight(null);
             return;
         }
 
-        // 2. Extrair as datas REAIS dos pontos selecionados
         const startPoint = chartData[leftIndex];
         const endPoint = chartData[rightIndex];
 
         if (startPoint && endPoint) {
-            // Converte para string YYYY-MM-DD para os inputs de data
             const sDate = new Date(startPoint.time);
             const eDate = new Date(endPoint.time);
 
-            // Ajuste de fuso horário simples para input type="date"
             const offset = sDate.getTimezoneOffset();
             const localStart = new Date(sDate.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
             const localEnd = new Date(eDate.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
 
-            // 3. Atualizar os ESTADOS de data (Isso dispara o useMemo e a lógica < 8 dias)
             setStartDate(localStart);
             setEndDate(localEnd);
 
-            // 4. Notificar o componente pai para buscar dados (Se for 'custom')
             if (onPeriodChange) {
                 onPeriodChange('Personalizado', localStart, localEnd);
             }
         }
 
-        // Limpa a seleção visual
         setRefAreaLeft(null);
         setRefAreaRight(null);
-        // Atualiza o range visual (brush) também
         setRange({ startIndex: leftIndex, endIndex: rightIndex });
     };
 
-    // --- ESCALA Y DINÂMICA ---
+    // --- ESCALA Y DINÂMICA (Apenas baseada nos pontos da curva) ---
     const activeYDomain = useMemo(() => {
         if (!chartData || chartData.length === 0) return yDomain;
         const visibleData = chartData.slice(range.startIndex, range.endIndex + 1);
@@ -386,23 +366,13 @@ export function SoilMoistureChart({
         });
 
         if (!hasActiveData) return yDomain;
-        if (showZones && metric === 'moisture') {
-            if (rangeSettings.v1 < min) min = rangeSettings.v1;
-            if (rangeSettings.v3 > max) max = rangeSettings.v3;
-        }
 
         const padding = (max - min) * 0.1 || 5;
         const autoMin = Math.max(0, Math.floor(min - padding));
         const autoMax = Math.ceil(max + padding);
 
-        const defaultMin = typeof yDomain[0] === 'number' ? yDomain[0] : 0;
-        const defaultMax = typeof yDomain[1] === 'number' ? yDomain[1] : 100;
-
-        if ((autoMax - autoMin) < (defaultMax - defaultMin)) {
-            return [autoMin, autoMax];
-        }
-        return yDomain;
-    }, [chartData, range, visibleLines, yDomain, showZones, metric, rangeSettings]);
+        return [autoMin, autoMax];
+    }, [chartData, range, visibleLines, yDomain]);
 
     // --- HANDLER MANUAL DE TOUCH ---
     const handleTouch = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -497,23 +467,16 @@ export function SoilMoistureChart({
 
     const formatDateHeader = (isoStr?: string) => {
         if (!isoStr) return '';
-
         const date = new Date(isoStr);
 
-        if (isHighResolution) {
-            return new Intl.DateTimeFormat('pt-BR', {
-                timeZone: 'America/Sao_Paulo',
-                day: '2-digit',
-                month: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit'
-            }).format(date);
-        }
-
+        // O Painel do hover e os textos do cabeçalho exigem saber a HORA sempre, 
+        // independentemente da resolução do Eixo X.
         return new Intl.DateTimeFormat('pt-BR', {
             timeZone: 'America/Sao_Paulo',
             day: '2-digit',
-            month: '2-digit'
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
         }).format(date);
     };
 
@@ -606,7 +569,6 @@ export function SoilMoistureChart({
                                 <MenuButton
                                     as={Button}
                                     size="xs"
-                                    // colorScheme={selectedDepthRef ? "cyan" : "gray"}
                                     colorScheme="blue"
                                     variant={selectedDepthRef ? "solid" : "outline"}
                                     rightIcon={<MdArrowDropDown />}
@@ -621,7 +583,6 @@ export function SoilMoistureChart({
                                     >
                                         Geral / Padrão (Sem trava)
                                     </MenuItem>
-                                    {/* Profundidades comuns baseadas nas suas keys (10 a 60cm) */}
                                     {[10, 20, 30, 40, 50, 60].map(depth => (
                                         <MenuItem
                                             key={depth}
@@ -697,7 +658,6 @@ export function SoilMoistureChart({
                                 rightIcon={<MdArrowDropDown />}
                                 leftIcon={<MdFilterList />}
                             >
-                                {/* Se houver data customizada, o texto do menu muda para "Personalizado" */}
                                 {startDate || endDate ? 'Personalizado' : selectedPeriod}
                             </MenuButton>
                             <MenuList bg="gray.800" borderColor="gray.600" zIndex={2000}>
@@ -839,14 +799,14 @@ export function SoilMoistureChart({
 
                         <XAxis
                             dataKey="time"
-                            type="category" // Adicione isso explicitamente
+                            type="category" // Adicionado explicitamente
                             interval="preserveStartEnd"
                             tickFormatter={(val) => {
                                 try {
                                     const date = new Date(val); // Aqui o JS lê o "Z" e entende que é UTC
 
                                     const formatter = new Intl.DateTimeFormat('pt-BR', {
-                                        timeZone: 'America/Sao_Paulo', // Aqui ele converte 19h UTC para 16h BR
+                                        timeZone: 'America/Sao_Paulo', // Aqui ele converte UTC para BR
                                         hour: '2-digit',
                                         minute: '2-digit',
                                         day: '2-digit',
