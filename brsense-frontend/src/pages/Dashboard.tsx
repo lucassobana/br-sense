@@ -10,10 +10,6 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import {
   MdArrowBack,
-  MdBatteryFull,
-  MdBattery60,
-  MdBatteryAlert,
-  MdBatteryUnknown,
   MdSearch,
   MdArrowUpward,
   MdArrowDownward,
@@ -129,8 +125,10 @@ export function Dashboard() {
       const finalLat = hasLocation ? Number(probe.latitude) : -15.793889;
       const finalLng = hasLocation ? Number(probe.longitude) : -47.882778;
 
-      const min = probe.config_moisture_min ?? 45;
-      const max = probe.config_moisture_max ?? 55;
+      // Lê os novos valores (com fallback caso a API não retorne)
+      const v1 = probe.config_moisture_v1 ?? 30;
+      const v2 = probe.config_moisture_v2 ?? 45;
+      const v3 = probe.config_moisture_v3 ?? 60;
 
       let currentStatusCode = 'status_offline';
 
@@ -150,14 +148,17 @@ export function Dashboard() {
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .find(r => r.moisture_pct !== null && r.moisture_pct !== undefined);
 
+      // Nova lógica de status baseada nas 4 zonas
       if (validReading) {
         const val = Number(validReading.moisture_pct);
-        if (val < min) {
+        if (val < v1) {
           currentStatusCode = 'status_critical';
-        } else if (val > max) {
-          currentStatusCode = 'status_saturated';
-        } else {
+        } else if (val < v2) {
+          currentStatusCode = 'status_alert';
+        } else if (val <= v3) {
           currentStatusCode = 'status_ok';
+        } else {
+          currentStatusCode = 'status_saturated';
         }
       }
 
@@ -170,8 +171,10 @@ export function Dashboard() {
         statusCode: currentStatusCode,
         readings: readings,
         last_communication: probe.last_communication,
-        config_min: min,
-        config_max: max
+        // Passa as novas propriedades para o Mapa
+        config_moisture_v1: v1,
+        config_moisture_v2: v2,
+        config_moisture_v3: v3
       };
     });
   }, [filteredProbes, selectedDepthRefs, mapDepthFilter]);
@@ -254,30 +257,25 @@ export function Dashboard() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // --- [NOVO] FUNÇÃO CENTRAL DE BUSCA DE HISTÓRICO ---
+  // --- FUNÇÃO CENTRAL DE BUSCA DE HISTÓRICO ---
   const fetchHistory = useCallback(async (period: TimeRange, startDateStr?: string, endDateStr?: string) => {
     if (!selectedProbe) return;
 
     try {
       setLoadingChart(true);
-      // Opcional: limpar dados antigos ou manter enquanto carrega (melhor UX manter)
-      // setChartData([]); 
 
       let finalStart: string | undefined;
       let finalEnd: string | undefined;
 
       // Lógica de Datas
       if (period === 'Personalizado' && startDateStr && endDateStr) {
-        // Ajusta para o formato ISO completo esperado pelo backend
         finalStart = new Date(startDateStr).toISOString();
 
-        // Ajusta o fim para o final do dia (23:59:59)
         const endObj = new Date(endDateStr);
         endObj.setHours(23, 59, 59, 999);
         finalEnd = endObj.toISOString();
 
       } else if (period !== 'Personalizado') {
-        // Lógica para períodos pré-definidos (24h, 7d, etc)
         const now = new Date();
         const target = new Date(now);
 
@@ -290,7 +288,6 @@ export function Dashboard() {
         finalStart = target.toISOString();
         finalEnd = now.toISOString();
       } else {
-        // Custom sem datas definidas: não faz fetch ou limpa
         setLoadingChart(false);
         return;
       }
@@ -329,16 +326,6 @@ export function Dashboard() {
     }
   }, [selectedProbe, toast]);
 
-  // --- [NOVO] HANDLER QUE RECEBE O EVENTO DO GRÁFICO ---
-  // const handlePeriodChange = (period: TimeRange, start?: string, end?: string) => {
-  //   setSelectedPeriod(period);
-  //   if (period === 'Personalizado' && start && end) {
-  //     setCustomRange({ start, end });
-  //     fetchHistory(period, start, end);
-  //   } else if (period !== 'Personalizado') {
-  //     fetchHistory(period);
-  //   }
-  // };
 
   const handlePeriodChange = (period: TimeRange, start?: string, end?: string) => {
     setSelectedPeriod(period);
@@ -360,7 +347,6 @@ export function Dashboard() {
       fetchHistory(selectedPeriod);
     }
   }, [selectedProbe, viewMode, selectedPeriod, customRange, fetchHistory]);
-  // Dependências controladas
 
 
   const getStatusColor = (status: string) => {
@@ -379,12 +365,17 @@ export function Dashboard() {
     return 'Offline';
   };
 
-  const getBatteryIcon = (level: number | null | undefined) => {
-    if (level === null || level === undefined)
-      return <Icon as={MdBatteryUnknown} color="gray.600" boxSize={6} />;
-    if (level >= 7) return <Icon as={MdBatteryFull} color="green.400" boxSize={6} />;
-    if (level >= 5) return <Icon as={MdBattery60} color="yellow.400" boxSize={6} />;
-    return <Icon as={MdBatteryAlert} color="red.500" boxSize={6} />;
+  // Nova lógica de Bateria Unificada
+  const getBatteryStatus = (voltage: number | null | undefined) => {
+    if (voltage === null || voltage === undefined) return { color: "gray.500", text: "--" };
+
+    const isPercentage = voltage > 10;
+    const isGood = isPercentage ? voltage > 40 : voltage >= 3.7;
+    const isWarn = isPercentage ? voltage > 15 : voltage >= 3.4;
+
+    if (isGood) return { color: "green.400", text: isPercentage ? `${voltage.toFixed(0)}%` : `${voltage.toFixed(2)}V` };
+    if (isWarn) return { color: "yellow.400", text: isPercentage ? `${voltage.toFixed(0)}%` : `${voltage.toFixed(2)}V` };
+    return { color: "red.400", text: isPercentage ? `${voltage.toFixed(0)}%` : `${voltage.toFixed(2)}V` };
   };
 
   const SortIcon = ({ column }: { column: SortKey }) => {
@@ -530,12 +521,21 @@ export function Dashboard() {
                           <Td borderColor="gray.700" textAlign="center" fontWeight="bold" color="blue.200">{formatRain(data.rain_1h)}</Td>
                           <Td borderColor="gray.700" textAlign="center" fontWeight="bold" color="blue.300">{formatRain(data.rain_24h)}</Td>
                           <Td borderColor="gray.700" textAlign="center" color="blue.400">{formatRain(data.rain_7d)}</Td>
+
+                          {/* Coluna da Bateria Atualizada */}
                           <Td borderColor="gray.700" textAlign="center">
-                            <ChakraTooltip label={data.batteryLevel !== undefined ? `Nível: ${data.batteryLevel} / 7 (${data.batteryDate})` : 'Sem dados'} hasArrow bg="gray.700" color="white">
-                              <Flex justify="center" align="center">
-                                {getBatteryIcon(data.batteryLevel)}
-                              </Flex>
-                            </ChakraTooltip>
+                            {(() => {
+                              const batteryData = getBatteryStatus(data.batteryLevel);
+                              return (
+                                <ChakraTooltip label={data.batteryDate ? `Última leitura: ${data.batteryDate}` : 'Sem dados'} hasArrow bg="gray.700" color="white">
+                                  <HStack justify="center" spacing={1.5}>
+                                    <Text fontSize="sm" fontWeight="bold" color={batteryData.color} fontFamily="mono">
+                                      {batteryData.text}
+                                    </Text>
+                                  </HStack>
+                                </ChakraTooltip>
+                              );
+                            })()}
                           </Td>
                         </Tr>
                       ))}
@@ -633,8 +633,8 @@ export function Dashboard() {
                         metric="moisture"
                         isAdmin={userIsAdmin}
                         esn={selectedProbe.esn}
-                        initialMin={selectedProbe.config_moisture_min ?? 45}
-                        initialMax={selectedProbe.config_moisture_max ?? 55}
+                        initialMin={selectedProbe.config_moisture_v1 ?? 30}
+                        initialMax={selectedProbe.config_moisture_v3 ?? 60}
                         onConfigUpdate={() => loadData()}
                         // --- PROPS DE FILTRO ATUALIZADAS ---
                         selectedPeriod={selectedPeriod}

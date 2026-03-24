@@ -5,7 +5,6 @@ from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 
-
 from app.db.session import get_db
 from app.models.reading import Reading
 from app.models.device import Device
@@ -29,7 +28,7 @@ def get_device_history(
     esn: str, 
     start_date: Optional[datetime] = None, 
     end_date: Optional[datetime] = None,
-    limit: int = 1000, # Padrão leve para carga inicial
+    limit: int = 50000, # 1. AUMENTADO: Padrão passa a ser 50.000 linhas
     db: Session = Depends(get_db)
 ):
     """
@@ -51,11 +50,14 @@ def get_device_history(
         query = query.filter(Reading.timestamp >= start_date)
     if end_date:
         query = query.filter(Reading.timestamp < end_date)
+    
+    # 2. AUMENTADO: O teto de segurança passa para 100.000 linhas para permitir 30 dias completos
+    safe_limit = max(1, min(limit, 100000))
 
     if start_date or end_date:
-        readings = query.order_by(Reading.timestamp.asc()).limit(50000).all()
+        readings = query.order_by(Reading.timestamp.asc()).limit(safe_limit).all()
     else:
-        readings = query.order_by(Reading.timestamp.desc()).limit(limit).all()
+        readings = query.order_by(Reading.timestamp.desc()).limit(safe_limit).all()
         readings = readings[::-1]
 
     return readings

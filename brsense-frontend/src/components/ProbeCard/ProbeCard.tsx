@@ -54,10 +54,15 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
         }
     };
 
-    const getProgressColor = (value: number, min: number = 45, max: number = 55) => {
-        if (value < min) return 'red';
-        if (value > max) return 'cyan';
-        return 'green';
+    const getProgressColor = (value: number, point: MapPoint) => {
+        const v1 = point.config_moisture_v1 ?? (point.config_min ? point.config_min - 10 : 30);
+        const v2 = point.config_moisture_v2 ?? (point.config_min ?? 45);
+        const v3 = point.config_moisture_v3 ?? (point.config_max ?? 60);
+
+        if (value < v1) return 'red';
+        if (value < v2) return 'yellow';
+        if (value <= v3) return 'green';
+        return 'blue';
     };
 
     // --- Dados da Sonda (Frente) ---
@@ -162,7 +167,8 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
                                                 value={r.moisture_pct || 0}
                                                 size="xs"
                                                 borderRadius="full"
-                                                colorScheme={getProgressColor(r.moisture_pct || 0, point.config_min, point.config_max)}
+                                                // --- MUDE ESTA LINHA ---
+                                                colorScheme={getProgressColor(r.moisture_pct || 0, point)}
                                                 bg="whiteAlpha.200"
                                             />
                                         </Box>
@@ -310,8 +316,8 @@ const RainBox = ({ label, value, isHighlight }: RainBoxProps) => (
         border="1px solid"
         borderColor={isHighlight ? "cyan.700" : "transparent"}
     >
-        <Text fontSize={{base: "sm"}} color="gray.400">{label}</Text>
-        <Text fontWeight="bold" fontSize={{base: "sm", md: "lg"}} color={isHighlight ? "cyan.200" : "white"}>
+        <Text fontSize={{ base: "sm" }} color="gray.400">{label}</Text>
+        <Text fontWeight="bold" fontSize={{ base: "sm", md: "lg" }} color={isHighlight ? "cyan.200" : "white"}>
             {value?.toFixed(1) || '0.0'} <Text as="span" fontSize="xs" color="gray.500">mm</Text>
         </Text>
     </Box>

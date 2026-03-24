@@ -1,6 +1,6 @@
 # app/models/reading.py
 from datetime import datetime
-from sqlalchemy import Float, DateTime, ForeignKey, String, Integer
+from sqlalchemy import Float, DateTime, ForeignKey, String, Integer, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
@@ -24,3 +24,7 @@ class Reading(Base):
     solar_status: Mapped[int] = mapped_column(Integer, nullable=True)
 
     device = relationship("Device", back_populates="readings")
+    
+    __table_args__ = (
+        Index('ix_reading_device_time', 'device_id', 'timestamp'),
+    )

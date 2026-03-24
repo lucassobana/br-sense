@@ -1,357 +1,145 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import {
-    Modal,
-    ModalOverlay,
-    ModalContent,
-    ModalBody,
-    Box,
-    Flex,
-    Text,
-    Button,
-    Icon,
-    HStack,
-    VStack,
+    Modal, ModalOverlay, ModalContent, ModalBody, Box, Flex, Text, Button, Icon, HStack, VStack,
+    NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper,
+    Slider, SliderTrack, SliderFilledTrack, SliderThumb
 } from '@chakra-ui/react';
 import { MdWaterDrop, MdSettings, MdRestartAlt } from 'react-icons/md';
 import { COLORS } from '../../colors/colors';
 
+export interface RangeSettings {
+    v1: number;
+    v2: number;
+    v3: number;
+    intensity: number;
+}
+
+export interface InitialRangeSettings {
+    min?: number;
+    max?: number;
+    v1?: number;
+    v2?: number;
+    v3?: number;
+    intensity?: number;
+}
+
 interface MoistureRangeModalProps {
     isOpen: boolean;
     onClose: () => void;
-    initialRanges: { min: number; max: number };
-    onSave: (ranges: { min: number; max: number }) => void;
+    initialRanges: InitialRangeSettings;
+    onSave: (ranges: RangeSettings) => void;
 }
 
 export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
-    isOpen,
-    onClose,
-    initialRanges,
-    onSave
+    isOpen, onClose, initialRanges, onSave
 }) => {
-    // Cores do Tema
     const redColor = "red.500";
+    const yellowColor = "yellow.500";
     const greenColor = "green.500";
-    const blueColor = "blue.500";
     const bgDark = "gray.900";
     const cardDark = "gray.800";
 
-    const [val1, setVal1] = useState(initialRanges.min);
-    const [val2, setVal2] = useState(initialRanges.max);
+    const [val1, setVal1] = useState(() => initialRanges.v1 ?? (initialRanges.min ? initialRanges.min - 10 : 30));
+    const [val2, setVal2] = useState(() => initialRanges.v2 ?? (initialRanges.min || 45));
+    const [val3, setVal3] = useState(() => initialRanges.v3 ?? (initialRanges.max || 60));
+    const [intensity, setIntensity] = useState(() => initialRanges.intensity ?? 50);
 
-    const [isDragging, setIsDragging] = useState<'val1' | 'val2' | null>(null);
-    const trackRef = useRef<HTMLDivElement>(null);
+    // Guarda o estado anterior para sabermos quando o Modal acabou de ser aberto
+    const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
 
-    // Refs para acesso dentro dos event listeners
-    const valuesRef = useRef({ val1, val2 });
-
-    useEffect(() => {
-        valuesRef.current = { val1, val2 };
-    }, [val1, val2]);
-
-    useEffect(() => {
-        if (isOpen) {
-            setVal1(initialRanges.min);
-            setVal2(initialRanges.max);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen]);
-
-    // --- LÓGICA DE EVENTOS HÍBRIDA (MOUSE + TOUCH) ---
-
-    // 1. Iniciar o arraste (Funciona para MouseDown e TouchStart)
-    const handleStartDrag = (thumb: 'val1' | 'val2') => {
-        setIsDragging(thumb);
-    };
-
-    useEffect(() => {
-        if (!isDragging) return;
-
-        // 2. Helper para pegar a posição X independente do dispositivo
-        const getClientX = (e: MouseEvent | TouchEvent) => {
-            if ('touches' in e) {
-                return e.touches[0].clientX;
-            }
-            return (e as MouseEvent).clientX;
-        };
-
-        const onMove = (e: MouseEvent | TouchEvent) => {
-            // Previne scroll da tela enquanto arrasta no mobile
-            if (e.type === 'touchmove') {
-                // Não previne default se for mouse, pois pode travar seleções
-                // Mas no touch é essencial
-                // e.preventDefault(); // (Opcional, depende do comportamento desejado, mas ajuda)
-            }
-
-            if (!trackRef.current) return;
-
-            const clientX = getClientX(e);
-            const rect = trackRef.current.getBoundingClientRect();
-
-            // Cálculo da posição relativa
-            const offsetX = clientX - rect.left;
-            let percent = (offsetX / rect.width) * 100;
-
-            // Limites (0 a 100)
-            percent = Math.max(0, Math.min(100, percent));
-            const newVal = Math.round(percent);
-            const margin = 5;
-
-            const { val1: v1, val2: v2 } = valuesRef.current;
-
-            if (isDragging === 'val1') {
-                if (newVal <= v2 - margin) setVal1(newVal);
-            } else {
-                if (newVal >= v1 + margin) setVal2(newVal);
-            }
-        };
-
-        const onUp = () => {
-            setIsDragging(null);
-        };
-
-        // Adiciona listeners para AMBOS (Mouse e Touch)
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
-
-        // Listeners Mobile (passive: false permite usar preventDefault se necessário)
-        window.addEventListener('touchmove', onMove, { passive: false });
-        window.addEventListener('touchend', onUp);
-
-        return () => {
-            window.removeEventListener('mousemove', onMove);
-            window.removeEventListener('mouseup', onUp);
-            window.removeEventListener('touchmove', onMove);
-            window.removeEventListener('touchend', onUp);
-        };
-    }, [isDragging]);
+    // Atualiza o estado durante a renderização (Padrão Oficial do React para evitar useEffect)
+    if (isOpen && !prevIsOpen) {
+        setPrevIsOpen(true);
+        setVal1(initialRanges.v1 ?? (initialRanges.min ? initialRanges.min - 10 : 30));
+        setVal2(initialRanges.v2 ?? (initialRanges.min || 45));
+        setVal3(initialRanges.v3 ?? (initialRanges.max || 60));
+        setIntensity(initialRanges.intensity ?? 50);
+    } else if (!isOpen && prevIsOpen) {
+        setPrevIsOpen(false);
+    }
 
     const handleSave = () => {
-        onSave({ min: val1, max: val2 });
+        onSave({ v1: val1, v2: val2, v3: val3, intensity });
         onClose();
     };
 
     const handleReset = () => {
-        setVal1(45);
-        setVal2(55);
+        setVal1(30);
+        setVal2(45);
+        setVal3(60);
+        setIntensity(50);
     };
 
-    return (
-        <Modal
-            isOpen={isOpen}
-            onClose={onClose}
-            // Responsividade: Fullscreen no mobile, XL no desktop
-            size={{ base: "full", md: "xl" }}
-            isCentered
-            motionPreset="slideInBottom"
-        >
-            <ModalOverlay backdropFilter="blur(8px)" bg="blackAlpha.700" />
-            <ModalContent
-                bg={cardDark}
-                color="white"
-                borderRadius={{ base: 0, md: "2xl" }} // Sem borda arredondada no mobile (fullscreen)
-                border={{ base: "none", md: "1px solid" }}
-                borderColor="whiteAlpha.200"
-                boxShadow="2xl"
-                overflow="hidden"
+    const renderInputCard = (label: string, color: string, value: number, onChange: (val: number) => void, min: number, max: number) => (
+        <VStack bg={bgDark} p={4} borderRadius="xl" border="1px solid" borderColor="whiteAlpha.200" align="start" flex={1}>
+            <HStack spacing={2} mb={2}>
+                <Box w={3} h={3} borderRadius="full" bg={color} />
+                <Text fontSize="sm" fontWeight="bold" color={color} textTransform="uppercase">{label}</Text>
+            </HStack>
+            <NumberInput
+                value={value}
+                onChange={(_, val) => onChange(val || 0)}
+                min={min}
+                max={max}
+                step={1}
+                precision={1}
+                w="100%"
+                focusBorderColor={color}
             >
-                {/* Header Responsivo */}
-                <Flex
-                    px={{ base: 4, md: 8 }}
-                    py={{ base: 4, md: 6 }}
-                    borderBottom="1px solid"
-                    borderColor="whiteAlpha.100"
-                    justify="space-between"
-                    align="center"
-                >
+                <NumberInputField bg="gray.800" color="white" borderColor="gray.600" />
+                <NumberInputStepper>
+                    <NumberIncrementStepper color="gray.400" _active={{ bg: "whiteAlpha.200" }} />
+                    <NumberDecrementStepper color="gray.400" _active={{ bg: "whiteAlpha.200" }} />
+                </NumberInputStepper>
+            </NumberInput>
+        </VStack>
+    );
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} size={{ base: "full", md: "2xl" }} isCentered motionPreset="slideInBottom">
+            <ModalOverlay backdropFilter="blur(8px)" bg="blackAlpha.700" />
+            <ModalContent bg={cardDark} color="white" borderRadius={{ base: 0, md: "2xl" }} border={{ base: "none", md: "1px solid" }} borderColor="whiteAlpha.200" boxShadow="2xl">
+                <Flex px={6} py={5} borderBottom="1px solid" borderColor="whiteAlpha.100" justify="space-between" align="center">
                     <Box>
                         <HStack spacing={2} mb={1}>
                             <Icon as={MdWaterDrop} color={COLORS.status} boxSize={6} />
-                            <Text fontSize={{ base: "md", md: "lg" }} fontWeight="bold">Configuração de Zonas</Text>
+                            <Text fontSize="lg" fontWeight="bold">Configuração de Zonas (Alta Precisão)</Text>
                         </HStack>
-                        <Text fontSize="xs" color="gray.400">Ajuste os limites arrastando os marcadores</Text>
+                        <Text fontSize="sm" color="gray.400">Defina os limites em % e a suavidade das cores do gráfico</Text>
                     </Box>
-                    <Box p={2} borderRadius="lg" _hover={{ bg: "whiteAlpha.100" }} transition="all 0.2s">
-                        <Icon as={MdSettings} color="gray.400" boxSize={5} />
-                    </Box>
+                    <Icon as={MdSettings} color="gray.400" boxSize={5} />
                 </Flex>
 
-                <ModalBody p={{ base: 4, md: 8 }}>
-                    {/* Visualização dos Valores - Stack vertical no mobile, Horizontal no PC */}
-                    <Flex
-                        direction={{ base: "column", sm: "row" }}
-                        justify="space-between"
-                        align={{ base: "stretch", sm: "flex-end" }}
-                        mb={12}
-                        gap={4}
-                    >
-                        {/* Box Seco */}
-                        <VStack align={{ base: "center", sm: "flex-start" }} spacing={2} flex={1}>
-                            <HStack spacing={1.5}>
-                                <Box w={2} h={2} borderRadius="full" bg={redColor} />
-                                <Text fontSize="xs" fontWeight="bold" color={redColor} letterSpacing="wider" textTransform="uppercase">Seco</Text>
-                            </HStack>
-                            <Box w="full" bg={bgDark} px={4} py={2} borderRadius="lg" border="1px solid" borderColor="whiteAlpha.200" textAlign="center">
-                                <Text fontSize={{ base: "lg", md: "xl" }} fontWeight="bold">
-                                    0<Text as="span" fontSize="sm" color="gray.500" ml={0.5}>%</Text>
-                                    <Text as="span" mx={2} color="gray.600">—</Text>
-                                    {val1}<Text as="span" fontSize="sm" color="gray.500" ml={0.5}>%</Text>
-                                </Text>
-                            </Box>
-                        </VStack>
-
-                        {/* Box Ideal */}
-                        <VStack align="center" spacing={2} flex={1}>
-                            <HStack spacing={1.5}>
-                                <Box w={2} h={2} borderRadius="full" bg={greenColor} />
-                                <Text fontSize="xs" fontWeight="bold" color={greenColor} letterSpacing="wider" textTransform="uppercase">Ideal</Text>
-                            </HStack>
-                            <Box w="full" bg={bgDark} px={4} py={2} borderRadius="lg" border="1px solid" borderColor="whiteAlpha.200" textAlign="center">
-                                <Text fontSize={{ base: "lg", md: "xl" }} fontWeight="bold">
-                                    {val1}
-                                    <Text as="span" mx={2} color="gray.600">—</Text>
-                                    {val2}<Text as="span" fontSize="sm" color="gray.500" ml={0.5}>%</Text>
-                                </Text>
-                            </Box>
-                        </VStack>
-
-                        {/* Box Saturado */}
-                        <VStack align={{ base: "center", sm: "flex-end" }} spacing={2} flex={1}>
-                            <HStack spacing={1.5}>
-                                <Box w={2} h={2} borderRadius="full" bg={blueColor} />
-                                <Text fontSize="xs" fontWeight="bold" color={blueColor} letterSpacing="wider" textTransform="uppercase">Saturado</Text>
-                            </HStack>
-                            <Box w="full" bg={bgDark} px={4} py={2} borderRadius="lg" border="1px solid" borderColor="whiteAlpha.200" textAlign="center">
-                                <Text fontSize={{ base: "lg", md: "xl" }} fontWeight="bold">
-                                    {val2}
-                                    <Text as="span" mx={2} color="gray.600">—</Text>
-                                    100<Text as="span" fontSize="sm" color="gray.500" ml={0.5}>%</Text>
-                                </Text>
-                            </Box>
-                        </VStack>
+                <ModalBody p={6}>
+                    <Flex direction={{ base: "column", md: "row" }} gap={4} mb={6}>
+                        {renderInputCard("Crítico (Máx)", redColor, val1, setVal1, 0, val2)}
+                        {renderInputCard("Alerta (Máx)", yellowColor, val2, setVal2, val1, val3)}
+                        {renderInputCard("Ideal (Máx)", greenColor, val3, setVal3, val2, 100)}
                     </Flex>
 
-                    {/* SLIDER AREA */}
-                    <Box position="relative" py={6} px={2} userSelect="none" sx={{ touchAction: 'none' }}>
-                        <Box
-                            ref={trackRef}
-                            h="12px"
-                            w="100%"
-                            bg="gray.900"
-                            borderRadius="full"
-                            position="relative"
-                            boxShadow="inner"
-                        >
-                            {/* Faixas coloridas */}
-                            <Box position="absolute" top={0} bottom={0} left={0} width={`${val1}%`} bg={redColor} opacity={0.8} borderLeftRadius="full" />
-                            <Box position="absolute" top={0} bottom={0} left={`${val1}%`} width={`${val2 - val1}%`} bg={greenColor} opacity={0.8} />
-                            <Box position="absolute" top={0} bottom={0} left={`${val2}%`} right={0} bg={blueColor} opacity={0.8} borderRightRadius="full" />
-                        </Box>
-
-                        {/* Botão 1 (Esquerda) */}
-                        <Box
-                            position="absolute"
-                            top="50%"
-                            left={`${val1}%`}
-                            transform="translate(-50%, -50%)"
-                            zIndex={2}
-                            cursor="grab"
-                            // Suporte a Mouse e Touch
-                            onMouseDown={() => handleStartDrag('val1')}
-                            onTouchStart={() => handleStartDrag('val1')}
-                            _active={{ transform: "translate(-50%, -50%) scale(1.1)", cursor: 'grabbing' }}
-                            transition="transform 0.1s"
-                            // Aumenta a área de toque invisível para facilitar no mobile
-                            p={3}
-                            m={-3}
-                        >
-                            {/* O Círculo visível */}
-                            <Box w="24px" h="24px" bg="white" borderRadius="full" border="2px solid" borderColor="gray.500" boxShadow="lg" />
-
-                            {/* Tooltip do valor */}
-                            <Box position="absolute" top="-25px" left="50%" transform="translateX(-50%)" bg="gray.700" px={2} py={1} borderRadius="md" boxShadow="md" pointerEvents="none">
-                                <Text fontSize="xs" fontWeight="bold" color="white">{val1}%</Text>
-                                <Box position="absolute" bottom="-4px" left="50%" transform="translateX(-50%)" w={0} h={0} borderLeft="4px solid transparent" borderRight="4px solid transparent" borderTop="4px solid" borderTopColor="gray.700" />
-                            </Box>
-                        </Box>
-
-                        {/* Botão 2 (Direita) */}
-                        <Box
-                            position="absolute"
-                            top="50%"
-                            left={`${val2}%`}
-                            transform="translate(-50%, -50%)"
-                            zIndex={2}
-                            cursor="grab"
-                            // Suporte a Mouse e Touch
-                            onMouseDown={() => handleStartDrag('val2')}
-                            onTouchStart={() => handleStartDrag('val2')}
-                            _active={{ transform: "translate(-50%, -50%) scale(1.1)", cursor: 'grabbing' }}
-                            transition="transform 0.1s"
-                            // Aumenta a área de toque
-                            p={3}
-                            m={-3}
-                        >
-                            <Box w="24px" h="24px" bg="white" borderRadius="full" border="2px solid" borderColor="gray.500" boxShadow="lg" />
-                            <Box position="absolute" top="-25px" left="50%" transform="translateX(-50%)" bg="gray.700" px={2} py={1} borderRadius="md" boxShadow="md" pointerEvents="none">
-                                <Text fontSize="xs" fontWeight="bold" color="white">{val2}%</Text>
-                                <Box position="absolute" bottom="-4px" left="50%" transform="translateX(-50%)" w={0} h={0} borderLeft="4px solid transparent" borderRight="4px solid transparent" borderTop="4px solid" borderTopColor="gray.700" />
-                            </Box>
-                        </Box>
-
-                        {/* Régua de % */}
-                        <Flex justify="space-between" mt={4} px={1}>
-                            {[0, 25, 50, 75, 100].map(val => (
-                                <Text key={val} fontSize="xs" fontWeight="bold" color="gray.500">{val}%</Text>
-                            ))}
+                    {/* Controle de Intensidade / Gradiente */}
+                    <Box mt={6} mb={4} p={4} bg={bgDark} borderRadius="xl" border="1px solid" borderColor="whiteAlpha.200">
+                        <Text mb={3} fontSize="sm" fontWeight="bold" color="gray.300">Intensidade do Gradiente</Text>
+                        <Slider value={intensity} onChange={(val) => setIntensity(val)} min={0} max={100} step={1}>
+                            <SliderTrack bg="gray.700" h="6px" borderRadius="full">
+                                <SliderFilledTrack bg="blue.500" />
+                            </SliderTrack>
+                            <SliderThumb boxSize={5} bg="white" border="2px solid" borderColor="blue.500" />
+                        </Slider>
+                        <Flex justify="space-between" mt={2}>
+                            <Text fontSize="xs" color="gray.500">Mais Suave (0)</Text>
+                            <Text fontSize="xs" color="gray.500">Cores Sólidas (100)</Text>
                         </Flex>
                     </Box>
                 </ModalBody>
 
-                {/* Footer Responsivo */}
-                <Flex
-                    px={{ base: 4, md: 8 }}
-                    py={5}
-                    bg="whiteAlpha.50"
-                    direction={{ base: "column-reverse", sm: "row" }} // Botões empilhados no mobile
-                    justify="space-between"
-                    align="center"
-                    borderTop="1px solid"
-                    borderColor="whiteAlpha.100"
-                    gap={3}
-                >
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        w={{ base: "100%", sm: "auto" }}
-                        color="gray.400"
-                        _hover={{ color: "white", bg: "whiteAlpha.100" }}
-                        leftIcon={<Icon as={MdRestartAlt} />}
-                        onClick={handleReset}
-                    >
-                        Restaurar Padrões
+                <Flex px={6} py={5} bg="whiteAlpha.50" justify="space-between" align="center" borderTop="1px solid" borderColor="whiteAlpha.100">
+                    <Button variant="ghost" size="sm" color="gray.400" _hover={{ color: "white", bg: "whiteAlpha.100" }} leftIcon={<Icon as={MdRestartAlt} />} onClick={handleReset}>
+                        Restaurar
                     </Button>
-                    <HStack spacing={3} w={{ base: "100%", sm: "auto" }} justify="flex-end">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            flex={{ base: 1, sm: "none" }}
-                            color="gray.300"
-                            onClick={onClose}
-                            _hover={{ bg: "whiteAlpha.100" }}
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            colorScheme="blue"
-                            size="sm"
-                            flex={{ base: 1, sm: "none" }}
-                            px={6}
-                            onClick={handleSave}
-                            boxShadow="lg"
-                            _active={{ transform: "scale(0.95)" }}
-                        >
-                            Aplicar Zonas
-                        </Button>
+                    <HStack spacing={3}>
+                        <Button variant="ghost" size="sm" color="gray.300" onClick={onClose}>Cancelar</Button>
+                        <Button colorScheme="blue" size="sm" px={6} onClick={handleSave}>Aplicar Valores</Button>
                     </HStack>
                 </Flex>
             </ModalContent>

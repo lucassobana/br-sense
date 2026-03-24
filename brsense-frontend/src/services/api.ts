@@ -86,12 +86,23 @@ export interface CreateDeviceDTO {
   // ADICIONADO: Campos opcionais de localização
   latitude?: number;
   longitude?: number;
+  config_moisture_v1?: number;
+  config_moisture_v2?: number;
+  config_moisture_v3?: number;
+  config_gradient_intensity?: number;
 }
 
 interface HistoryParams {
   limit?: number;
   start_date?: string;
   end_date?: string;
+}
+
+export interface DeviceConfigUpdateDTO {
+  v1: number;
+  v2: number;
+  v3: number;
+  intensity: number;
 }
 
 // Nota: AuthResponse e CreateUserDTO foram removidos pois
@@ -153,12 +164,13 @@ export const getUserFarms = async () => {
 
 export const updateDeviceConfig = async (
   esn: string,
-  min: number,
-  max: number,
+  config: DeviceConfigUpdateDTO
 ) => {
   const response = await api.patch(`/api/devices/${esn}`, {
-    config_moisture_min: min,
-    config_moisture_max: max,
+    config_moisture_v1: config.v1,
+    config_moisture_v2: config.v2,
+    config_moisture_v3: config.v3,
+    config_gradient_intensity: config.intensity,
   });
   return response.data;
 };

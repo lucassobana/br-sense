@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List # <--- Importante: Importar List
 
@@ -26,14 +26,16 @@ class DeviceRead(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     
-    config_moisture_min: Optional[int] = 45
-    config_moisture_max: Optional[int] = 55
+    config_moisture_v1: Optional[float] = 30.0
+    config_moisture_v2: Optional[float] = 45.0
+    config_moisture_v3: Optional[float] = 60.0
+    config_gradient_intensity: Optional[int] = 50
     
     rain_1h: float = 0.0
     rain_24h: float = 0.0
     rain_7d: float = 0.0
 
-    readings: List[DeviceReadingSchema] = [] 
+    readings: List[DeviceReadingSchema] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
@@ -43,8 +45,10 @@ class DeviceUpdate(BaseModel):
     farm_id: Optional[int] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    config_moisture_min: Optional[int] = None
-    config_moisture_max: Optional[int] = None
+    config_moisture_v1: Optional[float] = None
+    config_moisture_v2: Optional[float] = None
+    config_moisture_v3: Optional[float] = None
+    config_gradient_intensity: Optional[int] = None
     
 class DeviceCreate(BaseModel):
     esn: str
@@ -52,5 +56,7 @@ class DeviceCreate(BaseModel):
     name: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    config_moisture_min: Optional[int] = 45
-    config_moisture_max: Optional[int] = 55
+    config_moisture_v1: Optional[float] = 30.0
+    config_moisture_v2: Optional[float] = 45.0
+    config_moisture_v3: Optional[float] = 60.0
+    config_gradient_intensity: Optional[int] = 50
