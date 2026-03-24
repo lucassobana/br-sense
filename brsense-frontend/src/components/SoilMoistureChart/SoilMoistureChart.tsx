@@ -139,13 +139,14 @@ export function SoilMoistureChart({
         } catch { return defaultRanges; }
     });
 
-    const handleSaveConfig = async (newRanges: { v1: number; v2: number; v3: number; intensity: number }) => {
+    const handleSaveConfig = async (newRanges: { v1: number; v2: number; v3: number }) => {
         setRangeSettings(newRanges);
         localStorage.setItem(storageKey, JSON.stringify(newRanges));
 
         if (esn && isAdmin) {
             try {
-                await updateDeviceConfig(esn, newRanges);
+                // Mantemos o envio do intensity: 50 fixo para a API caso o back-end ainda exija esse campo
+                await updateDeviceConfig(esn, { ...newRanges, intensity: 50 });
                 toast({ title: "Configuração salva!", status: "success", duration: 2000, isClosable: true });
                 if (onConfigUpdate) onConfigUpdate();
             } catch {
@@ -454,13 +455,26 @@ export function SoilMoistureChart({
         const minDomain = activeYDomain[0];
         const maxDomain = activeYDomain[1];
 
-        const safeMin = typeof minDomain === 'number' ? minDomain : -9999;
-        const safeMax = typeof maxDomain === 'number' ? maxDomain : 9999;
+        const safeMin = typeof minDomain === 'number' ? minDomain : 0;
+        const safeMax = typeof maxDomain === 'number' ? maxDomain : 100;
+
+        if (y2 < safeMin || y1 > safeMax) return null;
 
         const effectiveY1 = Math.max(y1, safeMin);
         const effectiveY2 = Math.min(y2, safeMax);
+
         if (effectiveY1 < effectiveY2) {
-            return <ReferenceArea key={zoneId} yAxisId="left" y1={effectiveY1} y2={effectiveY2} fill={fill} fillOpacity={1} strokeOpacity={0} />;
+            return (
+                <ReferenceArea
+                    key={zoneId}
+                    yAxisId="left"
+                    y1={effectiveY1}
+                    y2={effectiveY2}
+                    fill={fill}
+                    fillOpacity={1}
+                    strokeOpacity={0}
+                />
+            );
         }
         return null;
     };
@@ -766,7 +780,7 @@ export function SoilMoistureChart({
                         barCategoryGap={0}
                         barGap={0}
                     >
-                        <defs>
+                        {/* <defs>
                             {(() => {
                                 const spread = (100 - (rangeSettings.intensity || 50)) / 2;
                                 const stop1 = Math.max(0, 50 - spread);
@@ -793,6 +807,49 @@ export function SoilMoistureChart({
                                 <stop offset="0%" stopColor="#7da3c9" />
                                 <stop offset="100%" stopColor="#003D7A" />
                             </linearGradient>
+                        </defs> */}
+
+                        <defs>
+                            {(() => {
+                                // Garantimos que a intensidade seja de 0 a 100
+                                const intensity = rangeSettings.intensity ?? 50;
+
+                                const renderStops = (colorMain: string, colorNext: string) => (
+                                    <>
+                                        {/* A cor principal se mantém sólida partindo da base até o percentual definido na intensidade */}
+                                        <stop offset="0%" stopColor={colorMain} />
+                                        <stop offset={`${intensity}%`} stopColor={colorMain} />
+
+                                        {/* No restante do espaço (se houver), ela faz a transição suave para a próxima cor */}
+                                        <stop offset="100%" stopColor={intensity === 100 ? colorMain : colorNext} />
+                                    </>
+                                );
+
+                                return (
+                                    <>
+                                        {/* zone-1: Y=0 até v1 (Crítico -> Alerta) */}
+                                        <linearGradient id="zone-1" x1="0" y1="1" x2="0" y2="0">
+                                            {renderStops("#E53E3E", "#D69E2E")}
+                                        </linearGradient>
+
+                                        {/* zone-2: v1 até v2 (Alerta -> Ideal) */}
+                                        <linearGradient id="zone-2" x1="0" y1="1" x2="0" y2="0">
+                                            {renderStops("#D69E2E", "#38A169")}
+                                        </linearGradient>
+
+                                        {/* zone-3: v2 até v3 (Ideal -> Saturado) */}
+                                        <linearGradient id="zone-3" x1="0" y1="1" x2="0" y2="0">
+                                            {renderStops("#38A169", "#3182CE")}
+                                        </linearGradient>
+
+                                        {/* Gradiente da Temperatura */}
+                                        <linearGradient id="temp-zone" x1="0" y1="1" x2="0" y2="0">
+                                            <stop offset="0%" stopColor="#7da3c9" />
+                                            <stop offset="100%" stopColor="#003D7A" />
+                                        </linearGradient>
+                                    </>
+                                );
+                            })()}
                         </defs>
 
                         <CartesianGrid strokeDasharray="3 3" stroke="#3179c7" opacity={0.3} vertical={false} />
@@ -871,13 +928,13 @@ export function SoilMoistureChart({
                                 {renderZone(0, rangeSettings.v1, "url(#zone-1)", "z-critico")}
                                 {renderZone(rangeSettings.v1, rangeSettings.v2, "url(#zone-2)", "z-alerta")}
                                 {renderZone(rangeSettings.v2, rangeSettings.v3, "url(#zone-3)", "z-ideal")}
-                                {renderZone(rangeSettings.v3, 9999, "#3182CE", "z-saturado")}
+                                {renderZone(rangeSettings.v3, 100, "#3182CE", "z-saturado")}
                             </>
                         )}
 
                         {metric === 'temperature' && (
                             <>
-                                {renderZone(-9999, 9999, "url(#temp-zone)", "temp-zones")}
+                                {renderZone(0, 100, "url(#temp-zone)", "temp-zone")}
                             </>
                         )}
 
