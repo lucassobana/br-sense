@@ -174,7 +174,10 @@ export function SoilMoistureChart({
         if (!data || data.length === 0) return { chartData: [], isHighResolution: true };
 
         let filteredData = data;
-        let isHighRes = true; // Por padrão, mostramos as horas no Eixo X
+        // let isHighRes = true; // Por padrão, mostramos as horas no Eixo X
+        let useHourly = false;
+
+        useHourly = true
 
         // 1. Filtragem por Data Customizada
         if (startDate && endDate) {
@@ -193,36 +196,36 @@ export function SoilMoistureChart({
             });
 
             // Se o utilizador filtrar mais de 8 dias manualmente, o Eixo X muda para exibir apenas Datas
-            const diffDays = (endTime - startTime) / (1000 * 3600 * 24);
-            if (diffDays > 8) isHighRes = false;
+            // const diffDays = (endTime - startTime) / (1000 * 3600 * 24);
+            // if (diffDays > 8) isHighRes = false;
 
-        } else if (selectedPeriod) {
-            // 2. Filtragem pelo Menu (24h, 7d, 15d, 30d)
-            // Pegamos na data da última leitura recebida para ser o nosso "Agora"
-            let now = new Date().getTime();
-            const allTimestamps = data.map(d => new Date(d.timestamp).getTime()).filter(t => !isNaN(t));
-            if (allTimestamps.length > 0) {
-                now = Math.max(...allTimestamps);
-            }
+        // } else if (selectedPeriod) {
+        //     // 2. Filtragem pelo Menu (24h, 7d, 15d, 30d)
+        //     // Pegamos na data da última leitura recebida para ser o nosso "Agora"
+        //     let now = new Date().getTime();
+        //     const allTimestamps = data.map(d => new Date(d.timestamp).getTime()).filter(t => !isNaN(t));
+        //     if (allTimestamps.length > 0) {
+        //         now = Math.max(...allTimestamps);
+        //     }
 
-            let past = now;
+        //     let past = now;
 
-            if (selectedPeriod === '24h') {
-                past = now - (24 * 3600 * 1000);
-            } else if (selectedPeriod === '7d') {
-                past = now - (7 * 24 * 3600 * 1000);
-            } else if (selectedPeriod === '15d') {
-                past = now - (15 * 24 * 3600 * 1000);
-                isHighRes = false; // Em 15 dias mostramos DD/MM no eixo X
-            } else if (selectedPeriod === '30d') {
-                past = now - (30 * 24 * 3600 * 1000);
-                isHighRes = false; // Em 30 dias mostramos DD/MM no eixo X
-            }
+        //     if (selectedPeriod === '24h') {
+        //         past = now - (24 * 3600 * 1000);
+        //     } else if (selectedPeriod === '7d') {
+        //         past = now - (7 * 24 * 3600 * 1000);
+        //     } else if (selectedPeriod === '15d') {
+        //         past = now - (15 * 24 * 3600 * 1000);
+        //         isHighRes = false; // Em 15 dias mostramos DD/MM no eixo X
+        //     } else if (selectedPeriod === '30d') {
+        //         past = now - (30 * 24 * 3600 * 1000);
+        //         isHighRes = false; // Em 30 dias mostramos DD/MM no eixo X
+        //     }
 
-            filteredData = data.filter(item => {
-                const t = new Date(item.timestamp).getTime();
-                return t >= past;
-            });
+        //     filteredData = data.filter(item => {
+        //         const t = new Date(item.timestamp).getTime();
+        //         return t >= past;
+        //     });
         }
 
         const groupedMap = new Map<number, {
@@ -240,7 +243,13 @@ export function SoilMoistureChart({
             const date = new Date(utcStr);
             if (isNaN(date.getTime())) return;
 
-            date.setUTCSeconds(0, 0);
+            if (useHourly) {
+                date.setUTCMinutes(0, 0, 0);
+            } else {
+                date.setUTCHours(0, 0, 0, 0);
+            }
+
+            // date.setUTCSeconds(0, 0);
 
             const timeKey = date.getTime();
 
@@ -281,9 +290,9 @@ export function SoilMoistureChart({
             return newItem;
         });
 
-        return { chartData: rawChartData, isHighResolution: isHighRes };
+        return { chartData: rawChartData, isHighResolution: useHourly };
 
-    }, [data, metric, startDate, endDate, selectedPeriod]);
+    }, [data, metric, startDate, endDate]);
 
     // Resetar zoom quando dados mudam
     useEffect(() => {
