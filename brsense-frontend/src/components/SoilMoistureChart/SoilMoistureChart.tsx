@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
     Box,
     Flex,
@@ -58,6 +58,7 @@ export interface RawApiData {
     moisture_pct: number | null;
     temperature_c: number | null;
     rain_cm?: number | null;
+    battery_status?: number | null;
 }
 
 interface ChartDataPoint {
@@ -91,6 +92,15 @@ interface RainLabelProps {
     value?: number;
     index?: number;
 }
+
+const CHART_ANIMATION_POINT_LIMIT = 500;
+const CHART_MAX_POINTS = 1200;
+
+const downsampleData = <T,>(items: T[], maxPoints: number): T[] => {
+    if (items.length <= maxPoints) return items;
+    const step = Math.ceil(items.length / maxPoints);
+    return items.filter((_, index) => index % step === 0 || index === items.length - 1);
+};
 
 
 export function SoilMoistureChart({
@@ -199,33 +209,33 @@ export function SoilMoistureChart({
             // const diffDays = (endTime - startTime) / (1000 * 3600 * 24);
             // if (diffDays > 8) isHighRes = false;
 
-        // } else if (selectedPeriod) {
-        //     // 2. Filtragem pelo Menu (24h, 7d, 15d, 30d)
-        //     // Pegamos na data da última leitura recebida para ser o nosso "Agora"
-        //     let now = new Date().getTime();
-        //     const allTimestamps = data.map(d => new Date(d.timestamp).getTime()).filter(t => !isNaN(t));
-        //     if (allTimestamps.length > 0) {
-        //         now = Math.max(...allTimestamps);
-        //     }
+            // } else if (selectedPeriod) {
+            //     // 2. Filtragem pelo Menu (24h, 7d, 15d, 30d)
+            //     // Pegamos na data da última leitura recebida para ser o nosso "Agora"
+            //     let now = new Date().getTime();
+            //     const allTimestamps = data.map(d => new Date(d.timestamp).getTime()).filter(t => !isNaN(t));
+            //     if (allTimestamps.length > 0) {
+            //         now = Math.max(...allTimestamps);
+            //     }
 
-        //     let past = now;
+            //     let past = now;
 
-        //     if (selectedPeriod === '24h') {
-        //         past = now - (24 * 3600 * 1000);
-        //     } else if (selectedPeriod === '7d') {
-        //         past = now - (7 * 24 * 3600 * 1000);
-        //     } else if (selectedPeriod === '15d') {
-        //         past = now - (15 * 24 * 3600 * 1000);
-        //         isHighRes = false; // Em 15 dias mostramos DD/MM no eixo X
-        //     } else if (selectedPeriod === '30d') {
-        //         past = now - (30 * 24 * 3600 * 1000);
-        //         isHighRes = false; // Em 30 dias mostramos DD/MM no eixo X
-        //     }
+            //     if (selectedPeriod === '24h') {
+            //         past = now - (24 * 3600 * 1000);
+            //     } else if (selectedPeriod === '7d') {
+            //         past = now - (7 * 24 * 3600 * 1000);
+            //     } else if (selectedPeriod === '15d') {
+            //         past = now - (15 * 24 * 3600 * 1000);
+            //         isHighRes = false; // Em 15 dias mostramos DD/MM no eixo X
+            //     } else if (selectedPeriod === '30d') {
+            //         past = now - (30 * 24 * 3600 * 1000);
+            //         isHighRes = false; // Em 30 dias mostramos DD/MM no eixo X
+            //     }
 
-        //     filteredData = data.filter(item => {
-        //         const t = new Date(item.timestamp).getTime();
-        //         return t >= past;
-        //     });
+            //     filteredData = data.filter(item => {
+            //         const t = new Date(item.timestamp).getTime();
+            //         return t >= past;
+            //     });
         }
 
         const groupedMap = new Map<number, {
@@ -290,9 +300,17 @@ export function SoilMoistureChart({
             return newItem;
         });
 
-        return { chartData: rawChartData, isHighResolution: useHourly };
+        // return { chartData: rawChartData, isHighResolution: useHourly };
+        const sampledChartData = downsampleData(rawChartData, CHART_MAX_POINTS);
+        return { chartData: sampledChartData, isHighResolution: useHourly };
 
     }, [data, metric, startDate, endDate]);
+
+    const chartDataIndexByTime = useMemo(() => {
+        return new Map(chartData.map((point, index) => [point.time, index]));
+    }, [chartData]);
+
+    const useLightAnimations = chartData.length <= CHART_ANIMATION_POINT_LIMIT;
 
     // Resetar zoom quando dados mudam
     useEffect(() => {
@@ -306,18 +324,21 @@ export function SoilMoistureChart({
     }, [chartData.length]);
 
     // --- LÓGICA DE ZOOM MANUAL COM MOUSE ---
-    const handleZoom = () => {
+    // const handleZoom = () => {
+    const handleZoom = useCallback(() => {
         if (!refAreaLeft || !refAreaRight || !chartData.length) {
             setRefAreaLeft(null);
             setRefAreaRight(null);
             return;
         }
 
-        let leftIndex = chartData.findIndex(d => d.time === refAreaLeft);
-        let rightIndex = chartData.findIndex(d => d.time === refAreaRight);
+        // let leftIndex = chartData.findIndex(d => d.time === refAreaLeft);
+        // let rightIndex = chartData.findIndex(d => d.time === refAreaRight);
 
-        if (leftIndex < 0) leftIndex = 0;
-        if (rightIndex < 0) rightIndex = chartData.length - 1;
+        // if (leftIndex < 0) leftIndex = 0;
+        // if (rightIndex < 0) rightIndex = chartData.length - 1;
+        let leftIndex = chartDataIndexByTime.get(refAreaLeft) ?? 0;
+        let rightIndex = chartDataIndexByTime.get(refAreaRight) ?? (chartData.length - 1);
         if (leftIndex > rightIndex) {
             [leftIndex, rightIndex] = [rightIndex, leftIndex];
         }
@@ -350,7 +371,7 @@ export function SoilMoistureChart({
         setRefAreaLeft(null);
         setRefAreaRight(null);
         setRange({ startIndex: leftIndex, endIndex: rightIndex });
-    };
+    }, [chartData, chartDataIndexByTime, onPeriodChange, refAreaLeft, refAreaRight]);
 
     // --- ESCALA Y DINÂMICA (Apenas baseada nos pontos da curva) ---
     const activeYDomain = useMemo(() => {
@@ -385,7 +406,8 @@ export function SoilMoistureChart({
     }, [chartData, range, visibleLines, yDomain]);
 
     // --- HANDLER MANUAL DE TOUCH ---
-    const handleTouch = (e: React.TouchEvent<HTMLDivElement>) => {
+    // const handleTouch = (e: React.TouchEvent<HTMLDivElement>) => {
+    const handleTouch = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
         if (!chartContainerRef.current || chartData.length === 0) return;
 
         const touch = e.touches[0];
@@ -410,7 +432,7 @@ export function SoilMoistureChart({
         if (point) {
             setSelectedData(point);
         }
-    };
+    }, [chartData, range.endIndex, range.startIndex]);
 
     // --- FECHAR SELEÇÃO AO TOCAR FORA ---
     useEffect(() => {
@@ -458,7 +480,10 @@ export function SoilMoistureChart({
         return () => container.removeEventListener('wheel', handleWheel);
     }, [chartData]);
 
-    const toggleLine = (key: string) => setVisibleLines(prev => ({ ...prev, [key]: !prev[key] }));
+    // const toggleLine = (key: string) => setVisibleLines(prev => ({ ...prev, [key]: !prev[key] }));
+    const toggleLine = useCallback((key: string) => {
+        setVisibleLines(prev => ({ ...prev, [key]: !prev[key] }));
+    }, []);
 
     const renderZone = (y1: number, y2: number, fill: string, zoneId: string) => {
         const minDomain = activeYDomain[0];
@@ -488,25 +513,51 @@ export function SoilMoistureChart({
         return null;
     };
 
-    const formatDateHeader = (isoStr?: string) => {
+    // const formatDateHeader = (isoStr?: string) => {
+    const headerDateFormatter = useMemo(() => new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    }), []);
+
+    const axisDateFormatter = useMemo(() => new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        hour: '2-digit',
+        minute: '2-digit',
+        day: '2-digit',
+        month: '2-digit'
+    }), []);
+
+    const axisDayFormatter = useMemo(() => new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit'
+    }), []);
+
+    const formatDateHeader = useCallback((isoStr?: string) => {
         if (!isoStr) return '';
         const date = new Date(isoStr);
 
-        // O Painel do hover e os textos do cabeçalho exigem saber a HORA sempre, 
-        // independentemente da resolução do Eixo X.
-        return new Intl.DateTimeFormat('pt-BR', {
-            timeZone: 'America/Sao_Paulo',
-            day: '2-digit',
-            month: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-        }).format(date);
-    };
+        //     // O Painel do hover e os textos do cabeçalho exigem saber a HORA sempre, 
+        //     // independentemente da resolução do Eixo X.
+        //     return new Intl.DateTimeFormat('pt-BR', {
+        //         timeZone: 'America/Sao_Paulo',
+        //         day: '2-digit',
+        //         month: '2-digit',
+        //         hour: '2-digit',
+        //         minute: '2-digit'
+        //     }).format(date);
+        // };
+        return headerDateFormatter.format(date);
+    }, [headerDateFormatter]);
 
     // Dados ativos para exibição (Prioridade: Seleção Touch > Hover Mouse)
     const activeData: ChartDataPoint | null = selectedData ?? hoveredData;
 
     const [activeIndex, setActiveIndex] = useState<number | null>(null);
+    const lastHoverIndexRef = useRef<number | null>(null);
 
     const RainLabel = ({ x, y, width, value, index }: RainLabelProps) => {
         if (index !== activeIndex) return null;
@@ -869,18 +920,20 @@ export function SoilMoistureChart({
                             interval="preserveStartEnd"
                             tickFormatter={(val) => {
                                 try {
-                                    const date = new Date(val); // Aqui o JS lê o "Z" e entende que é UTC
+                                    // const date = new Date(val); // Aqui o JS lê o "Z" e entende que é UTC
 
-                                    const formatter = new Intl.DateTimeFormat('pt-BR', {
-                                        timeZone: 'America/Sao_Paulo', // Aqui ele converte UTC para BR
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        day: '2-digit',
-                                        month: '2-digit'
-                                    });
+                                    // const formatter = new Intl.DateTimeFormat('pt-BR', {
+                                    //     timeZone: 'America/Sao_Paulo', // Aqui ele converte UTC para BR
+                                    //     hour: '2-digit',
+                                    //     minute: '2-digit',
+                                    //     day: '2-digit',
+                                    //     month: '2-digit'
+                                    // });
+                                    const date = new Date(val);
 
                                     if (isHighResolution) {
-                                        const parts = formatter.formatToParts(date);
+                                        // const parts = formatter.formatToParts(date);
+                                        const parts = axisDateFormatter.formatToParts(date);
                                         const hour = parts.find(p => p.type === 'hour')?.value;
                                         const minute = parts.find(p => p.type === 'minute')?.value;
                                         const day = parts.find(p => p.type === 'day')?.value;
@@ -893,11 +946,12 @@ export function SoilMoistureChart({
                                         return `${hour}:${minute}`;
                                     }
 
-                                    return new Intl.DateTimeFormat('pt-BR', {
-                                        timeZone: 'America/Sao_Paulo',
-                                        day: '2-digit',
-                                        month: '2-digit'
-                                    }).format(date);
+                                    // return new Intl.DateTimeFormat('pt-BR', {
+                                    //     timeZone: 'America/Sao_Paulo',
+                                    //     day: '2-digit',
+                                    //     month: '2-digit'
+                                    // }).format(date);
+                                    return axisDayFormatter.format(date);
 
                                 } catch { return ''; }
                             }}
@@ -955,8 +1009,10 @@ export function SoilMoistureChart({
                                 opacity={0.8}
                                 // Se for alta resolução, barras mais finas
                                 barSize={isHighResolution ? 6 : 15}
-                                isAnimationActive={true}
-                                animationDuration={800}
+                                // isAnimationActive={true}
+                                // animationDuration={800}
+                                isAnimationActive={useLightAnimations}
+                                animationDuration={useLightAnimations ? 400 : 0}
                                 name="Chuva"
                             >
                                 <LabelList dataKey="precipitacao" content={<RainLabel />} />
@@ -974,8 +1030,10 @@ export function SoilMoistureChart({
                                     strokeWidth={2.5}
                                     dot={false}
                                     activeDot={{ r: 5, fill: color, stroke: '#fff', strokeWidth: 1 }}
-                                    isAnimationActive={true}
-                                    animationDuration={1000}
+                                    // isAnimationActive={true}
+                                    // animationDuration={1000}
+                                    isAnimationActive={useLightAnimations}
+                                    animationDuration={useLightAnimations ? 500 : 0}
                                     animationEasing="ease-in-out"
                                     connectNulls
                                 />
@@ -987,9 +1045,17 @@ export function SoilMoistureChart({
                             content={({ active, payload }) => {
                                 if (!isTouchDevice) {
                                     if (active && payload && payload.length) {
-                                        setHoveredData(payload[0].payload);
-                                        setActiveIndex(payload[0].payload.index);
+                                        // setHoveredData(payload[0].payload);
+                                        // setActiveIndex(payload[0].payload.index);
+                                        const payloadPoint = payload[0].payload as ChartDataPoint & { index?: number };
+                                        const hoveredIndex = typeof payloadPoint.index === 'number' ? payloadPoint.index : null;
+                                        if (hoveredIndex !== null && hoveredIndex !== lastHoverIndexRef.current) {
+                                            lastHoverIndexRef.current = hoveredIndex;
+                                            setHoveredData(payloadPoint);
+                                            setActiveIndex(hoveredIndex);
+                                        }
                                     } else {
+                                        lastHoverIndexRef.current = null;
                                         setHoveredData(null);
                                         setActiveIndex(null);
                                     }

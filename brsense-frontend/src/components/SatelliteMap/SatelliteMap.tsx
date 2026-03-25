@@ -17,6 +17,39 @@ import { RainViewerTimeline } from '../RainViewer/RainViewerTimeline';
 
 // Profundidades disponíveis
 const AVAILABLE_DEPTHS = [10, 20, 30, 40, 50, 60];
+const RAINVIEWER_CACHE_TTL_MS = 10 * 60 * 1000;
+
+let rainViewerCache: { fetchedAt: number; frames: RadarFrame[] } | null = null;
+let rainViewerPendingRequest: Promise<RadarFrame[]> | null = null;
+
+const fetchRainViewerFrames = async (): Promise<RadarFrame[]> => {
+    const now = Date.now();
+    if (rainViewerCache && (now - rainViewerCache.fetchedAt) < RAINVIEWER_CACHE_TTL_MS) {
+        return rainViewerCache.frames;
+    }
+
+    if (rainViewerPendingRequest) {
+        return rainViewerPendingRequest;
+    }
+
+    rainViewerPendingRequest = fetch("https://api.rainviewer.com/public/weather-maps.json")
+        .then((res) => res.json())
+        .then((data) => {
+            const pastFrames = data.radar?.past ?? [];
+            const filteredFrames = pastFrames.filter((_: RadarFrame, index: number) => index % 4 === 0);
+
+            rainViewerCache = {
+                fetchedAt: Date.now(),
+                frames: filteredFrames,
+            };
+            return filteredFrames;
+        })
+        .finally(() => {
+            rainViewerPendingRequest = null;
+        });
+
+    return rainViewerPendingRequest;
+};
 
 // Tipos de período de chuva
 export type RainPeriod = '1h' | '24h' | '7d' | '15d' | '30d';
@@ -500,16 +533,16 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     useEffect(() => {
         const fetchRadar = async () => {
             try {
-                const res = await fetch("https://api.rainviewer.com/public/weather-maps.json");
-                const data = await res.json();
+                // const res = await fetch("https://api.rainviewer.com/public/weather-maps.json");
+                // const data = await res.json();
 
-                // Pega todos os frames das últimas 2 horas (normalmente 13 frames)
-                const pastFrames = data.radar?.past ?? [];
+                // // Pega todos os frames das últimas 2 horas (normalmente 13 frames)
+                // const pastFrames = data.radar?.past ?? [];
 
-                // FILTRO: Mantém apenas 4 frames (pega os índices 0, 4, 8 e 12)
-                // Se a API paga for usada no futuro e trouxer 12h, essa mesma lógica dividirá o tempo.
-                const filteredFrames = pastFrames.filter((_: RadarFrame, index: number) => index % 4 === 0);
-
+                // // FILTRO: Mantém apenas 4 frames (pega os índices 0, 4, 8 e 12)
+                // // Se a API paga for usada no futuro e trouxer 12h, essa mesma lógica dividirá o tempo.
+                // const filteredFrames = pastFrames.filter((_: RadarFrame, index: number) => index % 4 === 0);
+                const filteredFrames = await fetchRainViewerFrames();
                 setRadarFrames(filteredFrames);
 
                 // Seleciona o último frame (o mais atual) como padrão
