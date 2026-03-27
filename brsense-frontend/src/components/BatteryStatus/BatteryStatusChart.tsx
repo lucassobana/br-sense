@@ -28,12 +28,20 @@ export function BatteryStatusChart({ data }: BatteryStatusChartProps) {
             if (item.battery_status === undefined || item.battery_status === null) return;
             const value = Number(item.battery_status);
             if (Number.isNaN(value)) return;
-            mapByTimestamp.set(item.timestamp, value);
+
+            // Ignora pontos fora do range 5 a 10
+            if (value < 5 || value > 10) return;
+
+            const utcStr = item.timestamp.includes('Z') || item.timestamp.includes('+')
+                ? item.timestamp
+                : `${item.timestamp}Z`;
+
+            mapByTimestamp.set(utcStr, value);
         });
 
         return Array.from(mapByTimestamp.entries())
-            .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
-            .map(([time, battery]) => ({ time, battery }));
+            .map(([time, battery]) => ({ time, battery }))
+            .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
     }, [data]);
 
     if (chartData.length === 0) {
@@ -54,37 +62,49 @@ export function BatteryStatusChart({ data }: BatteryStatusChartProps) {
                         <XAxis
                             dataKey="time"
                             tick={{ fill: '#e2e8f0', fontSize: 11 }}
-                            tickFormatter={(val) => new Date(val).toLocaleDateString('pt-BR', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                            })}
+                            tickFormatter={(val) => {
+                                const d = new Date(val);
+                                if (isNaN(d.getTime())) return '';
+                                return d.toLocaleDateString('pt-BR', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                });
+                            }}
                             minTickGap={35}
                             axisLine={{ stroke: 'rgba(255,255,255,0.35)' }}
                             tickLine={{ stroke: 'rgba(255,255,255,0.35)' }}
                         />
+                        
+                        {/* EIXO Y COM LIMITES FIXOS */}
                         <YAxis
                             tick={{ fill: '#e2e8f0', fontSize: 11 }}
                             axisLine={{ stroke: 'rgba(255,255,255,0.35)' }}
                             tickLine={{ stroke: 'rgba(255,255,255,0.35)' }}
-                            domain={['auto', 'auto']}
+                            domain={[5, 10]}
+                            allowDataOverflow={true}
                             label={{ value: 'Bateria', angle: -90, position: 'insideLeft', fill: '#e2e8f0' }}
                         />
+                        
                         <Tooltip
                             contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.35)', color: '#fff' }}
                             labelStyle={{ color: '#fff' }}
                             formatter={(value) => [`${Number(value).toFixed(2)}`, 'Bateria']}
-                            labelFormatter={(label) => new Date(label).toLocaleString('pt-BR')}
+                            labelFormatter={(label) => {
+                                const d = new Date(label);
+                                return isNaN(d.getTime()) ? label : d.toLocaleString('pt-BR');
+                            }}
                         />
                         <Line
                             type="monotone"
                             dataKey="battery"
                             stroke="#FFFFFF"
                             strokeWidth={2}
-                            dot={false}
-                            activeDot={{ r: 4, fill: '#FFFFFF', stroke: '#111' }}
+                            dot={{ r: 3, fill: '#FFFFFF', stroke: '#FFFFFF' }} 
+                            activeDot={{ r: 5, fill: '#FFFFFF', stroke: '#111' }}
                             isAnimationActive={false}
+                            connectNulls={true}
                         />
                     </LineChart>
                 </ResponsiveContainer>
