@@ -332,7 +332,8 @@ export function Dashboard() {
         depth_cm: r.depth_cm,
         moisture_pct: r.moisture_pct,
         temperature_c: r.temperature_c,
-        rain_cm: r.rain_cm
+        rain_cm: r.rain_cm,
+        battery_status: r.battery_status
       }));
 
       setChartData(formattedData);
