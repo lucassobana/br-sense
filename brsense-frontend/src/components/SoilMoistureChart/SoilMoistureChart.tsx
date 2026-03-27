@@ -627,7 +627,12 @@ export function SoilMoistureChart({
                     </Text>
                 </VStack>
 
-                <HStack spacing={2}>
+                <Flex 
+                    wrap="wrap" 
+                    gap={2} 
+                    w={{ base: "100%", md: "auto" }} 
+                    justify={{ base: "flex-start", md: "flex-end" }}
+                >
                     <Popover placement="bottom-end" isLazy>
                         <PopoverTrigger>
                             <Button
@@ -761,7 +766,7 @@ export function SoilMoistureChart({
                     >
                         Ver Tudo
                     </Button>
-                </HStack>
+                </Flex>
             </Flex>
 
             {/* --- PAINEL DE INFORMAÇÕES (TOOLTIP FIXO) --- */}
