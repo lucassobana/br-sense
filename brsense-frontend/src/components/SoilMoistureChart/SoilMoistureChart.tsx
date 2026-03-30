@@ -627,10 +627,10 @@ export function SoilMoistureChart({
                     </Text>
                 </VStack>
 
-                <Flex 
-                    wrap="wrap" 
-                    gap={2} 
-                    w={{ base: "100%", md: "auto" }} 
+                <Flex
+                    wrap="wrap"
+                    gap={2}
+                    w={{ base: "100%", md: "auto" }}
                     justify={{ base: "flex-start", md: "flex-end" }}
                 >
                     <Popover placement="bottom-end" isLazy>
@@ -776,18 +776,35 @@ export function SoilMoistureChart({
                 transform={activeData ? "translateY(0)" : "translateY(-6px)"}
                 pointerEvents={activeData ? "auto" : "none"}
                 mb={activeData ? 2 : 0}
-                minH="32px"
+                minH={{ base: "auto", md: "32px" }}
             >
                 {activeData && (
-                    <Flex bg="rgba(30, 41, 59, 0.8)" px={3} py={1} borderRadius="md" align="center" gap={4} wrap="wrap" w="fit-content">
-                        <HStack borderRight="1px solid" borderColor="gray.600" pr={3} spacing={2}>
+                    <Flex
+                        bg="rgba(30, 41, 59, 0.8)"
+                        px={{ base: 3, md: 3 }}
+                        py={{ base: 2, md: 1 }}
+                        borderRadius="md"
+                        align={{ base: "flex-start", md: "center" }}
+                        direction={{ base: "column", md: "row" }}
+                        gap={{ base: 2, md: 4 }}
+                        w={{ base: "100%", md: "fit-content" }}
+                    >
+                        <HStack
+                            borderRight={{ base: "none", md: "1px solid" }}
+                            borderBottom={{ base: "1px solid", md: "none" }}
+                            borderColor="gray.600"
+                            pr={{ base: 0, md: 3 }}
+                            pb={{ base: 2, md: 0 }}
+                            w={{ base: "100%", md: "auto" }}
+                            spacing={2}
+                        >
                             <Icon as={MdCalendarToday} color="gray.400" boxSize={3} />
                             <Text fontSize="xs" fontWeight="bold">
                                 {formatDateHeader(activeData.time)}
                             </Text>
                         </HStack>
 
-                        <HStack spacing={3}>
+                        <Flex wrap="wrap" gap={3} align="center">
                             {/* CHUVA */}
                             {metric === 'moisture' && activeData.precipitacao !== undefined && activeData.precipitacao > 0 && (
                                 <HStack spacing={1.5}>
@@ -810,7 +827,7 @@ export function SoilMoistureChart({
                                         </Text>
                                     </HStack>
                                 ))}
-                        </HStack>
+                        </Flex>
                     </Flex>
                 )}
             </Box>
