@@ -97,6 +97,8 @@ interface RainLabelProps {
 
 const CHART_ANIMATION_POINT_LIMIT = 500;
 const CHART_MAX_POINTS = 1200;
+const MM_DOMAIN = [0, 50];
+const mmTicks = [5, 15, 25, 35, 45];
 
 const downsampleData = <T,>(items: T[], maxPoints: number): T[] => {
     if (items.length <= maxPoints) return items;
@@ -454,6 +456,16 @@ export function SoilMoistureChart({
         return [autoMin, autoMax];
     }, [chartData, range, visibleLines, yDomain]);
 
+    const [minLeft, maxLeft] = activeYDomain as [number, number];
+
+    const leftTicks = useMemo(() => {
+        return mmTicks.map(tick => {
+            const ratio = (tick - MM_DOMAIN[0]) / (MM_DOMAIN[1] - MM_DOMAIN[0]);
+            const calculatedTick = minLeft + ratio * (maxLeft - minLeft);
+            return Math.round(calculatedTick);
+        });
+    }, [minLeft, maxLeft]);
+
     // --- HANDLER MANUAL DE TOUCH ---
     // const handleTouch = (e: React.TouchEvent<HTMLDivElement>) => {
     const handleTouch = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
@@ -726,85 +738,37 @@ export function SoilMoistureChart({
                     w={{ base: "100%", md: "auto" }}
                     justify={{ base: "flex-start", md: "flex-end" }}
                 >
-                    <Popover placement="bottom-end" isLazy>
-                        <PopoverTrigger>
-                            <Button
+                    {onSelectDepthRef && metric === 'moisture' && (
+                        <Menu>
+                            <MenuButton
+                                as={Button}
                                 size="xs"
-                                variant="outline"
                                 colorScheme="blue"
-                                leftIcon={<Icon as={MdDateRange} />}
+                                variant={selectedDepthRef ? "solid" : "outline"}
+                                rightIcon={<MdArrowDropDown />}
+                                leftIcon={<Icon as={MdLayers} />} // Opcional
                             >
-                            </Button>
-                        </PopoverTrigger>
-                        {onSelectDepthRef && metric === 'moisture' && (
-                            <Menu>
-                                <MenuButton
-                                    as={Button}
-                                    size="xs"
-                                    colorScheme="blue"
-                                    variant={selectedDepthRef ? "solid" : "outline"}
-                                    rightIcon={<MdArrowDropDown />}
-                                    leftIcon={<Icon as={MdLayers} />} // Opcional
+                                {selectedDepthRef ? `${selectedDepthRef}cm` : 'Profundidade Ref.'}
+                            </MenuButton>
+                            <MenuList bg="gray.800" borderColor="gray.600" zIndex={2000}>
+                                <MenuItem
+                                    bg="gray.800" _hover={{ bg: "gray.700" }}
+                                    onClick={() => onSelectDepthRef(null)}
                                 >
-                                    {selectedDepthRef ? `${selectedDepthRef}cm` : 'Profundidade Ref.'}
-                                </MenuButton>
-                                <MenuList bg="gray.800" borderColor="gray.600" zIndex={2000}>
+                                    Geral / Padrão (Sem trava)
+                                </MenuItem>
+                                {[10, 20, 30, 40, 50, 60].map(depth => (
                                     <MenuItem
+                                        key={depth}
                                         bg="gray.800" _hover={{ bg: "gray.700" }}
-                                        onClick={() => onSelectDepthRef(null)}
+                                        onClick={() => onSelectDepthRef(depth)}
                                     >
-                                        Geral / Padrão (Sem trava)
+                                        Travar em {depth}cm
                                     </MenuItem>
-                                    {[10, 20, 30, 40, 50, 60].map(depth => (
-                                        <MenuItem
-                                            key={depth}
-                                            bg="gray.800" _hover={{ bg: "gray.700" }}
-                                            onClick={() => onSelectDepthRef(depth)}
-                                        >
-                                            Travar em {depth}cm
-                                        </MenuItem>
-                                    ))}
-                                </MenuList>
-                            </Menu>
-                        )}
-                        <PopoverContent bg="gray.800" borderColor="gray.600" p={3} w="auto" boxShadow="xl" zIndex={2000}>
-                            <PopoverArrow bg="gray.800" />
-                            <PopoverBody>
-                                <VStack spacing={3} align="stretch">
-                                    <FormControl>
-                                        <FormLabel fontSize="xs" color="gray.400" mb={1}>Data Inicial</FormLabel>
-                                        <Input
-                                            size="xs"
-                                            type="date"
-                                            value={startDate}
-                                            color="white"
-                                            borderColor="gray.600"
-                                            onChange={(e) => {
-                                                const v = e.target.value;
-                                                setStartDate(v);
-                                                if (v && endDate && onPeriodChange) onPeriodChange('Personalizado', v, endDate);
-                                            }}
-                                        />
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="xs" color="gray.400" mb={1}>Data Final</FormLabel>
-                                        <Input
-                                            size="xs"
-                                            type="date"
-                                            value={endDate}
-                                            color="white"
-                                            borderColor="gray.600"
-                                            onChange={(e) => {
-                                                const v = e.target.value;
-                                                setEndDate(v);
-                                                if (startDate && v && onPeriodChange) onPeriodChange('Personalizado', startDate, v);
-                                            }}
-                                        />
-                                    </FormControl>
-                                </VStack>
-                            </PopoverBody>
-                        </PopoverContent>
-                    </Popover>
+                                ))}
+                            </MenuList>
+                        </Menu>
+                    )}
 
                     {/* --- BOTÃO DE RESET (MdClose) --- */}
                     {(startDate || endDate) && (
@@ -843,6 +807,52 @@ export function SoilMoistureChart({
                             </MenuList>
                         </Menu>
                     )}
+
+                    <Popover placement="bottom-end" isLazy>
+                        <PopoverTrigger>
+                            <Button
+                                size="xs"
+                                variant="outline"
+                                colorScheme="blue"
+                                leftIcon={<Icon as={MdDateRange} />}
+                            />
+                        </PopoverTrigger>
+
+                        <PopoverContent bg="gray.800" borderColor="gray.600" p={3} w="auto" boxShadow="xl" zIndex={2000}>
+                            <PopoverArrow bg="gray.800" />
+                            <PopoverBody>
+                                <VStack spacing={3} align="stretch">
+                                    <FormControl>
+                                        <FormLabel fontSize="xs" color="gray.400" mb={1}>Data Inicial</FormLabel>
+                                        <Input
+                                            size="xs"
+                                            type="date"
+                                            value={startDate}
+                                            onChange={(e) => {
+                                                const v = e.target.value;
+                                                setStartDate(v);
+                                                if (v && endDate && onPeriodChange) onPeriodChange('Personalizado', v, endDate);
+                                            }}
+                                        />
+                                    </FormControl>
+
+                                    <FormControl>
+                                        <FormLabel fontSize="xs" color="gray.400" mb={1}>Data Final</FormLabel>
+                                        <Input
+                                            size="xs"
+                                            type="date"
+                                            value={endDate}
+                                            onChange={(e) => {
+                                                const v = e.target.value;
+                                                setEndDate(v);
+                                                if (startDate && v && onPeriodChange) onPeriodChange('Personalizado', startDate, v);
+                                            }}
+                                        />
+                                    </FormControl>
+                                </VStack>
+                            </PopoverBody>
+                        </PopoverContent>
+                    </Popover>
 
                     {isAdmin && (
                         <ChakraTooltip label="Configurar Zonas" hasArrow>
@@ -1033,8 +1043,15 @@ export function SoilMoistureChart({
                             })()}
                         </defs>
 
-                        <CartesianGrid strokeDasharray="3 3" stroke="#3179c7" opacity={0.3} vertical={false} />
-
+                        {/* <CartesianGrid strokeDasharray="3 3" stroke="#3179c7" opacity={0.3} vertical={false} /> */}
+                        <CartesianGrid
+                            yAxisId="left" // <--- Ligar apenas ao eixo 'left'
+                            horizontal={true}
+                            vertical={false}
+                            stroke="#3179c7"
+                            strokeDasharray="3 3"
+                            opacity={0.3}
+                        />
                         <XAxis
                             dataKey="time"
                             type="category" // Adicionado explicitamente
@@ -1085,24 +1102,22 @@ export function SoilMoistureChart({
                         <YAxis
                             yAxisId="left"
                             domain={activeYDomain as [number, number]}
+                            ticks={leftTicks}
                             tick={{ fill: '#6b7280', fontSize: isMobileViewport ? 9 : 10 }}
                             axisLine={false}
                             tickLine={false}
                             allowDataOverflow
-                            label={() => {
-                                return (
-                                    <text
-                                        x={20}
-                                        y={20}
-                                        fill="#6b7280"
-                                        fontSize={isMobileViewport ? 9 : 10}
-                                        fontWeight="bold"
-                                        textAnchor="middle"
-                                    >
-                                        {metric === 'moisture' ? '%' : '°C'}
-                                    </text>
-                                );
-                            }}
+                            label={({ viewBox }) => (
+                                <text
+                                    x={viewBox.x + viewBox.width}
+                                    y={viewBox.y / 2}
+                                    textAnchor="middle"
+                                    fill="#6b7280"
+                                    fontSize={isMobileViewport ? 9 : 12}
+                                >
+                                    %
+                                </text>
+                            )}
                         />
 
                         {/* EIXO Y CHUVA (INVERTIDO) */}
@@ -1111,21 +1126,32 @@ export function SoilMoistureChart({
                                 yAxisId="right"
                                 orientation="right"
                                 reversed={true}
-                                domain={[0, 50]}
-                                ticks={[5, 10, 15, 20, 25, 30, 35, 40, 45, 50]}
+                                domain={MM_DOMAIN}
+                                ticks={mmTicks}
                                 tick={{ fill: '#6b7280', fontSize: isMobileViewport ? 9 : 10 }}
                                 axisLine={false}
                                 tickLine={false}
                                 hide={false}
                                 width={isMobileViewport ? 24 : 30}
-                                label={{
-                                    value: 'mm',
-                                    position: 'top',
-                                    offset: 10,
-                                    fill: '#6b7280',
-                                    fontSize: 12,
-                                    fontWeight: 'bold'
-                                }}
+                                // label={{
+                                //     value: 'mm',
+                                //     position: 'top',
+                                //     offset: 10,
+                                //     fill: '#6b7280',
+                                //     fontSize: isMobileViewport ? 9 : 12,
+                                // }}
+
+                                label={({ viewBox }) => (
+                                    <text
+                                        x={viewBox.x + viewBox.width - 20}
+                                        y={viewBox.y / 2}
+                                        textAnchor="middle"
+                                        fill="#6b7280"
+                                        fontSize={isMobileViewport ? 9 : 12}
+                                    >
+                                        mm
+                                    </text>
+                                )}
                             />
                         )}
 
