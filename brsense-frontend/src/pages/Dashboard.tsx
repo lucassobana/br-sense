@@ -746,6 +746,7 @@ export function Dashboard() {
                           initialV1={selectedProbe.config_moisture_v1 ?? 30}
                           initialV2={selectedProbe.config_moisture_v2 ?? 45}
                           initialV3={selectedProbe.config_moisture_v3 ?? 60}
+                          intensity={selectedProbe.config_gradient_intensity ?? 50}
                           onConfigUpdate={() => loadData()}
                           // --- PROPS DE FILTRO ATUALIZADAS ---
                           selectedPeriod={selectedPeriod}

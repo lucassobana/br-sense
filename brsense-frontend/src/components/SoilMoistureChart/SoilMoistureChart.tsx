@@ -79,6 +79,7 @@ interface ChartProps {
     initialV1?: number;
     initialV2?: number;
     initialV3?: number;
+    intensity?: number;
     onConfigUpdate?: () => void;
     selectedPeriod?: TimeRange;
     onPeriodChange?: (period: TimeRange, startDate?: string, endDate?: string) => void;
@@ -116,6 +117,7 @@ export function SoilMoistureChart({
     initialV1,
     initialV2,
     initialV3,
+    intensity,
     selectedPeriod = '24h',
     onPeriodChange,
     selectedDepthRef,
@@ -176,6 +178,7 @@ export function SoilMoistureChart({
                 v1: initialV1 ?? prev.v1 ?? 30,
                 v2: initialV2 ?? prev.v2 ?? 45,
                 v3: initialV3 ?? prev.v3 ?? 60,
+                intensity: intensity ?? prev.intensity ?? 50
             };
             if (next.v1 === prev.v1 && next.v2 === prev.v2 && next.v3 === prev.v3) {
                 return prev;
@@ -183,7 +186,7 @@ export function SoilMoistureChart({
             localStorage.setItem(storageKey, JSON.stringify(next));
             return next;
         });
-    }, [initialV1, initialV2, initialV3, metric, storageKey]);
+    }, [initialV1, initialV2, initialV3, intensity, metric, storageKey]);
 
     const handleSaveConfig = async (newRanges: { v1: number; v2: number; v3: number }) => {
         setRangeSettings(newRanges);
