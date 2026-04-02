@@ -57,7 +57,10 @@ export function BatteryStatusChart({ data }: BatteryStatusChartProps) {
             <Text color="white" mb={3} fontWeight="semibold">Status da Bateria</Text>
             <Box h="300px">
                 <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+                    <LineChart
+                        data={chartData}
+                        margin={{ top: 10, right: 12, left: -38, bottom: 0 }}
+                    >
                         <CartesianGrid stroke="rgba(255,255,255,0.2)" strokeDasharray="3 3" />
                         <XAxis
                             dataKey="time"
@@ -76,17 +79,15 @@ export function BatteryStatusChart({ data }: BatteryStatusChartProps) {
                             axisLine={{ stroke: 'rgba(255,255,255,0.35)' }}
                             tickLine={{ stroke: 'rgba(255,255,255,0.35)' }}
                         />
-                        
-                        {/* EIXO Y COM LIMITES FIXOS */}
+
                         <YAxis
                             tick={{ fill: '#e2e8f0', fontSize: 11 }}
                             axisLine={{ stroke: 'rgba(255,255,255,0.35)' }}
                             tickLine={{ stroke: 'rgba(255,255,255,0.35)' }}
                             domain={[5, 10]}
                             allowDataOverflow={true}
-                            label={{ value: 'Bateria', angle: -90, position: 'insideLeft', fill: '#e2e8f0' }}
                         />
-                        
+
                         <Tooltip
                             contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.35)', color: '#fff' }}
                             labelStyle={{ color: '#fff' }}
@@ -101,7 +102,7 @@ export function BatteryStatusChart({ data }: BatteryStatusChartProps) {
                             dataKey="battery"
                             stroke="#FFFFFF"
                             strokeWidth={2}
-                            dot={{ r: 3, fill: '#FFFFFF', stroke: '#FFFFFF' }} 
+                            dot={{ r: 3, fill: '#FFFFFF', stroke: '#FFFFFF' }}
                             activeDot={{ r: 5, fill: '#FFFFFF', stroke: '#111' }}
                             isAnimationActive={false}
                             connectNulls={true}
