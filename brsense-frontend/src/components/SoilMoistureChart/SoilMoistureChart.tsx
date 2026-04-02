@@ -466,8 +466,28 @@ export function SoilMoistureChart({
         });
     }, [minLeft, maxLeft]);
 
-    // --- HANDLER MANUAL DE TOUCH ---
-    // const handleTouch = (e: React.TouchEvent<HTMLDivElement>) => {
+    const xTicks = useMemo(() => {
+        if (chartData.length === 0) return undefined;
+
+        const visibleData = chartData.slice(range.startIndex, range.endIndex + 1);
+        const size = visibleData.length;
+
+        const targetTicks = isMobileViewport
+            ? 7
+            : (selectedPeriod === '24h' ? 24 : 15);
+
+        // Se houver menos pontos do que o alvo, mostra todos
+        if (size <= targetTicks) return visibleData.map(d => d.time);
+
+        const ticks = [];
+        for (let i = 0; i < targetTicks; i++) {
+            const index = Math.round((i * (size - 1)) / (targetTicks - 1));
+            ticks.push(visibleData[index].time);
+        }
+        return ticks;
+
+    }, [isMobileViewport, chartData, range.startIndex, range.endIndex, selectedPeriod]);
+
     const handleTouch = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
         if (!chartContainerRef.current || chartData.length === 0) return;
 
@@ -954,7 +974,7 @@ export function SoilMoistureChart({
                         data={chartData}
                         margin={isMobileViewport
                             ? { top: 25, right: 7, left: -38, bottom: -15 }
-                            : { top: 25, right: 5, left: -41, bottom: 0 }}
+                            : { top: 25, right: metric === 'temperature' ? 32 : 5, left: -41, bottom: 0 }}
                         onMouseLeave={() => !isTouchDevice && setHoveredData(null)}
                         // NOVOS HANDLERS DE MOUSE PARA ZOOM
                         onMouseDown={(e) => {
@@ -1054,41 +1074,27 @@ export function SoilMoistureChart({
                         />
                         <XAxis
                             dataKey="time"
-                            type="category" // Adicionado explicitamente
-                            interval="preserveStartEnd"
+                            type="category"
+                            interval={0}
+                            ticks={xTicks}
                             tickFormatter={(val) => {
                                 try {
-                                    // const date = new Date(val); // Aqui o JS lê o "Z" e entende que é UTC
-
-                                    // const formatter = new Intl.DateTimeFormat('pt-BR', {
-                                    //     timeZone: 'America/Sao_Paulo', // Aqui ele converte UTC para BR
-                                    //     hour: '2-digit',
-                                    //     minute: '2-digit',
-                                    //     day: '2-digit',
-                                    //     month: '2-digit'
-                                    // });
                                     const date = new Date(val);
 
                                     if (isHighResolution) {
-                                        // const parts = formatter.formatToParts(date);
                                         const parts = axisDateFormatter.formatToParts(date);
                                         const hour = parts.find(p => p.type === 'hour')?.value;
                                         const minute = parts.find(p => p.type === 'minute')?.value;
                                         const day = parts.find(p => p.type === 'day')?.value;
                                         const month = parts.find(p => p.type === 'month')?.value;
 
-                                        // Se for meia-noite no Brasil, mostra a data
+                                        return `${day}/${month}`;
                                         if (hour === '00' && minute === '00') {
                                             return `${day}/${month}`;
                                         }
                                         return `${hour}:${minute}`;
                                     }
 
-                                    // return new Intl.DateTimeFormat('pt-BR', {
-                                    //     timeZone: 'America/Sao_Paulo',
-                                    //     day: '2-digit',
-                                    //     month: '2-digit'
-                                    // }).format(date);
                                     return axisDayFormatter.format(date);
 
                                 } catch { return ''; }
@@ -1096,7 +1102,7 @@ export function SoilMoistureChart({
                             tick={{ fill: '#6b7280', fontSize: 10 }}
                             axisLine={false}
                             tickLine={false}
-                            minTickGap={isMobileViewport ? 24 : 40}
+                        // Pode remover o minTickGap, pois já não é necessário com o intervalo forçado a 0
                         />
 
                         <YAxis
