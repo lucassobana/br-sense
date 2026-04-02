@@ -435,11 +435,10 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
 
     // Helper para calcular a cor baseada na leitura da profundidade selecionada
     const getMarkerColorForDepth = (point: MapPoint, depth: number) => {
-        const reading = point.readings.find(r =>
-            Number(r.depth_cm) === Number(depth) &&
-            r.moisture_pct !== null &&
-            r.moisture_pct !== undefined
-        );
+        const reading = [...point.readings]
+            .filter(r => Number(r.depth_cm) === Number(depth))
+            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+            .find(r => r.moisture_pct !== null && r.moisture_pct !== undefined);
 
         if (!reading) return '#A0AEC0'; // Cinza (Sem leitura)
 
