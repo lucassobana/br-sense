@@ -943,8 +943,8 @@ export function SoilMoistureChart({
                     <ComposedChart
                         data={chartData}
                         margin={isMobileViewport
-                            ? { top: 4, right: -30, left: -43, bottom: -15 }
-                            : { top: 5, right: 5, left: -41, bottom: 0 }}
+                            ? { top: 25, right: 7, left: -38, bottom: -15 }
+                            : { top: 25, right: 5, left: -41, bottom: 0 }}
                         onMouseLeave={() => !isTouchDevice && setHoveredData(null)}
                         // NOVOS HANDLERS DE MOUSE PARA ZOOM
                         onMouseDown={(e) => {
@@ -1089,6 +1089,20 @@ export function SoilMoistureChart({
                             axisLine={false}
                             tickLine={false}
                             allowDataOverflow
+                            label={() => {
+                                return (
+                                    <text
+                                        x={20}
+                                        y={20}
+                                        fill="#6b7280"
+                                        fontSize={isMobileViewport ? 9 : 10}
+                                        fontWeight="bold"
+                                        textAnchor="middle"
+                                    >
+                                        {metric === 'moisture' ? '%' : '°C'}
+                                    </text>
+                                );
+                            }}
                         />
 
                         {/* EIXO Y CHUVA (INVERTIDO) */}
@@ -1097,13 +1111,21 @@ export function SoilMoistureChart({
                                 yAxisId="right"
                                 orientation="right"
                                 reversed={true}
-                                domain={[0, 'dataMax + 40']}
+                                domain={[0, 50]}
+                                ticks={[5, 10, 15, 20, 25, 30, 35, 40, 45, 50]}
                                 tick={{ fill: '#6b7280', fontSize: isMobileViewport ? 9 : 10 }}
                                 axisLine={false}
                                 tickLine={false}
                                 hide={false}
-                                unit="mm"
                                 width={isMobileViewport ? 24 : 30}
+                                label={{
+                                    value: 'mm',
+                                    position: 'top',
+                                    offset: 10,
+                                    fill: '#6b7280',
+                                    fontSize: 12,
+                                    fontWeight: 'bold'
+                                }}
                             />
                         )}
 
@@ -1208,7 +1230,13 @@ export function SoilMoistureChart({
             </Box>
 
             {/* --- LEGENDAS --- */}
-            <Flex gap={4} wrap="wrap" pt={4}>
+            <Flex
+                w="100%"
+                justify={{ base: "space-between", md: "flex-start" }}
+                wrap="nowrap"
+                gap={{ base: 1, md: 4 }}
+                pt={4}
+            >
                 {Object.entries(DEPTH_COLORS)
                     .filter(([key]) => {
                         const depth = parseInt(key.replace('depth', ''));
@@ -1222,11 +1250,28 @@ export function SoilMoistureChart({
                             onChange={() => toggleLine(key)}
                             colorScheme="blue"
                             iconColor="white"
-                            sx={{ '.chakra-checkbox__label': { fontSize: 'xs', color: visibleLines[key] ? 'gray.300' : 'gray.600' } }}
+                            size={{ base: "sm", md: "md" }}
+                            sx={{
+                                '.chakra-checkbox__label': {
+                                    marginStart: { base: 1, md: 2 }
+                                }
+                            }}
                         >
-                            <HStack spacing={1}>
-                                <Box w="8px" h="8px" borderRadius="full" bg={color} opacity={visibleLines[key] ? 1 : 0.4} />
-                                <Text>{key.replace('depth', '')}cm</Text>
+                            <HStack spacing={0.5}>
+                                <Box
+                                    w={{ base: "6px", md: "8px" }}
+                                    h={{ base: "6px", md: "8px" }}
+                                    borderRadius="full"
+                                    bg={color}
+                                    opacity={visibleLines[key] ? 1 : 0.4}
+                                />
+                                <Text
+                                    fontSize={{ base: "9px", sm: "10px", md: "xs" }}
+                                    color={visibleLines[key] ? 'gray.300' : 'gray.600'}
+                                    whiteSpace="nowrap"
+                                >
+                                    {key.replace('depth', '')}cm
+                                </Text>
                             </HStack>
                         </Checkbox>
                     ))}
