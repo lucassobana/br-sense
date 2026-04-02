@@ -27,7 +27,6 @@ import {
     MdAgriculture,
     MdSensors,
     MdLogout,
-    MdPerson,
     MdMenu,
     MdClose
 } from 'react-icons/md';
@@ -189,7 +188,7 @@ const SidebarContent = ({
 
             <Box p={2}>
                 <Divider borderColor="#2D2D2D" mb={2} />
-                <Menu placement="right-end">
+                <Menu placement="top-end">
                     <MenuButton
                         as={Box}
                         w="100%"
@@ -208,14 +207,6 @@ const SidebarContent = ({
                         </HStack>
                     </MenuButton>
                     <MenuList bg="#1C1C1C" borderColor="#2D2D2D" boxShadow="dark-lg" zIndex={1001}>
-                        <MenuItem
-                            icon={<MdPerson size={18} />}
-                            bg="transparent"
-                            color="white"
-                            _hover={{ bg: "whiteAlpha.200" }}
-                        >
-                            Meu Perfil
-                        </MenuItem>
                         <MenuItem
                             icon={<MdLogout size={18} />}
                             onClick={handleLogout}
