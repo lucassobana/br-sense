@@ -451,7 +451,7 @@ export function Dashboard() {
             animate="animate"
             exit="exit"
             transition={{ duration: 0.4, ease: "easeInOut" }}
-            position="absolute"
+            position="relative"
             w="100%"
             bg={COLORS.background}
             minH="100vh"
