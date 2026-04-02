@@ -665,22 +665,35 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                 <Box
                     position="absolute"
                     top="10px"
-                    left="50px"
+                    left={{ base: "8px", md: "50px" }}
+                    right={{ md: "auto" }}
                     zIndex={1000}
                     bg="rgba(255, 255, 255, 0.95)"
                     backdropFilter="blur(5px)"
                     borderRadius="md"
                     boxShadow="lg"
-                    p={1.5}
+                    p={{ base: 1.5, md: 1.5 }}
                 >
-                    <HStack spacing={3} divider={<Box w="1px" h="20px" bg="gray.300" />}>
+                    <Flex
+                        direction={{ base: "column", md: "row" }}
+                        align={{ base: "stretch", md: "center" }}
+                        gap={{ base: 1.5, md: 3 }}
+                    >
 
                         {/* Seletor de Profundidade */}
-                        <HStack spacing={1} pl={1}>
+                        <HStack
+                            spacing={1}
+                            pl={{ base: 0, md: 1 }}
+                            pr={{ base: 0, md: showRain ? 2 : 0 }}
+                            borderRight={{ base: "none", md: showRain ? "1px solid" : "none" }}
+                            borderBottom={{ base: showRain ? "1px solid" : "none", md: "none" }}
+                            borderColor="gray.300"
+                            pb={{ base: showRain ? 1 : 0, md: 0 }}
+                        >
                             <Text fontSize="xs" fontWeight="bold" color="gray.600">Profundidade:</Text>
                             <Select
                                 size='sm'
-                                width="88px"
+                                width={{ base: "84px", md: "88px" }}
                                 value={mapDepthFilter}
                                 onChange={(e) => onMapDepthFilterChange && onMapDepthFilterChange(Number(e.target.value))}
                                 bg="transparent"
@@ -697,11 +710,11 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
 
                         {/* Seletor de Período de Chuva (Aparece ao ativar botão) */}
                         {showRain && (
-                            <HStack spacing={1} pr={1}>
+                            <HStack spacing={1} pr={{ base: 0, md: 1 }}>
                                 <Text fontSize="xs" fontWeight="bold" color="blue.600">Chuva:</Text>
                                 <Select
                                     size="sm"
-                                    width="95px"
+                                    width={{ md: "95px" }}
                                     value={rainPeriod}
                                     onChange={(e) => setRainPeriod(e.target.value as RainPeriod)}
                                     bg="transparent"
@@ -719,7 +732,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                                 </Select>
                             </HStack>
                         )}
-                    </HStack>
+                    </Flex>
                 </Box>
 
                 {userLocation && (
