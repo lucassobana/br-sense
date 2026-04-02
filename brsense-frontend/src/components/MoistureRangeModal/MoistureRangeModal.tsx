@@ -120,6 +120,23 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
                     {/* Controle de Intensidade / Gradiente */}
                     <Box mt={6} mb={4} p={4} bg={bgDark} borderRadius="xl" border="1px solid" borderColor="whiteAlpha.200">
                         <Text mb={3} fontSize="sm" fontWeight="bold" color="gray.300">Intensidade do Gradiente</Text>
+                        <NumberInput
+                            value={intensity}
+                            onChange={(_, val) => setIntensity(Number.isFinite(val) ? val : 0)}
+                            min={0}
+                            max={100}
+                            step={1}
+                            precision={0}
+                            maxW="140px"
+                            mb={3}
+                            focusBorderColor="blue.500"
+                        >
+                            <NumberInputField bg="gray.800" color="white" borderColor="gray.600" />
+                            <NumberInputStepper>
+                                <NumberIncrementStepper color="gray.400" _active={{ bg: "whiteAlpha.200" }} />
+                                <NumberDecrementStepper color="gray.400" _active={{ bg: "whiteAlpha.200" }} />
+                            </NumberInputStepper>
+                        </NumberInput>
                         <Slider value={intensity} onChange={(val) => setIntensity(val)} min={0} max={100} step={1}>
                             <SliderTrack bg="gray.700" h="6px" borderRadius="full">
                                 <SliderFilledTrack bg="blue.500" />
