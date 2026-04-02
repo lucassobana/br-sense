@@ -307,6 +307,9 @@ export function Dashboard() {
           case '7d': target.setDate(now.getDate() - 7); break;
           case '15d': target.setDate(now.getDate() - 15); break;
           case '30d': target.setDate(now.getDate() - 30); break;
+          case '60d': target.setDate(now.getDate() - 60); break;
+          case '90d': target.setDate(now.getDate() - 90); break;
+          case '120d': target.setDate(now.getDate() - 120); break;
         }
         finalStart = target.toISOString();
         finalEnd = now.toISOString();

@@ -50,7 +50,7 @@ import { updateDeviceConfig } from '../../services/api';
 import { parseJwt } from '../../services/auth';
 
 // Tipos
-export type TimeRange = '24h' | '7d' | '15d' | '30d' | 'Personalizado';
+export type TimeRange = '24h' | '7d' | '15d' | '30d' | '60d' | '90d' | '120d' | 'Personalizado';
 
 export interface RawApiData {
     timestamp: string;
@@ -180,7 +180,12 @@ export function SoilMoistureChart({
                 v3: initialV3 ?? prev.v3 ?? 60,
                 intensity: intensity ?? prev.intensity ?? 50
             };
-            if (next.v1 === prev.v1 && next.v2 === prev.v2 && next.v3 === prev.v3) {
+            if (
+                next.v1 === prev.v1
+                && next.v2 === prev.v2
+                && next.v3 === prev.v3
+                && next.intensity === prev.intensity
+            ) {
                 return prev;
             }
             localStorage.setItem(storageKey, JSON.stringify(next));
@@ -188,14 +193,14 @@ export function SoilMoistureChart({
         });
     }, [initialV1, initialV2, initialV3, intensity, metric, storageKey]);
 
-    const handleSaveConfig = async (newRanges: { v1: number; v2: number; v3: number }) => {
+    const handleSaveConfig = async (newRanges: { v1: number; v2: number; v3: number; intensity: number }) => {
         setRangeSettings(newRanges);
         localStorage.setItem(storageKey, JSON.stringify(newRanges));
 
         if (esn && isAdmin) {
             try {
                 // Mantemos o envio do intensity: 50 fixo para a API caso o back-end ainda exija esse campo
-                await updateDeviceConfig(esn, { ...newRanges, intensity: 50 });
+                await updateDeviceConfig(esn, newRanges);
                 toast({ title: "Configuração salva!", status: "success", duration: 2000, isClosable: true });
                 if (onConfigUpdate) onConfigUpdate();
             } catch {
@@ -832,6 +837,9 @@ export function SoilMoistureChart({
                                 <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('7d'); }}>Últimos 7 Dias</MenuItem>
                                 <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('15d'); }}>Últimos 15 Dias</MenuItem>
                                 <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('30d'); }}>Últimos 30 Dias</MenuItem>
+                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('60d'); }}>Últimos 60 Dias</MenuItem>
+                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('90d'); }}>Últimos 90 Dias</MenuItem>
+                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('120d'); }}>Últimos 120 Dias</MenuItem>
                             </MenuList>
                         </Menu>
                     )}
