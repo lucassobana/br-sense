@@ -31,7 +31,6 @@ import {
     CartesianGrid,
     ResponsiveContainer,
     ReferenceArea,
-    Brush,
     Tooltip,
     LabelList
 } from 'recharts';
@@ -48,6 +47,7 @@ import {
 import { COLORS, DEPTH_COLORS } from '../../colors/colors';
 import { MoistureRangeModal } from '../MoistureRangeModal/MoistureRangeModal';
 import { updateDeviceConfig } from '../../services/api';
+import { parseJwt } from '../../services/auth';
 
 // Tipos
 export type TimeRange = '24h' | '7d' | '15d' | '30d' | 'Personalizado';
@@ -76,8 +76,9 @@ interface ChartProps {
     metric?: 'moisture' | 'temperature';
     isAdmin?: boolean;
     esn?: string;
-    initialMin?: number;
-    initialMax?: number;
+    initialV1?: number;
+    initialV2?: number;
+    initialV3?: number;
     onConfigUpdate?: () => void;
     selectedPeriod?: TimeRange;
     onPeriodChange?: (period: TimeRange, startDate?: string, endDate?: string) => void;
@@ -112,6 +113,9 @@ export function SoilMoistureChart({
     isAdmin = false,
     esn,
     onConfigUpdate,
+    initialV1,
+    initialV2,
+    initialV3,
     selectedPeriod = '24h',
     onPeriodChange,
     selectedDepthRef,
@@ -129,15 +133,28 @@ export function SoilMoistureChart({
     const [refAreaRight, setRefAreaRight] = useState<string | null>(null);
 
     // --- CONFIGURAÇÃO DE ZONAS ---
-    const storageKey = `BRSENSE_${metric.toUpperCase()}_RANGES_${esn || 'DEFAULT'}`;
+    // const storageKey = `BRSENSE_${metric.toUpperCase()}_RANGES_${esn || 'DEFAULT'}`;
+    const userStorageScope = useMemo(() => {
+        const token = localStorage.getItem('access_token');
+        if (!token) return 'ANON';
+        const payload = parseJwt(token);
+        return payload?.preferred_username || payload?.sub || 'ANON';
+    }, []);
+    const storageKey = `BRSENSE_${userStorageScope}_${metric.toUpperCase()}_RANGES_${esn || 'DEFAULT'}`;
+    const legacyStorageKey = `BRSENSE_${metric.toUpperCase()}_RANGES_${esn || 'DEFAULT'}`;
 
     const defaultRanges = metric === 'moisture'
-        ? { v1: 30, v2: 45, v3: 60, intensity: 50 }
+        ? {
+            v1: initialV1 ?? 30,
+            v2: initialV2 ?? 45,
+            v3: initialV3 ?? 60,
+            intensity: 50
+        }
         : { min: 20, max: 30, intensity: 50 };
 
     const [rangeSettings, setRangeSettings] = useState(() => {
         try {
-            const saved = localStorage.getItem(storageKey);
+            const saved = localStorage.getItem(storageKey) || localStorage.getItem(legacyStorageKey);
             if (saved) {
                 const parsed = JSON.parse(saved);
                 if (parsed.min !== undefined && parsed.v1 === undefined) {
@@ -148,6 +165,25 @@ export function SoilMoistureChart({
             return defaultRanges;
         } catch { return defaultRanges; }
     });
+
+    useEffect(() => {
+        if (metric !== 'moisture') return;
+        if (initialV1 === undefined && initialV2 === undefined && initialV3 === undefined) return;
+
+        setRangeSettings((prev: { v1: number; v2: number; v3: number; intensity: number }) => {
+            const next = {
+                ...prev,
+                v1: initialV1 ?? prev.v1 ?? 30,
+                v2: initialV2 ?? prev.v2 ?? 45,
+                v3: initialV3 ?? prev.v3 ?? 60,
+            };
+            if (next.v1 === prev.v1 && next.v2 === prev.v2 && next.v3 === prev.v3) {
+                return prev;
+            }
+            localStorage.setItem(storageKey, JSON.stringify(next));
+            return next;
+        });
+    }, [initialV1, initialV2, initialV3, metric, storageKey]);
 
     const handleSaveConfig = async (newRanges: { v1: number; v2: number; v3: number }) => {
         setRangeSettings(newRanges);
@@ -177,6 +213,11 @@ export function SoilMoistureChart({
     const isTouchDevice = useMemo(() => {
         if (typeof window === 'undefined') return false;
         return window.matchMedia('(pointer: coarse)').matches;
+    }, []);
+
+    const isMobileViewport = useMemo(() => {
+        if (typeof window === 'undefined') return false;
+        return window.matchMedia('(max-width: 48em)').matches;
     }, []);
 
     // --- PROCESSAMENTO DE DADOS E FILTRAGEM ---
@@ -398,9 +439,9 @@ export function SoilMoistureChart({
 
         if (!hasActiveData) return yDomain;
 
-        const padding = (max - min) * 0.1 || 5;
-        const autoMin = Math.max(0, Math.floor(min - padding));
-        const autoMax = Math.ceil(max + padding);
+        // const padding = (max - min) * 0.1 || 5;
+        const autoMin = Math.floor(min - 5);
+        const autoMax = Math.ceil(max + 5);
 
         return [autoMin, autoMax];
     }, [chartData, range, visibleLines, yDomain]);
@@ -558,6 +599,7 @@ export function SoilMoistureChart({
 
     const [activeIndex, setActiveIndex] = useState<number | null>(null);
     const lastHoverIndexRef = useRef<number | null>(null);
+    const pinchRef = useRef<{ distance: number; centerRatio: number } | null>(null);
 
     const RainLabel = ({ x, y, width, value, index }: RainLabelProps) => {
         if (index !== activeIndex) return null;
@@ -599,13 +641,56 @@ export function SoilMoistureChart({
         }
     };
 
+    const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+        if (e.touches.length === 2 && chartContainerRef.current && chartData.length > 1) {
+            const [t1, t2] = [e.touches[0], e.touches[1]];
+            const rect = chartContainerRef.current.getBoundingClientRect();
+            const distance = Math.abs(t1.clientX - t2.clientX);
+            const centerX = (t1.clientX + t2.clientX) / 2;
+            pinchRef.current = {
+                distance,
+                centerRatio: Math.min(1, Math.max(0, (centerX - rect.left) / rect.width))
+            };
+            return;
+        }
+        handleTouch(e);
+    }, [chartData.length, handleTouch]);
+
+    const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+        if (e.touches.length === 2 && chartData.length > 1) {
+            const pinchStart = pinchRef.current;
+            if (!pinchStart) return;
+            const [t1, t2] = [e.touches[0], e.touches[1]];
+            const distance = Math.abs(t1.clientX - t2.clientX);
+            const delta = distance - pinchStart.distance;
+            if (Math.abs(delta) < 8) return;
+
+            setRange(prev => {
+                const currentSize = Math.max(2, prev.endIndex - prev.startIndex);
+                const zoomDirection = delta > 0 ? -1 : 1;
+                const zoomDelta = Math.max(2, Math.floor(currentSize * 0.12));
+                const targetSize = Math.min(chartData.length - 1, Math.max(2, currentSize + (zoomDirection * zoomDelta)));
+                const centerIndex = Math.round(prev.startIndex + (currentSize * pinchStart.centerRatio));
+                const half = Math.floor(targetSize / 2);
+                let startIndex = Math.max(0, centerIndex - half);
+                const endIndex = Math.min(chartData.length - 1, startIndex + targetSize);
+                startIndex = Math.max(0, endIndex - targetSize);
+                return { startIndex, endIndex };
+            });
+
+            pinchRef.current = { ...pinchStart, distance };
+            return;
+        }
+        handleTouch(e);
+    }, [chartData.length, handleTouch]);
+
     return (
         <Box
             bg={COLORS.surface}
             borderColor="rgba(59, 71, 84, 0.5)"
-            borderWidth={{ base: "0px", md: "1px" }}
-            borderRadius={{ base: "0px", md: "xl" }}
-            p={{ base: 0, md: 4 }}
+            borderWidth="1px"
+            borderRadius={{ base: "md", md: "xl" }}
+            p={{ base: 2, md: 4 }}
             color="white"
             userSelect="none"
         >
@@ -834,18 +919,21 @@ export function SoilMoistureChart({
 
             {/* --- CONTAINER DO GRÁFICO (Handlers de Touch e Mouse) --- */}
             <Box
-                h={{ base: "300", md: "500px" }}
+                h={{ base: "260px", md: "500px" }}
                 w="100%"
                 ref={chartContainerRef}
                 cursor="crosshair"
-                onTouchStart={handleTouch}
-                onTouchMove={handleTouch}
-                style={{ touchAction: 'none' }}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={() => { pinchRef.current = null; }}
+                style={{ touchAction: 'pan-y' }}
             >
                 <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart
                         data={chartData}
-                        margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
+                        margin={isMobileViewport
+                            ? { top: 4, right: -30, left: -43, bottom: -15 }
+                            : { top: 5, right: 5, left: -41, bottom: 0 }}
                         onMouseLeave={() => !isTouchDevice && setHoveredData(null)}
                         // NOVOS HANDLERS DE MOUSE PARA ZOOM
                         onMouseDown={(e) => {
@@ -980,13 +1068,13 @@ export function SoilMoistureChart({
                             tick={{ fill: '#6b7280', fontSize: 10 }}
                             axisLine={false}
                             tickLine={false}
-                            minTickGap={40}
+                            minTickGap={isMobileViewport ? 24 : 40}
                         />
 
                         <YAxis
                             yAxisId="left"
                             domain={activeYDomain as [number, number]}
-                            tick={{ fill: '#6b7280', fontSize: 10 }}
+                            tick={{ fill: '#6b7280', fontSize: isMobileViewport ? 9 : 10 }}
                             axisLine={false}
                             tickLine={false}
                             allowDataOverflow
@@ -999,12 +1087,12 @@ export function SoilMoistureChart({
                                 orientation="right"
                                 reversed={true}
                                 domain={[0, 'dataMax + 40']}
-                                tick={{ fill: '#90cdf4', fontSize: 10 }}
+                                tick={{ fill: '#6b7280', fontSize: isMobileViewport ? 9 : 10 }}
                                 axisLine={false}
                                 tickLine={false}
                                 hide={false}
                                 unit="mm"
-                                width={30}
+                                width={isMobileViewport ? 24 : 30}
                             />
                         )}
 
@@ -1090,7 +1178,7 @@ export function SoilMoistureChart({
                             <ReferenceArea yAxisId="left" x1={refAreaLeft} x2={refAreaRight} strokeOpacity={0.3} fill="#8884d8" fillOpacity={0.3} />
                         )}
 
-                        <Brush
+                        {/* <Brush
                             dataKey="time"
                             height={30}
                             stroke="#3182ce"
@@ -1103,7 +1191,7 @@ export function SoilMoistureChart({
                                     setRange({ startIndex: range.startIndex, endIndex: range.endIndex });
                                 }
                             }}
-                        />
+                        /> */}
                     </ComposedChart>
                 </ResponsiveContainer>
             </Box>
