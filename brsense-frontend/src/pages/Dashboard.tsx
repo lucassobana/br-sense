@@ -79,7 +79,7 @@ export function Dashboard() {
   const toast = useToast();
   const isMountedRef = useRef(true);
   const userIsAdmin = isUserAdmin();
-  const [showBatteryChart, setShowBatteryChart] = useState(false);
+  // const [showBatteryChart, setShowBatteryChart] = useState(false);
   const [direction, setDirection] = useState(1);
 
   const selectedProbe = useMemo(() => {
@@ -94,7 +94,7 @@ export function Dashboard() {
       // Sempre que trocar de sonda, volta para o padrão de 30 dias
       setSelectedPeriod('30d');
       setCustomRange({});
-      setShowBatteryChart(false);
+      // setShowBatteryChart(false);
       // O fetchHistory será disparado automaticamente pela mudança do selectedPeriod
     }
     isMountedRef.current = true;
@@ -587,7 +587,7 @@ export function Dashboard() {
           <MotionBox
             key={selectedProbe.id}
             w="100%"
-            px={6}
+            px={{ base: 2, md: 6 }}
             py={6}
             minH="100vh"
             initial={{ opacity: 0, y: 20 }}
@@ -678,7 +678,7 @@ export function Dashboard() {
                   </MenuList>
                 </Menu>
 
-                {userIsAdmin && (
+                {/* {userIsAdmin && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -688,12 +688,12 @@ export function Dashboard() {
                   >
                     {showBatteryChart ? 'Ocultar Bateria' : 'Ver Status da Bateria'}
                   </Button>
-                )}
+                )} */}
               </Flex>
               <Text color="gray.400" mt={1}>Análise detalhada do solo</Text>
             </MotionBox>
 
-            <Box bg={{ md: "gray.800" }} borderRadius="xl" p={{ base: 0, md: 4 }} border="1px solid" borderColor="gray.700">
+            <Box p={{ base: 0, md: 2 }}>
               {loadingChart ? (
                 <Flex justify="center" align="center" h="300px"><Spinner size="xl" color="blue.500" /></Flex>
               ) : (
@@ -703,7 +703,7 @@ export function Dashboard() {
                 >
                   {/* GRÁFICO DE UMIDADE */}
                   <MotionBox
-                    bg="gray.900" borderRadius="lg" p={4}
+                    p={0}
                     variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0 } }}
                     transition={{ duration: 0.4 }}
                   >
@@ -743,8 +743,9 @@ export function Dashboard() {
                           metric="moisture"
                           isAdmin={userIsAdmin}
                           esn={selectedProbe.esn}
-                          initialMin={selectedProbe.config_moisture_v1 ?? 30}
-                          initialMax={selectedProbe.config_moisture_v3 ?? 60}
+                          initialV1={selectedProbe.config_moisture_v1 ?? 30}
+                          initialV2={selectedProbe.config_moisture_v2 ?? 45}
+                          initialV3={selectedProbe.config_moisture_v3 ?? 60}
                           onConfigUpdate={() => loadData()}
                           // --- PROPS DE FILTRO ATUALIZADAS ---
                           selectedPeriod={selectedPeriod}
@@ -762,7 +763,7 @@ export function Dashboard() {
 
                   {/* GRÁFICO DE TEMPERATURA */}
                   <MotionBox
-                    bg="gray.900" borderRadius="lg" p={4}
+                    p={0}
                     variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0 } }}
                     transition={{ duration: 0.4 }}
                   >
@@ -806,9 +807,9 @@ export function Dashboard() {
                   </MotionBox>
 
                   {/* GRÁFICO DE BATERIA (ADMIN) */}
-                  {userIsAdmin && showBatteryChart && (
+                  {userIsAdmin && (
                     <MotionBox
-                      bg="gray.900" borderRadius="lg" p={4}
+                      p={0}
                       variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0 } }}
                       transition={{ duration: 0.4 }}
                     >
