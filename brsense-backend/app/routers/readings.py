@@ -56,7 +56,8 @@ def get_device_history(
     safe_limit = max(1, min(limit, 500000))
 
     if start_date or end_date:
-        readings = query.order_by(Reading.timestamp.asc()).limit(safe_limit).all()
+        readings = query.order_by(Reading.timestamp.desc()).limit(safe_limit).all()
+        readings = readings[::-1]
     else:
         readings = query.order_by(Reading.timestamp.desc()).limit(safe_limit).all()
         readings = readings[::-1]
