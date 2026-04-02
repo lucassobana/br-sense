@@ -972,9 +972,19 @@ export function SoilMoistureChart({
                 <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart
                         data={chartData}
-                        margin={isMobileViewport
-                            ? { top: 25, right: 7, left: -38, bottom: -15 }
-                            : { top: 25, right: metric === 'temperature' ? 32 : 5, left: -41, bottom: 0 }}
+                        margin={
+                            isMobileViewport
+                                ? {
+                                    top: 25,
+                                    right: metric === 'temperature' ? 30 : 7,
+                                    left: -38,
+                                    bottom: -15
+                                }
+                                : {
+                                    top: 25,
+                                    right: metric === 'temperature' ? 32 : 5, left: -41,
+                                    bottom: 0
+                                }}
                         onMouseLeave={() => !isTouchDevice && setHoveredData(null)}
                         // NOVOS HANDLERS DE MOUSE PARA ZOOM
                         onMouseDown={(e) => {
@@ -1102,7 +1112,6 @@ export function SoilMoistureChart({
                             tick={{ fill: '#6b7280', fontSize: 10 }}
                             axisLine={false}
                             tickLine={false}
-                        // Pode remover o minTickGap, pois já não é necessário com o intervalo forçado a 0
                         />
 
                         <YAxis
