@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import {
   Box, Flex, Text, useToast, Spinner, Button,
   Container, Heading, Badge,
@@ -18,10 +18,20 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { getProbes, getFarms, getDeviceHistory } from '../services/api';
 import type { Probe, Farm } from '../types';
-import { SoilMoistureChart, type RawApiData, type TimeRange } from '../components/SoilMoistureChart/SoilMoistureChart';
+// import { SoilMoistureChart, type RawApiData, type TimeRange } from '../components/SoilMoistureChart/SoilMoistureChart';
+import type { RawApiData, TimeRange } from '../components/SoilMoistureChart/SoilMoistureChart';
 import { COLORS } from '../colors/colors';
-import { SatelliteMap, type MapPoint } from '../components/SatelliteMap/SatelliteMap';
+// import { SatelliteMap, type MapPoint } from '../components/SatelliteMap/SatelliteMap';
+import type { MapPoint } from '../components/SatelliteMap/SatelliteMap';
 import { isUserAdmin } from '../services/auth';
+import { BatteryStatusChart } from '../components/BatteryStatus/BatteryStatusChart';
+
+const SoilMoistureChart = lazy(() =>
+  import('../components/SoilMoistureChart/SoilMoistureChart').then((module) => ({ default: module.SoilMoistureChart }))
+);
+const SatelliteMap = lazy(() =>
+  import('../components/SatelliteMap/SatelliteMap').then((module) => ({ default: module.SatelliteMap }))
+);
 
 interface TableRowData extends Probe {
   farmName: string;
@@ -69,6 +79,7 @@ export function Dashboard() {
   const toast = useToast();
   const isMountedRef = useRef(true);
   const userIsAdmin = isUserAdmin();
+  // const [showBatteryChart, setShowBatteryChart] = useState(false);
   const [direction, setDirection] = useState(1);
 
   const selectedProbe = useMemo(() => {
@@ -83,6 +94,7 @@ export function Dashboard() {
       // Sempre que trocar de sonda, volta para o padrão de 30 dias
       setSelectedPeriod('30d');
       setCustomRange({});
+      // setShowBatteryChart(false);
       // O fetchHistory será disparado automaticamente pela mudança do selectedPeriod
     }
     isMountedRef.current = true;
@@ -117,6 +129,8 @@ export function Dashboard() {
 
   // --- LÓGICA DO MAPA (Mantida) ---
   const mapPoints: MapPoint[] = useMemo(() => {
+    if (viewMode !== 'map') return [];
+
     return filteredProbes.map((probe) => {
       const hasLocation =
         probe.latitude !== undefined && probe.latitude !== null &&
@@ -177,9 +191,11 @@ export function Dashboard() {
         config_moisture_v3: v3
       };
     });
-  }, [filteredProbes, selectedDepthRefs, mapDepthFilter]);
+  }, [filteredProbes, selectedDepthRefs, mapDepthFilter, viewMode]);
 
   const initialMapPosition = useMemo(() => {
+    if (viewMode !== 'map') return null;
+
     if (probes.length === 0) return null;
     const validProbes = probes.filter(p =>
       p.latitude !== undefined && p.latitude !== null &&
@@ -192,15 +208,22 @@ export function Dashboard() {
       lat: Number(firstProbe.latitude),
       lng: Number(firstProbe.longitude)
     };
-  }, [probes]);
+  }, [probes, viewMode]);
 
   // --- TABELA (Mantida) ---
   const processedTableData = useMemo(() => {
+    if (viewMode !== 'map') return [];
+
+    const mapPointById = new Map(mapPoints.map((point) => [point.id, point]));
+    const farmNameById = new Map<number | undefined, string>(farms.map((farm) => [farm.id, farm.name]));
+
     const mapped: TableRowData[] = filteredProbes.map(probe => {
-      const mapPoint = mapPoints.find(mp => mp.id === probe.id);
+      // const mapPoint = mapPoints.find(mp => mp.id === probe.id);
+      const mapPoint = mapPointById.get(probe.id);
       const status = mapPoint ? mapPoint.statusCode : 'status_offline';
-      const farm = farms.find(f => f.id === probe.farm_id);
-      const farmName = farm ? farm.name : '-';
+      // const farm = farms.find(f => f.id === probe.farm_id);
+      // const farmName = farm ? farm.name : '-';
+      const farmName = farmNameById.get(probe.farm_id) ?? '-';
 
       const batteryReading = probe.readings
         ?.filter(r => r.battery_status !== null && r.battery_status !== undefined)
@@ -235,7 +258,7 @@ export function Dashboard() {
       return 0;
     });
 
-  }, [filteredProbes, mapPoints, farms, filterText, sortConfig]);
+  }, [filteredProbes, mapPoints, farms, filterText, sortConfig, viewMode]);
 
   const loadData = useCallback(async () => {
     try {
@@ -284,6 +307,9 @@ export function Dashboard() {
           case '7d': target.setDate(now.getDate() - 7); break;
           case '15d': target.setDate(now.getDate() - 15); break;
           case '30d': target.setDate(now.getDate() - 30); break;
+          case '60d': target.setDate(now.getDate() - 60); break;
+          case '90d': target.setDate(now.getDate() - 90); break;
+          case '120d': target.setDate(now.getDate() - 120); break;
         }
         finalStart = target.toISOString();
         finalEnd = now.toISOString();
@@ -295,7 +321,7 @@ export function Dashboard() {
       const history = await getDeviceHistory(selectedProbe.esn, {
         start_date: finalStart,
         end_date: finalEnd,
-        limit: 50000
+        limit: 500000
       });
 
       if (!isMountedRef.current) return;
@@ -309,7 +335,8 @@ export function Dashboard() {
         depth_cm: r.depth_cm,
         moisture_pct: r.moisture_pct,
         temperature_c: r.temperature_c,
-        rain_cm: r.rain_cm
+        rain_cm: r.rain_cm,
+        battery_status: r.battery_status
       }));
 
       setChartData(formattedData);
@@ -424,14 +451,14 @@ export function Dashboard() {
             animate="animate"
             exit="exit"
             transition={{ duration: 0.4, ease: "easeInOut" }}
-            position="absolute"
+            position="relative"
             w="100%"
             bg={COLORS.background}
             minH="100vh"
           >
             <Box w="100%" mt={6} pr={6} pl={6} borderRadius="xl" overflow="hidden" boxShadow="2xl">
               <Box w="100%" h="90vh" position="relative" bg="black">
-                <SatelliteMap
+                {/* <SatelliteMap
                   points={mapPoints}
                   onViewGraph={handleMapGraphClick}
                   initialCenter={initialMapPosition}
@@ -439,7 +466,19 @@ export function Dashboard() {
                   onSelectDepthRef={handleSelectDepthRef}
                   mapDepthFilter={mapDepthFilter}
                   onMapDepthFilterChange={setMapDepthFilter}
-                />
+                /> */}
+
+                <Suspense fallback={<Flex justify="center" align="center" h="100%"><Spinner size="xl" color="blue.500" /></Flex>}>
+                  <SatelliteMap
+                    points={mapPoints}
+                    onViewGraph={handleMapGraphClick}
+                    initialCenter={initialMapPosition}
+                    selectedDepthRefs={selectedDepthRefs}
+                    onSelectDepthRef={handleSelectDepthRef}
+                    mapDepthFilter={mapDepthFilter}
+                    onMapDepthFilterChange={setMapDepthFilter}
+                  />
+                </Suspense>
               </Box>
             </Box>
 
@@ -551,7 +590,7 @@ export function Dashboard() {
           <MotionBox
             key={selectedProbe.id}
             w="100%"
-            px={6}
+            px={{ base: 2, md: 6 }}
             py={6}
             minH="100vh"
             initial={{ opacity: 0, y: 20 }}
@@ -572,7 +611,7 @@ export function Dashboard() {
             </Button>
 
             <MotionBox mb={6}>
-              <Menu>
+              {/* <Menu>
                 <MenuButton
                   as={Button}
                   variant="unstyled"
@@ -605,11 +644,59 @@ export function Dashboard() {
                     </MenuItem>
                   ))}
                 </MenuList>
-              </Menu>
+              </Menu> */}
+              <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} wrap="wrap" gap={3}>
+                <Menu>
+                  <MenuButton
+                    as={Button}
+                    variant="unstyled"
+                    display="flex"
+                    alignItems="center"
+                    _hover={{ color: "gray.300" }}
+                    _active={{ color: "gray.400" }}
+                    sx={{ textAlign: 'left', height: 'auto', p: 0, minW: 0 }}
+                  >
+                    <Heading size="lg" color="white" display="flex" alignItems="center" gap={2}>
+                      {selectedProbe.name || selectedProbe.esn}
+                      <motion.div animate={{ rotate: selectedProbe ? 0 : 180 }} transition={{ duration: 0.4 }}>
+                        <Icon as={MdArrowDropDown} boxSize={8} />
+                      </motion.div>
+                    </Heading>
+                  </MenuButton>
+
+                  <MenuList bg="gray.800" borderColor="gray.600" maxH="300px" overflowY="auto" zIndex={10}>
+                    {filteredProbes.map((probe) => (
+                      <MenuItem
+                        key={probe.id}
+                        onClick={() => handleProbeSelect(probe.id)}
+                        bg={probe.id === selectedProbe.id ? COLORS.primary : "gray.800"}
+                        color="white"
+                        _hover={{ bg: probe.id === selectedProbe.id ? COLORS.primaryDark : "gray.700" }}
+                        _focus={{ bg: probe.id === selectedProbe.id ? COLORS.primaryDark : "gray.700" }}
+                        justifyContent="space-between"
+                      >
+                        <Text>{probe.name || probe.esn}</Text>
+                      </MenuItem>
+                    ))}
+                  </MenuList>
+                </Menu>
+
+                {/* {userIsAdmin && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    color="white"
+                    _hover={{ bg: 'whiteAlpha.200' }}
+                    onClick={() => setShowBatteryChart((prev) => !prev)}
+                  >
+                    {showBatteryChart ? 'Ocultar Bateria' : 'Ver Status da Bateria'}
+                  </Button>
+                )} */}
+              </Flex>
               <Text color="gray.400" mt={1}>Análise detalhada do solo</Text>
             </MotionBox>
 
-            <Box bg={{ md: "gray.800" }} borderRadius="xl" p={{ base: 0, md: 4 }} border="1px solid" borderColor="gray.700">
+            <Box p={{ base: 0, md: 2 }}>
               {loadingChart ? (
                 <Flex justify="center" align="center" h="300px"><Spinner size="xl" color="blue.500" /></Flex>
               ) : (
@@ -619,11 +706,11 @@ export function Dashboard() {
                 >
                   {/* GRÁFICO DE UMIDADE */}
                   <MotionBox
-                    bg="gray.900" borderRadius="lg" p={4}
+                    p={0}
                     variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0 } }}
                     transition={{ duration: 0.4 }}
                   >
-                    {chartData.length > 0 ? (
+                    {/* {chartData.length > 0 ? (
                       <SoilMoistureChart
                         data={chartData}
                         title="Perfil de Umidade (%)"
@@ -646,16 +733,45 @@ export function Dashboard() {
                       <Flex h="300px" justify="center" align="center">
                         <Text color="gray.500">Sem dados de umidade para este período.</Text>
                       </Flex>
-                    )}
+                    )} */}
+
+                    <Suspense fallback={<Flex h="300px" justify="center" align="center"><Spinner size="lg" color="blue.500" /></Flex>}>
+                      {chartData.length > 0 ? (
+                        <SoilMoistureChart
+                          data={chartData}
+                          title="Perfil de Umidade (%)"
+                          unit="%"
+                          yDomain={[0, 100]}
+                          showZones={true}
+                          metric="moisture"
+                          isAdmin={userIsAdmin}
+                          esn={selectedProbe.esn}
+                          initialV1={selectedProbe.config_moisture_v1 ?? 30}
+                          initialV2={selectedProbe.config_moisture_v2 ?? 45}
+                          initialV3={selectedProbe.config_moisture_v3 ?? 60}
+                          intensity={selectedProbe.config_gradient_intensity ?? 50}
+                          onConfigUpdate={() => loadData()}
+                          // --- PROPS DE FILTRO ATUALIZADAS ---
+                          selectedPeriod={selectedPeriod}
+                          onPeriodChange={handlePeriodChange}
+                          selectedDepthRef={selectedDepthRefs[selectedProbe.id] ?? null}
+                          onSelectDepthRef={(depth) => handleSelectDepthRef(selectedProbe.id, depth)}
+                        />
+                      ) : (
+                        <Flex h="300px" justify="center" align="center">
+                          <Text color="gray.500">Sem dados de umidade para este período.</Text>
+                        </Flex>
+                      )}
+                    </Suspense>
                   </MotionBox>
 
                   {/* GRÁFICO DE TEMPERATURA */}
                   <MotionBox
-                    bg="gray.900" borderRadius="lg" p={4}
+                    p={0}
                     variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0 } }}
                     transition={{ duration: 0.4 }}
                   >
-                    {chartData.length > 0 ? (
+                    {/* {chartData.length > 0 ? (
                       <SoilMoistureChart
                         data={chartData}
                         title="Perfil de Temperatura (°C)"
@@ -671,8 +787,39 @@ export function Dashboard() {
                       <Flex h="300px" justify="center" align="center">
                         <Text color="gray.500">Sem dados de temperatura para este período.</Text>
                       </Flex>
-                    )}
+                    )} */}
+
+                    <Suspense fallback={<Flex h="300px" justify="center" align="center"><Spinner size="lg" color="blue.500" /></Flex>}>
+                      {chartData.length > 0 ? (
+                        <SoilMoistureChart
+                          data={chartData}
+                          title="Perfil de Temperatura (°C)"
+                          unit="°C"
+                          yDomain={['auto', 'auto']}
+                          showZones={true}
+                          metric="temperature"
+                          // --- PROPS DE FILTRO ATUALIZADAS ---
+                          selectedPeriod={selectedPeriod}
+                          onPeriodChange={handlePeriodChange}
+                        />
+                      ) : (
+                        <Flex h="300px" justify="center" align="center">
+                          <Text color="gray.500">Sem dados de temperatura para este período.</Text>
+                        </Flex>
+                      )}
+                    </Suspense>
                   </MotionBox>
+
+                  {/* GRÁFICO DE BATERIA (ADMIN) */}
+                  {userIsAdmin && (
+                    <MotionBox
+                      p={0}
+                      variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0 } }}
+                      transition={{ duration: 0.4 }}
+                    >
+                      <BatteryStatusChart data={chartData} />
+                    </MotionBox>
+                  )}
                 </VStack>
               )}
             </Box>

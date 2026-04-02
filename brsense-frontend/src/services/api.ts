@@ -72,6 +72,7 @@ export interface ReadingHistory {
   moisture_pct: number;
   temperature_c: number;
   rain_cm?: number | null;
+  battery_status?: number | null;
 }
 
 export interface CreateFarmDTO {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
     Box,
     Flex,
@@ -31,7 +31,6 @@ import {
     CartesianGrid,
     ResponsiveContainer,
     ReferenceArea,
-    Brush,
     Tooltip,
     LabelList
 } from 'recharts';
@@ -48,9 +47,10 @@ import {
 import { COLORS, DEPTH_COLORS } from '../../colors/colors';
 import { MoistureRangeModal } from '../MoistureRangeModal/MoistureRangeModal';
 import { updateDeviceConfig } from '../../services/api';
+import { parseJwt } from '../../services/auth';
 
 // Tipos
-export type TimeRange = '24h' | '7d' | '15d' | '30d' | 'Personalizado';
+export type TimeRange = '24h' | '7d' | '15d' | '30d' | '60d' | '90d' | '120d' | 'Personalizado';
 
 export interface RawApiData {
     timestamp: string;
@@ -58,6 +58,7 @@ export interface RawApiData {
     moisture_pct: number | null;
     temperature_c: number | null;
     rain_cm?: number | null;
+    battery_status?: number | null;
 }
 
 interface ChartDataPoint {
@@ -75,8 +76,10 @@ interface ChartProps {
     metric?: 'moisture' | 'temperature';
     isAdmin?: boolean;
     esn?: string;
-    initialMin?: number;
-    initialMax?: number;
+    initialV1?: number;
+    initialV2?: number;
+    initialV3?: number;
+    intensity?: number;
     onConfigUpdate?: () => void;
     selectedPeriod?: TimeRange;
     onPeriodChange?: (period: TimeRange, startDate?: string, endDate?: string) => void;
@@ -92,6 +95,17 @@ interface RainLabelProps {
     index?: number;
 }
 
+const CHART_ANIMATION_POINT_LIMIT = 500;
+const CHART_MAX_POINTS = 1200;
+const MM_DOMAIN = [0, 50];
+const mmTicks = [5, 15, 25, 35, 45];
+
+const downsampleData = <T,>(items: T[], maxPoints: number): T[] => {
+    if (items.length <= maxPoints) return items;
+    const step = Math.ceil(items.length / maxPoints);
+    return items.filter((_, index) => index % step === 0 || index === items.length - 1);
+};
+
 
 export function SoilMoistureChart({
     data = [],
@@ -102,6 +116,10 @@ export function SoilMoistureChart({
     isAdmin = false,
     esn,
     onConfigUpdate,
+    initialV1,
+    initialV2,
+    initialV3,
+    intensity,
     selectedPeriod = '24h',
     onPeriodChange,
     selectedDepthRef,
@@ -119,15 +137,28 @@ export function SoilMoistureChart({
     const [refAreaRight, setRefAreaRight] = useState<string | null>(null);
 
     // --- CONFIGURAÇÃO DE ZONAS ---
-    const storageKey = `BRSENSE_${metric.toUpperCase()}_RANGES_${esn || 'DEFAULT'}`;
+    // const storageKey = `BRSENSE_${metric.toUpperCase()}_RANGES_${esn || 'DEFAULT'}`;
+    const userStorageScope = useMemo(() => {
+        const token = localStorage.getItem('access_token');
+        if (!token) return 'ANON';
+        const payload = parseJwt(token);
+        return payload?.preferred_username || payload?.sub || 'ANON';
+    }, []);
+    const storageKey = `BRSENSE_${userStorageScope}_${metric.toUpperCase()}_RANGES_${esn || 'DEFAULT'}`;
+    const legacyStorageKey = `BRSENSE_${metric.toUpperCase()}_RANGES_${esn || 'DEFAULT'}`;
 
     const defaultRanges = metric === 'moisture'
-        ? { v1: 30, v2: 45, v3: 60, intensity: 50 }
+        ? {
+            v1: initialV1 ?? 30,
+            v2: initialV2 ?? 45,
+            v3: initialV3 ?? 60,
+            intensity: 50
+        }
         : { min: 20, max: 30, intensity: 50 };
 
     const [rangeSettings, setRangeSettings] = useState(() => {
         try {
-            const saved = localStorage.getItem(storageKey);
+            const saved = localStorage.getItem(storageKey) || localStorage.getItem(legacyStorageKey);
             if (saved) {
                 const parsed = JSON.parse(saved);
                 if (parsed.min !== undefined && parsed.v1 === undefined) {
@@ -139,14 +170,39 @@ export function SoilMoistureChart({
         } catch { return defaultRanges; }
     });
 
-    const handleSaveConfig = async (newRanges: { v1: number; v2: number; v3: number }) => {
+    useEffect(() => {
+        if (metric !== 'moisture') return;
+        if (initialV1 === undefined && initialV2 === undefined && initialV3 === undefined) return;
+
+        setRangeSettings((prev: { v1: number; v2: number; v3: number; intensity: number }) => {
+            const next = {
+                ...prev,
+                v1: initialV1 ?? prev.v1 ?? 30,
+                v2: initialV2 ?? prev.v2 ?? 45,
+                v3: initialV3 ?? prev.v3 ?? 60,
+                intensity: intensity ?? prev.intensity ?? 50
+            };
+            if (
+                next.v1 === prev.v1
+                && next.v2 === prev.v2
+                && next.v3 === prev.v3
+                && next.intensity === prev.intensity
+            ) {
+                return prev;
+            }
+            localStorage.setItem(storageKey, JSON.stringify(next));
+            return next;
+        });
+    }, [initialV1, initialV2, initialV3, intensity, metric, storageKey]);
+
+    const handleSaveConfig = async (newRanges: { v1: number; v2: number; v3: number; intensity: number }) => {
         setRangeSettings(newRanges);
         localStorage.setItem(storageKey, JSON.stringify(newRanges));
 
         if (esn && isAdmin) {
             try {
                 // Mantemos o envio do intensity: 50 fixo para a API caso o back-end ainda exija esse campo
-                await updateDeviceConfig(esn, { ...newRanges, intensity: 50 });
+                await updateDeviceConfig(esn, newRanges);
                 toast({ title: "Configuração salva!", status: "success", duration: 2000, isClosable: true });
                 if (onConfigUpdate) onConfigUpdate();
             } catch {
@@ -167,6 +223,11 @@ export function SoilMoistureChart({
     const isTouchDevice = useMemo(() => {
         if (typeof window === 'undefined') return false;
         return window.matchMedia('(pointer: coarse)').matches;
+    }, []);
+
+    const isMobileViewport = useMemo(() => {
+        if (typeof window === 'undefined') return false;
+        return window.matchMedia('(max-width: 48em)').matches;
     }, []);
 
     // --- PROCESSAMENTO DE DADOS E FILTRAGEM ---
@@ -199,33 +260,33 @@ export function SoilMoistureChart({
             // const diffDays = (endTime - startTime) / (1000 * 3600 * 24);
             // if (diffDays > 8) isHighRes = false;
 
-        // } else if (selectedPeriod) {
-        //     // 2. Filtragem pelo Menu (24h, 7d, 15d, 30d)
-        //     // Pegamos na data da última leitura recebida para ser o nosso "Agora"
-        //     let now = new Date().getTime();
-        //     const allTimestamps = data.map(d => new Date(d.timestamp).getTime()).filter(t => !isNaN(t));
-        //     if (allTimestamps.length > 0) {
-        //         now = Math.max(...allTimestamps);
-        //     }
+            // } else if (selectedPeriod) {
+            //     // 2. Filtragem pelo Menu (24h, 7d, 15d, 30d)
+            //     // Pegamos na data da última leitura recebida para ser o nosso "Agora"
+            //     let now = new Date().getTime();
+            //     const allTimestamps = data.map(d => new Date(d.timestamp).getTime()).filter(t => !isNaN(t));
+            //     if (allTimestamps.length > 0) {
+            //         now = Math.max(...allTimestamps);
+            //     }
 
-        //     let past = now;
+            //     let past = now;
 
-        //     if (selectedPeriod === '24h') {
-        //         past = now - (24 * 3600 * 1000);
-        //     } else if (selectedPeriod === '7d') {
-        //         past = now - (7 * 24 * 3600 * 1000);
-        //     } else if (selectedPeriod === '15d') {
-        //         past = now - (15 * 24 * 3600 * 1000);
-        //         isHighRes = false; // Em 15 dias mostramos DD/MM no eixo X
-        //     } else if (selectedPeriod === '30d') {
-        //         past = now - (30 * 24 * 3600 * 1000);
-        //         isHighRes = false; // Em 30 dias mostramos DD/MM no eixo X
-        //     }
+            //     if (selectedPeriod === '24h') {
+            //         past = now - (24 * 3600 * 1000);
+            //     } else if (selectedPeriod === '7d') {
+            //         past = now - (7 * 24 * 3600 * 1000);
+            //     } else if (selectedPeriod === '15d') {
+            //         past = now - (15 * 24 * 3600 * 1000);
+            //         isHighRes = false; // Em 15 dias mostramos DD/MM no eixo X
+            //     } else if (selectedPeriod === '30d') {
+            //         past = now - (30 * 24 * 3600 * 1000);
+            //         isHighRes = false; // Em 30 dias mostramos DD/MM no eixo X
+            //     }
 
-        //     filteredData = data.filter(item => {
-        //         const t = new Date(item.timestamp).getTime();
-        //         return t >= past;
-        //     });
+            //     filteredData = data.filter(item => {
+            //         const t = new Date(item.timestamp).getTime();
+            //         return t >= past;
+            //     });
         }
 
         const groupedMap = new Map<number, {
@@ -290,9 +351,17 @@ export function SoilMoistureChart({
             return newItem;
         });
 
-        return { chartData: rawChartData, isHighResolution: useHourly };
+        // return { chartData: rawChartData, isHighResolution: useHourly };
+        const sampledChartData = downsampleData(rawChartData, CHART_MAX_POINTS);
+        return { chartData: sampledChartData, isHighResolution: useHourly };
 
     }, [data, metric, startDate, endDate]);
+
+    const chartDataIndexByTime = useMemo(() => {
+        return new Map(chartData.map((point, index) => [point.time, index]));
+    }, [chartData]);
+
+    const useLightAnimations = chartData.length <= CHART_ANIMATION_POINT_LIMIT;
 
     // Resetar zoom quando dados mudam
     useEffect(() => {
@@ -306,18 +375,21 @@ export function SoilMoistureChart({
     }, [chartData.length]);
 
     // --- LÓGICA DE ZOOM MANUAL COM MOUSE ---
-    const handleZoom = () => {
+    // const handleZoom = () => {
+    const handleZoom = useCallback(() => {
         if (!refAreaLeft || !refAreaRight || !chartData.length) {
             setRefAreaLeft(null);
             setRefAreaRight(null);
             return;
         }
 
-        let leftIndex = chartData.findIndex(d => d.time === refAreaLeft);
-        let rightIndex = chartData.findIndex(d => d.time === refAreaRight);
+        // let leftIndex = chartData.findIndex(d => d.time === refAreaLeft);
+        // let rightIndex = chartData.findIndex(d => d.time === refAreaRight);
 
-        if (leftIndex < 0) leftIndex = 0;
-        if (rightIndex < 0) rightIndex = chartData.length - 1;
+        // if (leftIndex < 0) leftIndex = 0;
+        // if (rightIndex < 0) rightIndex = chartData.length - 1;
+        let leftIndex = chartDataIndexByTime.get(refAreaLeft) ?? 0;
+        let rightIndex = chartDataIndexByTime.get(refAreaRight) ?? (chartData.length - 1);
         if (leftIndex > rightIndex) {
             [leftIndex, rightIndex] = [rightIndex, leftIndex];
         }
@@ -350,7 +422,7 @@ export function SoilMoistureChart({
         setRefAreaLeft(null);
         setRefAreaRight(null);
         setRange({ startIndex: leftIndex, endIndex: rightIndex });
-    };
+    }, [chartData, chartDataIndexByTime, onPeriodChange, refAreaLeft, refAreaRight]);
 
     // --- ESCALA Y DINÂMICA (Apenas baseada nos pontos da curva) ---
     const activeYDomain = useMemo(() => {
@@ -377,15 +449,26 @@ export function SoilMoistureChart({
 
         if (!hasActiveData) return yDomain;
 
-        const padding = (max - min) * 0.1 || 5;
-        const autoMin = Math.max(0, Math.floor(min - padding));
-        const autoMax = Math.ceil(max + padding);
+        // const padding = (max - min) * 0.1 || 5;
+        const autoMin = Math.floor(min - 5);
+        const autoMax = Math.ceil(max + 5);
 
         return [autoMin, autoMax];
     }, [chartData, range, visibleLines, yDomain]);
 
+    const [minLeft, maxLeft] = activeYDomain as [number, number];
+
+    const leftTicks = useMemo(() => {
+        return mmTicks.map(tick => {
+            const ratio = (tick - MM_DOMAIN[0]) / (MM_DOMAIN[1] - MM_DOMAIN[0]);
+            const calculatedTick = minLeft + ratio * (maxLeft - minLeft);
+            return Math.round(calculatedTick);
+        });
+    }, [minLeft, maxLeft]);
+
     // --- HANDLER MANUAL DE TOUCH ---
-    const handleTouch = (e: React.TouchEvent<HTMLDivElement>) => {
+    // const handleTouch = (e: React.TouchEvent<HTMLDivElement>) => {
+    const handleTouch = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
         if (!chartContainerRef.current || chartData.length === 0) return;
 
         const touch = e.touches[0];
@@ -410,7 +493,7 @@ export function SoilMoistureChart({
         if (point) {
             setSelectedData(point);
         }
-    };
+    }, [chartData, range.endIndex, range.startIndex]);
 
     // --- FECHAR SELEÇÃO AO TOCAR FORA ---
     useEffect(() => {
@@ -458,7 +541,10 @@ export function SoilMoistureChart({
         return () => container.removeEventListener('wheel', handleWheel);
     }, [chartData]);
 
-    const toggleLine = (key: string) => setVisibleLines(prev => ({ ...prev, [key]: !prev[key] }));
+    // const toggleLine = (key: string) => setVisibleLines(prev => ({ ...prev, [key]: !prev[key] }));
+    const toggleLine = useCallback((key: string) => {
+        setVisibleLines(prev => ({ ...prev, [key]: !prev[key] }));
+    }, []);
 
     const renderZone = (y1: number, y2: number, fill: string, zoneId: string) => {
         const minDomain = activeYDomain[0];
@@ -488,25 +574,52 @@ export function SoilMoistureChart({
         return null;
     };
 
-    const formatDateHeader = (isoStr?: string) => {
+    // const formatDateHeader = (isoStr?: string) => {
+    const headerDateFormatter = useMemo(() => new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    }), []);
+
+    const axisDateFormatter = useMemo(() => new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        hour: '2-digit',
+        minute: '2-digit',
+        day: '2-digit',
+        month: '2-digit'
+    }), []);
+
+    const axisDayFormatter = useMemo(() => new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit'
+    }), []);
+
+    const formatDateHeader = useCallback((isoStr?: string) => {
         if (!isoStr) return '';
         const date = new Date(isoStr);
 
-        // O Painel do hover e os textos do cabeçalho exigem saber a HORA sempre, 
-        // independentemente da resolução do Eixo X.
-        return new Intl.DateTimeFormat('pt-BR', {
-            timeZone: 'America/Sao_Paulo',
-            day: '2-digit',
-            month: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-        }).format(date);
-    };
+        //     // O Painel do hover e os textos do cabeçalho exigem saber a HORA sempre, 
+        //     // independentemente da resolução do Eixo X.
+        //     return new Intl.DateTimeFormat('pt-BR', {
+        //         timeZone: 'America/Sao_Paulo',
+        //         day: '2-digit',
+        //         month: '2-digit',
+        //         hour: '2-digit',
+        //         minute: '2-digit'
+        //     }).format(date);
+        // };
+        return headerDateFormatter.format(date);
+    }, [headerDateFormatter]);
 
     // Dados ativos para exibição (Prioridade: Seleção Touch > Hover Mouse)
     const activeData: ChartDataPoint | null = selectedData ?? hoveredData;
 
     const [activeIndex, setActiveIndex] = useState<number | null>(null);
+    const lastHoverIndexRef = useRef<number | null>(null);
+    const pinchRef = useRef<{ distance: number; centerRatio: number } | null>(null);
 
     const RainLabel = ({ x, y, width, value, index }: RainLabelProps) => {
         if (index !== activeIndex) return null;
@@ -548,13 +661,56 @@ export function SoilMoistureChart({
         }
     };
 
+    const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+        if (e.touches.length === 2 && chartContainerRef.current && chartData.length > 1) {
+            const [t1, t2] = [e.touches[0], e.touches[1]];
+            const rect = chartContainerRef.current.getBoundingClientRect();
+            const distance = Math.abs(t1.clientX - t2.clientX);
+            const centerX = (t1.clientX + t2.clientX) / 2;
+            pinchRef.current = {
+                distance,
+                centerRatio: Math.min(1, Math.max(0, (centerX - rect.left) / rect.width))
+            };
+            return;
+        }
+        handleTouch(e);
+    }, [chartData.length, handleTouch]);
+
+    const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+        if (e.touches.length === 2 && chartData.length > 1) {
+            const pinchStart = pinchRef.current;
+            if (!pinchStart) return;
+            const [t1, t2] = [e.touches[0], e.touches[1]];
+            const distance = Math.abs(t1.clientX - t2.clientX);
+            const delta = distance - pinchStart.distance;
+            if (Math.abs(delta) < 8) return;
+
+            setRange(prev => {
+                const currentSize = Math.max(2, prev.endIndex - prev.startIndex);
+                const zoomDirection = delta > 0 ? -1 : 1;
+                const zoomDelta = Math.max(2, Math.floor(currentSize * 0.12));
+                const targetSize = Math.min(chartData.length - 1, Math.max(2, currentSize + (zoomDirection * zoomDelta)));
+                const centerIndex = Math.round(prev.startIndex + (currentSize * pinchStart.centerRatio));
+                const half = Math.floor(targetSize / 2);
+                let startIndex = Math.max(0, centerIndex - half);
+                const endIndex = Math.min(chartData.length - 1, startIndex + targetSize);
+                startIndex = Math.max(0, endIndex - targetSize);
+                return { startIndex, endIndex };
+            });
+
+            pinchRef.current = { ...pinchStart, distance };
+            return;
+        }
+        handleTouch(e);
+    }, [chartData.length, handleTouch]);
+
     return (
         <Box
             bg={COLORS.surface}
             borderColor="rgba(59, 71, 84, 0.5)"
-            borderWidth={{ base: "0px", md: "1px" }}
-            borderRadius={{ base: "0px", md: "xl" }}
-            p={{ base: 0, md: 4 }}
+            borderWidth="1px"
+            borderRadius={{ base: "md", md: "xl" }}
+            p={{ base: 2, md: 4 }}
             color="white"
             userSelect="none"
         >
@@ -576,86 +732,43 @@ export function SoilMoistureChart({
                     </Text>
                 </VStack>
 
-                <HStack spacing={2}>
-                    <Popover placement="bottom-end" isLazy>
-                        <PopoverTrigger>
-                            <Button
+                <Flex
+                    wrap="wrap"
+                    gap={2}
+                    w={{ base: "100%", md: "auto" }}
+                    justify={{ base: "flex-start", md: "flex-end" }}
+                >
+                    {onSelectDepthRef && metric === 'moisture' && (
+                        <Menu>
+                            <MenuButton
+                                as={Button}
                                 size="xs"
-                                variant="outline"
                                 colorScheme="blue"
-                                leftIcon={<Icon as={MdDateRange} />}
+                                variant={selectedDepthRef ? "solid" : "outline"}
+                                rightIcon={<MdArrowDropDown />}
+                                leftIcon={<Icon as={MdLayers} />} // Opcional
                             >
-                            </Button>
-                        </PopoverTrigger>
-                        {onSelectDepthRef && metric === 'moisture' && (
-                            <Menu>
-                                <MenuButton
-                                    as={Button}
-                                    size="xs"
-                                    colorScheme="blue"
-                                    variant={selectedDepthRef ? "solid" : "outline"}
-                                    rightIcon={<MdArrowDropDown />}
-                                    leftIcon={<Icon as={MdLayers} />} // Opcional
+                                {selectedDepthRef ? `${selectedDepthRef}cm` : 'Profundidade Ref.'}
+                            </MenuButton>
+                            <MenuList bg="gray.800" borderColor="gray.600" zIndex={2000}>
+                                <MenuItem
+                                    bg="gray.800" _hover={{ bg: "gray.700" }}
+                                    onClick={() => onSelectDepthRef(null)}
                                 >
-                                    {selectedDepthRef ? `${selectedDepthRef}cm` : 'Profundidade Ref.'}
-                                </MenuButton>
-                                <MenuList bg="gray.800" borderColor="gray.600" zIndex={2000}>
+                                    Geral / Padrão (Sem trava)
+                                </MenuItem>
+                                {[10, 20, 30, 40, 50, 60].map(depth => (
                                     <MenuItem
+                                        key={depth}
                                         bg="gray.800" _hover={{ bg: "gray.700" }}
-                                        onClick={() => onSelectDepthRef(null)}
+                                        onClick={() => onSelectDepthRef(depth)}
                                     >
-                                        Geral / Padrão (Sem trava)
+                                        Travar em {depth}cm
                                     </MenuItem>
-                                    {[10, 20, 30, 40, 50, 60].map(depth => (
-                                        <MenuItem
-                                            key={depth}
-                                            bg="gray.800" _hover={{ bg: "gray.700" }}
-                                            onClick={() => onSelectDepthRef(depth)}
-                                        >
-                                            Travar em {depth}cm
-                                        </MenuItem>
-                                    ))}
-                                </MenuList>
-                            </Menu>
-                        )}
-                        <PopoverContent bg="gray.800" borderColor="gray.600" p={3} w="auto" boxShadow="xl" zIndex={2000}>
-                            <PopoverArrow bg="gray.800" />
-                            <PopoverBody>
-                                <VStack spacing={3} align="stretch">
-                                    <FormControl>
-                                        <FormLabel fontSize="xs" color="gray.400" mb={1}>Data Inicial</FormLabel>
-                                        <Input
-                                            size="xs"
-                                            type="date"
-                                            value={startDate}
-                                            color="white"
-                                            borderColor="gray.600"
-                                            onChange={(e) => {
-                                                const v = e.target.value;
-                                                setStartDate(v);
-                                                if (v && endDate && onPeriodChange) onPeriodChange('Personalizado', v, endDate);
-                                            }}
-                                        />
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="xs" color="gray.400" mb={1}>Data Final</FormLabel>
-                                        <Input
-                                            size="xs"
-                                            type="date"
-                                            value={endDate}
-                                            color="white"
-                                            borderColor="gray.600"
-                                            onChange={(e) => {
-                                                const v = e.target.value;
-                                                setEndDate(v);
-                                                if (startDate && v && onPeriodChange) onPeriodChange('Personalizado', startDate, v);
-                                            }}
-                                        />
-                                    </FormControl>
-                                </VStack>
-                            </PopoverBody>
-                        </PopoverContent>
-                    </Popover>
+                                ))}
+                            </MenuList>
+                        </Menu>
+                    )}
 
                     {/* --- BOTÃO DE RESET (MdClose) --- */}
                     {(startDate || endDate) && (
@@ -688,9 +801,58 @@ export function SoilMoistureChart({
                                 <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('7d'); }}>Últimos 7 Dias</MenuItem>
                                 <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('15d'); }}>Últimos 15 Dias</MenuItem>
                                 <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('30d'); }}>Últimos 30 Dias</MenuItem>
+                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('60d'); }}>Últimos 60 Dias</MenuItem>
+                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('90d'); }}>Últimos 90 Dias</MenuItem>
+                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('120d'); }}>Últimos 120 Dias</MenuItem>
                             </MenuList>
                         </Menu>
                     )}
+
+                    <Popover placement="bottom-end" isLazy>
+                        <PopoverTrigger>
+                            <Button
+                                size="xs"
+                                variant="outline"
+                                colorScheme="blue"
+                                leftIcon={<Icon as={MdDateRange} />}
+                            />
+                        </PopoverTrigger>
+
+                        <PopoverContent bg="gray.800" borderColor="gray.600" p={3} w="auto" boxShadow="xl" zIndex={2000}>
+                            <PopoverArrow bg="gray.800" />
+                            <PopoverBody>
+                                <VStack spacing={3} align="stretch">
+                                    <FormControl>
+                                        <FormLabel fontSize="xs" color="gray.400" mb={1}>Data Inicial</FormLabel>
+                                        <Input
+                                            size="xs"
+                                            type="date"
+                                            value={startDate}
+                                            onChange={(e) => {
+                                                const v = e.target.value;
+                                                setStartDate(v);
+                                                if (v && endDate && onPeriodChange) onPeriodChange('Personalizado', v, endDate);
+                                            }}
+                                        />
+                                    </FormControl>
+
+                                    <FormControl>
+                                        <FormLabel fontSize="xs" color="gray.400" mb={1}>Data Final</FormLabel>
+                                        <Input
+                                            size="xs"
+                                            type="date"
+                                            value={endDate}
+                                            onChange={(e) => {
+                                                const v = e.target.value;
+                                                setEndDate(v);
+                                                if (startDate && v && onPeriodChange) onPeriodChange('Personalizado', startDate, v);
+                                            }}
+                                        />
+                                    </FormControl>
+                                </VStack>
+                            </PopoverBody>
+                        </PopoverContent>
+                    </Popover>
 
                     {isAdmin && (
                         <ChakraTooltip label="Configurar Zonas" hasArrow>
@@ -710,7 +872,7 @@ export function SoilMoistureChart({
                     >
                         Ver Tudo
                     </Button>
-                </HStack>
+                </Flex>
             </Flex>
 
             {/* --- PAINEL DE INFORMAÇÕES (TOOLTIP FIXO) --- */}
@@ -720,18 +882,35 @@ export function SoilMoistureChart({
                 transform={activeData ? "translateY(0)" : "translateY(-6px)"}
                 pointerEvents={activeData ? "auto" : "none"}
                 mb={activeData ? 2 : 0}
-                minH="32px"
+                minH={{ base: "auto", md: "32px" }}
             >
                 {activeData && (
-                    <Flex bg="rgba(30, 41, 59, 0.8)" px={3} py={1} borderRadius="md" align="center" gap={4} wrap="wrap" w="fit-content">
-                        <HStack borderRight="1px solid" borderColor="gray.600" pr={3} spacing={2}>
+                    <Flex
+                        bg="rgba(30, 41, 59, 0.8)"
+                        px={{ base: 3, md: 3 }}
+                        py={{ base: 2, md: 1 }}
+                        borderRadius="md"
+                        align={{ base: "flex-start", md: "center" }}
+                        direction={{ base: "column", md: "row" }}
+                        gap={{ base: 2, md: 4 }}
+                        w={{ base: "100%", md: "fit-content" }}
+                    >
+                        <HStack
+                            borderRight={{ base: "none", md: "1px solid" }}
+                            borderBottom={{ base: "1px solid", md: "none" }}
+                            borderColor="gray.600"
+                            pr={{ base: 0, md: 3 }}
+                            pb={{ base: 2, md: 0 }}
+                            w={{ base: "100%", md: "auto" }}
+                            spacing={2}
+                        >
                             <Icon as={MdCalendarToday} color="gray.400" boxSize={3} />
                             <Text fontSize="xs" fontWeight="bold">
                                 {formatDateHeader(activeData.time)}
                             </Text>
                         </HStack>
 
-                        <HStack spacing={3}>
+                        <Flex wrap="wrap" gap={3} align="center">
                             {/* CHUVA */}
                             {metric === 'moisture' && activeData.precipitacao !== undefined && activeData.precipitacao > 0 && (
                                 <HStack spacing={1.5}>
@@ -754,25 +933,28 @@ export function SoilMoistureChart({
                                         </Text>
                                     </HStack>
                                 ))}
-                        </HStack>
+                        </Flex>
                     </Flex>
                 )}
             </Box>
 
             {/* --- CONTAINER DO GRÁFICO (Handlers de Touch e Mouse) --- */}
             <Box
-                h={{ base: "300", md: "500px" }}
+                h={{ base: "260px", md: "500px" }}
                 w="100%"
                 ref={chartContainerRef}
                 cursor="crosshair"
-                onTouchStart={handleTouch}
-                onTouchMove={handleTouch}
-                style={{ touchAction: 'none' }}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={() => { pinchRef.current = null; }}
+                style={{ touchAction: 'pan-y' }}
             >
                 <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart
                         data={chartData}
-                        margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
+                        margin={isMobileViewport
+                            ? { top: 25, right: 7, left: -38, bottom: -15 }
+                            : { top: 25, right: 5, left: -41, bottom: 0 }}
                         onMouseLeave={() => !isTouchDevice && setHoveredData(null)}
                         // NOVOS HANDLERS DE MOUSE PARA ZOOM
                         onMouseDown={(e) => {
@@ -861,26 +1043,35 @@ export function SoilMoistureChart({
                             })()}
                         </defs>
 
-                        <CartesianGrid strokeDasharray="3 3" stroke="#3179c7" opacity={0.3} vertical={false} />
-
+                        {/* <CartesianGrid strokeDasharray="3 3" stroke="#3179c7" opacity={0.3} vertical={false} /> */}
+                        <CartesianGrid
+                            yAxisId="left" // <--- Ligar apenas ao eixo 'left'
+                            horizontal={true}
+                            vertical={false}
+                            stroke="#3179c7"
+                            strokeDasharray="3 3"
+                            opacity={0.3}
+                        />
                         <XAxis
                             dataKey="time"
                             type="category" // Adicionado explicitamente
                             interval="preserveStartEnd"
                             tickFormatter={(val) => {
                                 try {
-                                    const date = new Date(val); // Aqui o JS lê o "Z" e entende que é UTC
+                                    // const date = new Date(val); // Aqui o JS lê o "Z" e entende que é UTC
 
-                                    const formatter = new Intl.DateTimeFormat('pt-BR', {
-                                        timeZone: 'America/Sao_Paulo', // Aqui ele converte UTC para BR
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        day: '2-digit',
-                                        month: '2-digit'
-                                    });
+                                    // const formatter = new Intl.DateTimeFormat('pt-BR', {
+                                    //     timeZone: 'America/Sao_Paulo', // Aqui ele converte UTC para BR
+                                    //     hour: '2-digit',
+                                    //     minute: '2-digit',
+                                    //     day: '2-digit',
+                                    //     month: '2-digit'
+                                    // });
+                                    const date = new Date(val);
 
                                     if (isHighResolution) {
-                                        const parts = formatter.formatToParts(date);
+                                        // const parts = formatter.formatToParts(date);
+                                        const parts = axisDateFormatter.formatToParts(date);
                                         const hour = parts.find(p => p.type === 'hour')?.value;
                                         const minute = parts.find(p => p.type === 'minute')?.value;
                                         const day = parts.find(p => p.type === 'day')?.value;
@@ -893,27 +1084,40 @@ export function SoilMoistureChart({
                                         return `${hour}:${minute}`;
                                     }
 
-                                    return new Intl.DateTimeFormat('pt-BR', {
-                                        timeZone: 'America/Sao_Paulo',
-                                        day: '2-digit',
-                                        month: '2-digit'
-                                    }).format(date);
+                                    // return new Intl.DateTimeFormat('pt-BR', {
+                                    //     timeZone: 'America/Sao_Paulo',
+                                    //     day: '2-digit',
+                                    //     month: '2-digit'
+                                    // }).format(date);
+                                    return axisDayFormatter.format(date);
 
                                 } catch { return ''; }
                             }}
                             tick={{ fill: '#6b7280', fontSize: 10 }}
                             axisLine={false}
                             tickLine={false}
-                            minTickGap={40}
+                            minTickGap={isMobileViewport ? 24 : 40}
                         />
 
                         <YAxis
                             yAxisId="left"
                             domain={activeYDomain as [number, number]}
-                            tick={{ fill: '#6b7280', fontSize: 10 }}
+                            ticks={leftTicks}
+                            tick={{ fill: '#6b7280', fontSize: isMobileViewport ? 9 : 10 }}
                             axisLine={false}
                             tickLine={false}
                             allowDataOverflow
+                            label={({ viewBox }) => (
+                                <text
+                                    x={viewBox.x + viewBox.width}
+                                    y={viewBox.y / 2}
+                                    textAnchor="middle"
+                                    fill="#6b7280"
+                                    fontSize={isMobileViewport ? 9 : 12}
+                                >
+                                    %
+                                </text>
+                            )}
                         />
 
                         {/* EIXO Y CHUVA (INVERTIDO) */}
@@ -922,13 +1126,32 @@ export function SoilMoistureChart({
                                 yAxisId="right"
                                 orientation="right"
                                 reversed={true}
-                                domain={[0, 'dataMax + 40']}
-                                tick={{ fill: '#90cdf4', fontSize: 10 }}
+                                domain={MM_DOMAIN}
+                                ticks={mmTicks}
+                                tick={{ fill: '#6b7280', fontSize: isMobileViewport ? 9 : 10 }}
                                 axisLine={false}
                                 tickLine={false}
                                 hide={false}
-                                unit="mm"
-                                width={30}
+                                width={isMobileViewport ? 24 : 30}
+                                // label={{
+                                //     value: 'mm',
+                                //     position: 'top',
+                                //     offset: 10,
+                                //     fill: '#6b7280',
+                                //     fontSize: isMobileViewport ? 9 : 12,
+                                // }}
+
+                                label={({ viewBox }) => (
+                                    <text
+                                        x={viewBox.x + viewBox.width - 20}
+                                        y={viewBox.y / 2}
+                                        textAnchor="middle"
+                                        fill="#6b7280"
+                                        fontSize={isMobileViewport ? 9 : 12}
+                                    >
+                                        mm
+                                    </text>
+                                )}
                             />
                         )}
 
@@ -955,8 +1178,10 @@ export function SoilMoistureChart({
                                 opacity={0.8}
                                 // Se for alta resolução, barras mais finas
                                 barSize={isHighResolution ? 6 : 15}
-                                isAnimationActive={true}
-                                animationDuration={800}
+                                // isAnimationActive={true}
+                                // animationDuration={800}
+                                isAnimationActive={useLightAnimations}
+                                animationDuration={useLightAnimations ? 400 : 0}
                                 name="Chuva"
                             >
                                 <LabelList dataKey="precipitacao" content={<RainLabel />} />
@@ -974,8 +1199,10 @@ export function SoilMoistureChart({
                                     strokeWidth={2.5}
                                     dot={false}
                                     activeDot={{ r: 5, fill: color, stroke: '#fff', strokeWidth: 1 }}
-                                    isAnimationActive={true}
-                                    animationDuration={1000}
+                                    // isAnimationActive={true}
+                                    // animationDuration={1000}
+                                    isAnimationActive={useLightAnimations}
+                                    animationDuration={useLightAnimations ? 500 : 0}
                                     animationEasing="ease-in-out"
                                     connectNulls
                                 />
@@ -987,9 +1214,17 @@ export function SoilMoistureChart({
                             content={({ active, payload }) => {
                                 if (!isTouchDevice) {
                                     if (active && payload && payload.length) {
-                                        setHoveredData(payload[0].payload);
-                                        setActiveIndex(payload[0].payload.index);
+                                        // setHoveredData(payload[0].payload);
+                                        // setActiveIndex(payload[0].payload.index);
+                                        const payloadPoint = payload[0].payload as ChartDataPoint & { index?: number };
+                                        const hoveredIndex = typeof payloadPoint.index === 'number' ? payloadPoint.index : null;
+                                        if (hoveredIndex !== null && hoveredIndex !== lastHoverIndexRef.current) {
+                                            lastHoverIndexRef.current = hoveredIndex;
+                                            setHoveredData(payloadPoint);
+                                            setActiveIndex(hoveredIndex);
+                                        }
                                     } else {
+                                        lastHoverIndexRef.current = null;
                                         setHoveredData(null);
                                         setActiveIndex(null);
                                     }
@@ -1002,7 +1237,7 @@ export function SoilMoistureChart({
                             <ReferenceArea yAxisId="left" x1={refAreaLeft} x2={refAreaRight} strokeOpacity={0.3} fill="#8884d8" fillOpacity={0.3} />
                         )}
 
-                        <Brush
+                        {/* <Brush
                             dataKey="time"
                             height={30}
                             stroke="#3182ce"
@@ -1015,13 +1250,19 @@ export function SoilMoistureChart({
                                     setRange({ startIndex: range.startIndex, endIndex: range.endIndex });
                                 }
                             }}
-                        />
+                        /> */}
                     </ComposedChart>
                 </ResponsiveContainer>
             </Box>
 
             {/* --- LEGENDAS --- */}
-            <Flex gap={4} wrap="wrap" pt={4}>
+            <Flex
+                w="100%"
+                justify={{ base: "space-between", md: "flex-start" }}
+                wrap="nowrap"
+                gap={{ base: 1, md: 4 }}
+                pt={4}
+            >
                 {Object.entries(DEPTH_COLORS)
                     .filter(([key]) => {
                         const depth = parseInt(key.replace('depth', ''));
@@ -1035,11 +1276,28 @@ export function SoilMoistureChart({
                             onChange={() => toggleLine(key)}
                             colorScheme="blue"
                             iconColor="white"
-                            sx={{ '.chakra-checkbox__label': { fontSize: 'xs', color: visibleLines[key] ? 'gray.300' : 'gray.600' } }}
+                            size={{ base: "sm", md: "md" }}
+                            sx={{
+                                '.chakra-checkbox__label': {
+                                    marginStart: { base: 1, md: 2 }
+                                }
+                            }}
                         >
-                            <HStack spacing={1}>
-                                <Box w="8px" h="8px" borderRadius="full" bg={color} opacity={visibleLines[key] ? 1 : 0.4} />
-                                <Text>{key.replace('depth', '')}cm</Text>
+                            <HStack spacing={0.5}>
+                                <Box
+                                    w={{ base: "6px", md: "8px" }}
+                                    h={{ base: "6px", md: "8px" }}
+                                    borderRadius="full"
+                                    bg={color}
+                                    opacity={visibleLines[key] ? 1 : 0.4}
+                                />
+                                <Text
+                                    fontSize={{ base: "9px", sm: "10px", md: "xs" }}
+                                    color={visibleLines[key] ? 'gray.300' : 'gray.600'}
+                                    whiteSpace="nowrap"
+                                >
+                                    {key.replace('depth', '')}cm
+                                </Text>
                             </HStack>
                         </Checkbox>
                     ))}

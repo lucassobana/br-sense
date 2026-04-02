@@ -18,6 +18,7 @@ class ReadingResponse(BaseModel):
     depth_cm: float
     moisture_pct: Optional[float] = None
     temperature_c: Optional[float] = None
+    battery_status: Optional[int] = None
     rain_cm: Optional[float] = None
     
     class Config:
@@ -28,7 +29,7 @@ def get_device_history(
     esn: str, 
     start_date: Optional[datetime] = None, 
     end_date: Optional[datetime] = None,
-    limit: int = 50000, # 1. AUMENTADO: Padrão passa a ser 50.000 linhas
+    limit: int = 100000, # 1. AUMENTADO: Padrão passa a ser 50.000 linhas
     db: Session = Depends(get_db)
 ):
     """
@@ -52,10 +53,11 @@ def get_device_history(
         query = query.filter(Reading.timestamp < end_date)
     
     # 2. AUMENTADO: O teto de segurança passa para 100.000 linhas para permitir 30 dias completos
-    safe_limit = max(1, min(limit, 100000))
+    safe_limit = max(1, min(limit, 500000))
 
     if start_date or end_date:
-        readings = query.order_by(Reading.timestamp.asc()).limit(safe_limit).all()
+        readings = query.order_by(Reading.timestamp.desc()).limit(safe_limit).all()
+        readings = readings[::-1]
     else:
         readings = query.order_by(Reading.timestamp.desc()).limit(safe_limit).all()
         readings = readings[::-1]

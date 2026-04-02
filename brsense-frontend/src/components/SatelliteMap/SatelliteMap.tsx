@@ -17,6 +17,39 @@ import { RainViewerTimeline } from '../RainViewer/RainViewerTimeline';
 
 // Profundidades disponíveis
 const AVAILABLE_DEPTHS = [10, 20, 30, 40, 50, 60];
+const RAINVIEWER_CACHE_TTL_MS = 10 * 60 * 1000;
+
+let rainViewerCache: { fetchedAt: number; frames: RadarFrame[] } | null = null;
+let rainViewerPendingRequest: Promise<RadarFrame[]> | null = null;
+
+const fetchRainViewerFrames = async (): Promise<RadarFrame[]> => {
+    const now = Date.now();
+    if (rainViewerCache && (now - rainViewerCache.fetchedAt) < RAINVIEWER_CACHE_TTL_MS) {
+        return rainViewerCache.frames;
+    }
+
+    if (rainViewerPendingRequest) {
+        return rainViewerPendingRequest;
+    }
+
+    rainViewerPendingRequest = fetch("https://api.rainviewer.com/public/weather-maps.json")
+        .then((res) => res.json())
+        .then((data) => {
+            const pastFrames = data.radar?.past ?? [];
+            const filteredFrames = pastFrames.filter((_: RadarFrame, index: number) => index % 4 === 0);
+
+            rainViewerCache = {
+                fetchedAt: Date.now(),
+                frames: filteredFrames,
+            };
+            return filteredFrames;
+        })
+        .finally(() => {
+            rainViewerPendingRequest = null;
+        });
+
+    return rainViewerPendingRequest;
+};
 
 // Tipos de período de chuva
 export type RainPeriod = '1h' | '24h' | '7d' | '15d' | '30d';
@@ -500,16 +533,16 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     useEffect(() => {
         const fetchRadar = async () => {
             try {
-                const res = await fetch("https://api.rainviewer.com/public/weather-maps.json");
-                const data = await res.json();
+                // const res = await fetch("https://api.rainviewer.com/public/weather-maps.json");
+                // const data = await res.json();
 
-                // Pega todos os frames das últimas 2 horas (normalmente 13 frames)
-                const pastFrames = data.radar?.past ?? [];
+                // // Pega todos os frames das últimas 2 horas (normalmente 13 frames)
+                // const pastFrames = data.radar?.past ?? [];
 
-                // FILTRO: Mantém apenas 4 frames (pega os índices 0, 4, 8 e 12)
-                // Se a API paga for usada no futuro e trouxer 12h, essa mesma lógica dividirá o tempo.
-                const filteredFrames = pastFrames.filter((_: RadarFrame, index: number) => index % 4 === 0);
-
+                // // FILTRO: Mantém apenas 4 frames (pega os índices 0, 4, 8 e 12)
+                // // Se a API paga for usada no futuro e trouxer 12h, essa mesma lógica dividirá o tempo.
+                // const filteredFrames = pastFrames.filter((_: RadarFrame, index: number) => index % 4 === 0);
+                const filteredFrames = await fetchRainViewerFrames();
                 setRadarFrames(filteredFrames);
 
                 // Seleciona o último frame (o mais atual) como padrão
@@ -632,22 +665,35 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                 <Box
                     position="absolute"
                     top="10px"
-                    left="50px"
+                    left={{ base: "8px", md: "50px" }}
+                    right={{ md: "auto" }}
                     zIndex={1000}
                     bg="rgba(255, 255, 255, 0.95)"
                     backdropFilter="blur(5px)"
                     borderRadius="md"
                     boxShadow="lg"
-                    p={1.5}
+                    p={{ base: 1.5, md: 1.5 }}
                 >
-                    <HStack spacing={3} divider={<Box w="1px" h="20px" bg="gray.300" />}>
+                    <Flex
+                        direction={{ base: "column", md: "row" }}
+                        align={{ base: "stretch", md: "center" }}
+                        gap={{ base: 1.5, md: 3 }}
+                    >
 
                         {/* Seletor de Profundidade */}
-                        <HStack spacing={1} pl={1}>
+                        <HStack
+                            spacing={1}
+                            pl={{ base: 0, md: 1 }}
+                            pr={{ base: 0, md: showRain ? 2 : 0 }}
+                            borderRight={{ base: "none", md: showRain ? "1px solid" : "none" }}
+                            borderBottom={{ base: showRain ? "1px solid" : "none", md: "none" }}
+                            borderColor="gray.300"
+                            pb={{ base: showRain ? 1 : 0, md: 0 }}
+                        >
                             <Text fontSize="xs" fontWeight="bold" color="gray.600">Profundidade:</Text>
                             <Select
                                 size='sm'
-                                width="88px"
+                                width={{ base: "84px", md: "88px" }}
                                 value={mapDepthFilter}
                                 onChange={(e) => onMapDepthFilterChange && onMapDepthFilterChange(Number(e.target.value))}
                                 bg="transparent"
@@ -664,11 +710,11 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
 
                         {/* Seletor de Período de Chuva (Aparece ao ativar botão) */}
                         {showRain && (
-                            <HStack spacing={1} pr={1}>
+                            <HStack spacing={1} pr={{ base: 0, md: 1 }}>
                                 <Text fontSize="xs" fontWeight="bold" color="blue.600">Chuva:</Text>
                                 <Select
                                     size="sm"
-                                    width="95px"
+                                    width={{ md: "95px" }}
                                     value={rainPeriod}
                                     onChange={(e) => setRainPeriod(e.target.value as RainPeriod)}
                                     bg="transparent"
@@ -686,7 +732,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                                 </Select>
                             </HStack>
                         )}
-                    </HStack>
+                    </Flex>
                 </Box>
 
                 {userLocation && (
