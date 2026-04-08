@@ -97,6 +97,7 @@ interface RainLabelProps {
 
 const CHART_ANIMATION_POINT_LIMIT = 500;
 const CHART_MAX_POINTS = 1200;
+const CHART_MAX_POINTS_MOBILE_MOISTURE = 180;
 const MM_DOMAIN = [0, 50];
 const mmTicks = [5, 15, 25, 35, 45];
 
@@ -352,10 +353,14 @@ export function SoilMoistureChart({
         });
 
         // return { chartData: rawChartData, isHighResolution: useHourly };
-        const sampledChartData = downsampleData(rawChartData, CHART_MAX_POINTS);
+        const maxPoints = isMobileViewport && metric === 'moisture'
+            ? CHART_MAX_POINTS_MOBILE_MOISTURE
+            : CHART_MAX_POINTS;
+
+        const sampledChartData = downsampleData(rawChartData, maxPoints);
         return { chartData: sampledChartData, isHighResolution: useHourly };
 
-    }, [data, metric, startDate, endDate]);
+    }, [data, isMobileViewport, metric, startDate, endDate]);
 
     const chartDataIndexByTime = useMemo(() => {
         return new Map(chartData.map((point, index) => [point.time, index]));
@@ -1192,7 +1197,7 @@ export function SoilMoistureChart({
                                 fill="#0010f1"
                                 opacity={0.8}
                                 // Se for alta resolução, barras mais finas
-                                barSize={isHighResolution ? 6 : 15}
+                                barSize={isMobileViewport ? (isHighResolution ? 18 : 26) : (isHighResolution ? 6 : 15)}
                                 // isAnimationActive={true}
                                 // animationDuration={800}
                                 isAnimationActive={useLightAnimations}
