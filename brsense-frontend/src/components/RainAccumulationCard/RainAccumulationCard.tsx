@@ -7,11 +7,10 @@ import {
     VStack,
     Button,
     Icon,
-    Skeleton,
-    Tooltip
+    Skeleton
 } from '@chakra-ui/react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MdWaterDrop, MdCalendarToday, MdInfoOutline } from 'react-icons/md';
+import { MdWaterDrop, MdCalendarToday } from 'react-icons/md';
 import { COLORS } from '../../colors/colors';
 
 export type RainPeriod = '1h' | '24h' | '7d' | '15d' | '30d';
@@ -63,7 +62,7 @@ export function RainAccumulationCard({
 }: RainAccumulationCardProps) {
     const [period, setPeriod] = useState<RainPeriod>('30d');
 
-    const { totalRain, lastRainDate, lastRainVolume } = useMemo(() => {
+    const { totalRain, lastRainDate } = useMemo(() => {
         if (!readings || readings.length === 0) {
             return { totalRain: 0, lastRainDate: null, lastRainVolume: 0 };
         }
@@ -111,8 +110,7 @@ export function RainAccumulationCard({
 
         return {
             totalRain: accRain,
-            lastRainDate: finalEvent?.timestamp ? new Date(finalEvent.timestamp) : null,
-            lastRainVolume: finalEvent?.rain_cm ? Number(finalEvent.rain_cm) : 0
+            lastRainDate: finalEvent?.timestamp ? new Date(finalEvent.timestamp) : null
         };
     }, [readings, period]);
 
@@ -196,17 +194,14 @@ export function RainAccumulationCard({
                         <HStack spacing={1.5} color="gray.400">
                             <Icon as={MdCalendarToday} boxSize={3.5} />
                             <Text fontSize="xs">Última chuva:</Text>
-                            <Tooltip label={`${lastRainVolume.toFixed(1)} mm registrados`} hasArrow placement="top" bg="gray.700">
-                                <HStack cursor="help" spacing={1}>
-                                    <Text fontSize="xs" color="white" fontWeight="medium">
-                                        {lastRainDate.toLocaleDateString('pt-BR', {
-                                            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit',
-                                            minute: '2-digit'
-                                        })}
-                                    </Text>
-                                    <Icon as={MdInfoOutline} boxSize={3.5} color={COLORS.primary} />
-                                </HStack>
-                            </Tooltip>
+                            <HStack spacing={1}>
+                                <Text fontSize="xs" color="white" fontWeight="medium">
+                                    {lastRainDate.toLocaleDateString('pt-BR', {
+                                        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit',
+                                        minute: '2-digit'
+                                    })}
+                                </Text>
+                            </HStack>
                         </HStack>
                     ) : (
                         <HStack spacing={1.5} color="gray.500">
