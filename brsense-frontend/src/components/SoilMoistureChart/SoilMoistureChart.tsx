@@ -454,12 +454,20 @@ export function SoilMoistureChart({
 
         if (!hasActiveData) return yDomain;
 
-        // const padding = (max - min) * 0.1 || 5;
-        const autoMin = Math.floor(min - 5);
-        const autoMax = Math.ceil(max + 5);
+        let autoMin: number;
+        let autoMax: number;
+
+        // SEPARAÇÃO DA LÓGICA DE MARGEM AQUI
+        if (metric === 'temperature') {
+            autoMin = Math.floor(min - 2);
+            autoMax = Math.ceil(max + 1);
+        } else {
+            autoMin = Math.floor(min - 5);
+            autoMax = Math.ceil(max + 5);
+        }
 
         return [autoMin, autoMax];
-    }, [chartData, range, visibleLines, yDomain]);
+    }, [chartData, range, visibleLines, yDomain, metric]);
 
     const [minLeft, maxLeft] = activeYDomain as [number, number];
 

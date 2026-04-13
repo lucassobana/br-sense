@@ -1,22 +1,11 @@
 import { useEffect, useState, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import {
   Box, Flex, Text, useToast, Spinner, Button,
-  Container, Heading, Badge,
-  VStack,
-  Table, Thead, Tbody, Tr, Th, Td, TableContainer,
-  Icon, Tooltip as ChakraTooltip,
-  Input, InputGroup, InputLeftElement, HStack, Menu, MenuButton, MenuList, MenuItem,
-  SimpleGrid,
-  Hide,
-  Show,
+  Container, Heading, VStack, Icon, Menu, MenuButton, MenuList, MenuItem
 } from '@chakra-ui/react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  MdArrowBack,
-  MdSearch,
-  MdArrowUpward,
-  MdArrowDownward,
-  MdArrowDropDown,
+  MdArrowBack, MdArrowDropDown
 } from 'react-icons/md';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getProbes, getFarms, getDeviceHistory } from '../services/api';
@@ -29,6 +18,7 @@ import type { MapPoint } from '../components/SatelliteMap/SatelliteMap';
 import { isUserAdmin } from '../services/auth';
 import { BatteryStatusChart } from '../components/BatteryStatus/BatteryStatusChart';
 import { RainAccumulationCard } from '../components/RainAccumulationCard/RainAccumulationCard';
+import { DeviceTable, type TableRowData, type SortKey } from '../components/DeviceTabale/DeviceTable';
 
 const SoilMoistureChart = lazy(() =>
   import('../components/SoilMoistureChart/SoilMoistureChart').then((module) => ({ default: module.SoilMoistureChart }))
@@ -36,22 +26,6 @@ const SoilMoistureChart = lazy(() =>
 const SatelliteMap = lazy(() =>
   import('../components/SatelliteMap/SatelliteMap').then((module) => ({ default: module.SatelliteMap }))
 );
-
-interface TableRowData extends Probe {
-  farmName: string;
-  status: string;
-  batteryLevel: number | undefined;
-  batteryDate: string;
-  lastCommunicationFormatted: string;
-  lastCommunicationTimestamp: number;
-}
-
-type SortKey = 'esn' | 'name' | 'farmName' | 'status' | 'batteryLevel' | 'lastCommunicationTimestamp';
-
-const formatRain = (val?: number) => {
-  if (val === undefined || val === null) return '-';
-  return `${val.toFixed(1)}`;
-};
 
 const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
@@ -107,7 +81,7 @@ export function Dashboard() {
     setSelectedDepthRefs(prev => ({ ...prev, [probeId]: depth }));
   }, []);
 
-  const [filterText, setFilterText] = useState('');
+  // const [filterText, setFilterText] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({
     key: 'status',
     direction: 'asc'
@@ -264,11 +238,8 @@ export function Dashboard() {
     const farmNameById = new Map<number | undefined, string>(farms.map((farm) => [farm.id, farm.name]));
 
     const mapped: TableRowData[] = filteredProbes.map(probe => {
-      // const mapPoint = mapPoints.find(mp => mp.id === probe.id);
       const mapPoint = mapPointById.get(probe.id);
       const status = mapPoint ? mapPoint.statusCode : 'status_offline';
-      // const farm = farms.find(f => f.id === probe.farm_id);
-      // const farmName = farm ? farm.name : '-';
       const farmName = farmNameById.get(probe.farm_id) ?? '-';
 
       const batteryReading = probe.readings
@@ -288,18 +259,9 @@ export function Dashboard() {
       };
     });
 
-    let filtered = mapped;
-    if (filterText.trim()) {
-      const lowerSearch = filterText.toLowerCase();
-      filtered = mapped.filter(item =>
-        (item.name?.toLowerCase() || '').includes(lowerSearch) ||
-        item.esn.toLowerCase().includes(lowerSearch)
-      );
-    }
-
-    return filtered.sort((a, b) => {
-      const valA = a[sortConfig.key];
-      const valB = b[sortConfig.key];
+    return mapped.sort((a, b) => {
+      const valA = a[sortConfig.key as keyof TableRowData];
+      const valB = b[sortConfig.key as keyof TableRowData];
       if (valA === valB) return 0;
       if (valA === undefined || valA === null) return 1;
       if (valB === undefined || valB === null) return -1;
@@ -308,7 +270,7 @@ export function Dashboard() {
       return 0;
     });
 
-  }, [filteredProbes, mapPoints, farms, filterText, sortConfig, viewMode]);
+  }, [filteredProbes, mapPoints, farms, sortConfig, viewMode]);
 
   const loadData = useCallback(async () => {
     try {
@@ -425,41 +387,6 @@ export function Dashboard() {
     }
   }, [selectedProbe, viewMode, selectedPeriod, customRange, fetchHistory]);
 
-
-  const getStatusColor = (status: string) => {
-    if (status.includes('status_critical')) return 'red';
-    if (status.includes('status_alert')) return 'yellow';
-    if (status.includes('status_ok')) return 'green';
-    if (status.includes('status_saturated')) return 'blue';
-    return 'gray';
-  };
-
-  const getStatusLabel = (status: string) => {
-    if (status.includes('status_critical')) return 'Crítico';
-    if (status.includes('status_alert')) return 'Atenção';
-    if (status.includes('status_ok')) return 'Ideal';
-    if (status.includes('status_saturated')) return 'Saturado';
-    return 'Offline';
-  };
-
-  // Nova lógica de Bateria Unificada
-  const getBatteryStatus = (voltage: number | null | undefined) => {
-    if (voltage === null || voltage === undefined) return { color: "gray.500", text: "--" };
-
-    const isPercentage = voltage > 10;
-    const isGood = isPercentage ? voltage > 40 : voltage >= 3.7;
-    const isWarn = isPercentage ? voltage > 15 : voltage >= 3.4;
-
-    if (isGood) return { color: "green.400", text: isPercentage ? `${voltage.toFixed(0)}%` : `${voltage.toFixed(1)}` };
-    if (isWarn) return { color: "yellow.400", text: isPercentage ? `${voltage.toFixed(0)}%` : `${voltage.toFixed(1)}` };
-    return { color: "red.400", text: isPercentage ? `${voltage.toFixed(0)}%` : `${voltage.toFixed(1)}` };
-  };
-
-  const SortIcon = ({ column }: { column: SortKey }) => {
-    if (sortConfig.key !== column) return null;
-    return <Icon as={sortConfig.direction === 'asc' ? MdArrowUpward : MdArrowDownward} ml={1} />;
-  };
-
   if (loading) {
     return (
       <Flex h="100vh" align="center" justify="center" bg={COLORS.background}>
@@ -538,7 +465,7 @@ export function Dashboard() {
                   Monitoramento Detalhado
                 </Heading>
 
-                <InputGroup maxW="300px">
+                {/* <InputGroup maxW="300px">
                   <InputLeftElement pointerEvents="none">
                     <Icon as={MdSearch} color="gray.500" />
                   </InputLeftElement>
@@ -552,167 +479,15 @@ export function Dashboard() {
                     _placeholder={{ color: 'gray.500' }}
                     _focus={{ borderColor: 'blue.500' }}
                   />
-                </InputGroup>
+                </InputGroup> */}
               </Flex>
 
-              {filteredProbes.length === 0 ? (
-                <Text color="gray.500" fontStyle="italic">Nenhuma sonda encontrada.</Text>
-              ) : (
-                // <TableContainer bg="gray.800" borderRadius="xl" border="1px solid" borderColor="gray.700" boxShadow="lg" overflowX="auto">
-                //   <Table variant="simple" colorScheme="whiteAlpha" size={{ base: "sm", md: "md" }}>
-                <>
-                  <Hide above="md">
-                    <SimpleGrid
-                      gridTemplateColumns="1fr"
-                      gap={4}
-                      w="100%"
-                    >
-                      {processedTableData.map((data) => {
-                        const batteryData = getBatteryStatus(data.batteryLevel);
-
-                        return (
-                          <Box
-                            key={`mobile-card-${data.id}`}
-                            bg="gray.800"
-                            borderRadius="xl"
-                            border="1px solid"
-                            borderColor="gray.700"
-                            boxShadow="lg"
-                            p={4}
-                            cursor="pointer"
-                            onClick={() => handleMapGraphClick(data.id)}
-                            _hover={{ bg: 'whiteAlpha.100' }}
-                            overflow="hidden"
-                          >
-                            <Flex justify="space-between" align="center" gap={3} mb={3}>
-                              <Text fontSize="xl" fontWeight="bold" color="white" noOfLines={1}>
-                                {data.name || data.esn}
-                              </Text>
-                              <Badge colorScheme={getStatusColor(data.status)} variant="subtle" borderRadius="full" px={3} py={1} whiteSpace="nowrap">
-                                {getStatusLabel(data.status)}
-                              </Badge>
-                            </Flex>
-
-                            <SimpleGrid columns={3} gap={2} mb={3}>
-                              <Box bg="gray.900" borderRadius="md" p={2.5} textAlign="center">
-                                <Text fontSize="xs" color="gray.400" mb={1}>1h</Text>
-                                <Text fontSize="lg" fontWeight="bold" color="blue.200">{formatRain(data.rain_1h)}</Text>
-                              </Box>
-                              <Box bg="gray.900" borderRadius="md" p={2.5} textAlign="center">
-                                <Text fontSize="xs" color="gray.400" mb={1}>24h</Text>
-                                <Text fontSize="lg" fontWeight="bold" color="blue.300">{formatRain(data.rain_24h)}</Text>
-                              </Box>
-                              <Box bg="gray.900" borderRadius="md" p={2.5} textAlign="center">
-                                <Text fontSize="xs" color="gray.400" mb={1}>7d</Text>
-                                <Text fontSize="lg" fontWeight="bold" color="blue.400">{formatRain(data.rain_7d)}</Text>
-                              </Box>
-                            </SimpleGrid>
-
-                            <Flex justify="space-between" align="flex-end" gap={2}>
-                              <Box minW={0}>
-                                <Text color="gray.400" fontSize="sm" noOfLines={1}>ESN: {data.esn}</Text>
-                                <Text color="gray.200" fontSize="2xl" lineHeight={1.25} noOfLines={2}>{data.farmName}</Text>
-                                <Text color="gray.400" fontSize="sm" mt={1} noOfLines={1}>Último envio: {data.lastCommunicationFormatted}</Text>
-                              </Box>
-                              <Text fontSize="2xl" fontWeight="bold" color={batteryData.color} whiteSpace="nowrap" fontFamily="mono">
-                                {batteryData.text}
-                              </Text>
-                            </Flex>
-                          </Box>
-                        );
-                      })}
-                    </SimpleGrid>
-                  </Hide>
-
-                  <Show above="md">
-                    <TableContainer
-                      bg="gray.800"
-                      borderRadius="xl"
-                      border="1px solid"
-                      borderColor="gray.700"
-                      boxShadow="lg"
-                      overflowX="auto"
-                    >
-                      <Table variant="simple" colorScheme="whiteAlpha" size={{ base: "sm", md: "md" }}>
-                        <Thead>
-                          <Tr>
-                            <Th rowSpan={2} color="gray.400" borderColor="gray.700" cursor="pointer" onClick={() => handleSort('name')} verticalAlign="bottom" pb={3} px={{ base: 1.5, md: 3 }} whiteSpace="nowrap">
-                              <HStack spacing={0}><Text>Nome</Text><SortIcon column="name" /></HStack>
-                            </Th>
-                            <Th colSpan={3} color="blue.300" borderColor="gray.600" textAlign="center" borderBottomWidth="1px" pt={2} px={{ base: 1, md: 2 }} textTransform="none">
-                              PRECIPITAÇÃO (mm)
-                            </Th>
-                            <Th rowSpan={2} color="gray.400" borderColor="gray.700" cursor="pointer" onClick={() => handleSort('status')} verticalAlign="bottom" pb={3} px={{ base: 1.5, md: 3 }} whiteSpace="nowrap">
-                              <HStack spacing={0}><Text>Status</Text><SortIcon column="status" /></HStack>
-                            </Th>
-
-                            <Th rowSpan={2} color="gray.400" borderColor="gray.700" cursor="pointer" onClick={() => handleSort('lastCommunicationTimestamp')} verticalAlign="bottom" pb={3} px={{ base: 1.5, md: 3 }} whiteSpace="nowrap">
-                              <HStack spacing={0}><Text>Último envio</Text><SortIcon column="lastCommunicationTimestamp" /></HStack>
-                            </Th>
-
-                            <Th rowSpan={2} color="gray.400" borderColor="gray.700" textAlign="center" cursor="pointer" onClick={() => handleSort('batteryLevel')} verticalAlign="bottom" pb={3} px={{ base: 1.5, md: 3 }} whiteSpace="nowrap">
-                              <HStack spacing={0} justify="center"><Text>Bateria (V)</Text><SortIcon column="batteryLevel" /></HStack>
-                            </Th>
-                            <Th rowSpan={2} color="gray.400" borderColor="gray.700" cursor="pointer" onClick={() => handleSort('esn')} verticalAlign="bottom" pb={3} px={{ base: 1.5, md: 3 }} whiteSpace="nowrap">
-                              <HStack spacing={0}><Text>ESN</Text><SortIcon column="esn" /></HStack>
-                            </Th>
-                            <Th rowSpan={2} color="gray.400" borderColor="gray.700" cursor="pointer" onClick={() => handleSort('farmName')} verticalAlign="bottom" pb={3} px={{ base: 1.5, md: 3 }} whiteSpace="nowrap">
-                              <HStack spacing={0}><Text>Fazenda</Text><SortIcon column="farmName" /></HStack>
-                            </Th>
-                          </Tr>
-                          <Tr>
-                            <Th color="blue.200" borderColor="gray.700" textAlign="center" fontSize="xs" py={1} px={{ base: 1, md: 2 }}>1h</Th>
-                            <Th color="blue.300" borderColor="gray.700" textAlign="center" fontSize="xs" py={1} px={{ base: 1, md: 2 }}>24h</Th>
-                            <Th color="blue.400" borderColor="gray.700" textAlign="center" fontSize="xs" py={1} px={{ base: 1, md: 2 }}>7d</Th>
-                          </Tr>
-                        </Thead>
-
-                        <Tbody>
-                          {processedTableData.map((data) => (
-                            <Tr
-                              key={data.id}
-                              onClick={() => handleMapGraphClick(data.id)}
-                              cursor="pointer"
-                              _hover={{ bg: 'whiteAlpha.100', transform: "translateY(-1px)", boxShadow: "sm" }}
-                              transition="all 0.2s"
-                            >
-                              <Td borderColor="gray.700" color="gray.300" px={{ base: 1.5, md: 3 }} whiteSpace="nowrap">{data.name || '-'}</Td>
-                              <Td borderColor="gray.700" textAlign="center" fontWeight="bold" color="blue.200" px={{ base: 1, md: 2 }} whiteSpace="nowrap">{formatRain(data.rain_1h)}</Td>
-                              <Td borderColor="gray.700" textAlign="center" fontWeight="bold" color="blue.300" px={{ base: 1, md: 2 }} whiteSpace="nowrap">{formatRain(data.rain_24h)}</Td>
-                              <Td borderColor="gray.700" textAlign="center" color="blue.400" px={{ base: 1, md: 2 }} whiteSpace="nowrap">{formatRain(data.rain_7d)}</Td>
-                              <Td borderColor="gray.700">
-                                <Badge colorScheme={getStatusColor(data.status)} variant="subtle" borderRadius="md" px={2} fontSize="0.75rem">
-                                  {getStatusLabel(data.status)}
-                                </Badge>
-                              </Td>
-                              <Td borderColor="gray.700" color="gray.300" px={{ base: 1.5, md: 3 }} whiteSpace="nowrap">{data.lastCommunicationFormatted}</Td>
-
-
-                              {/* Coluna da Bateria Atualizada */}
-                              <Td borderColor="gray.700" textAlign="center" px={{ base: 1.5, md: 3 }} whiteSpace="nowrap">
-                                {(() => {
-                                  const batteryData = getBatteryStatus(data.batteryLevel);
-                                  return (
-                                    <ChakraTooltip label={data.batteryDate ? `Última leitura: ${data.batteryDate}` : 'Sem dados'} hasArrow bg="gray.700" color="white">
-                                      <HStack justify="center" spacing={1.5}>
-                                        <Text fontSize="sm" fontWeight="bold" color={batteryData.color} fontFamily="mono">
-                                          {batteryData.text}
-                                        </Text>
-                                      </HStack>
-                                    </ChakraTooltip>
-                                  );
-                                })()}
-                              </Td>
-                              <Td borderColor="gray.700" fontWeight="medium" color="white" px={{ base: 1.5, md: 3 }} whiteSpace="nowrap">{data.esn}</Td>
-                              <Td borderColor="gray.700" color="gray.300" px={{ base: 1.5, md: 3 }} whiteSpace="nowrap">{data.farmName}</Td>
-                            </Tr>
-                          ))}
-                        </Tbody>
-                      </Table>
-                    </TableContainer>
-                  </Show>
-                </>
-              )}
+              <DeviceTable
+                data={processedTableData}
+                onRowClick={handleMapGraphClick}
+                sortConfig={sortConfig}
+                onSort={handleSort}
+              />
             </Container>
           </MotionBox>
         )}
