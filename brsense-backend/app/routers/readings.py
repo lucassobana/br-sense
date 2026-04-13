@@ -29,40 +29,51 @@ def get_device_history(
     esn: str, 
     start_date: Optional[datetime] = None, 
     end_date: Optional[datetime] = None,
-    limit: int = 100000, # 1. AUMENTADO: Padrão passa a ser 50.000 linhas
     db: Session = Depends(get_db)
 ):
     """
-    Retorna o histórico de leituras de um dispositivo específico (ESN).
+    Retorna o histórico otimizado, suportando grandes períodos de tempo.
     """
-    # 1. Verifica se o dispositivo existe
     device = db.query(Device).filter(Device.esn == esn).first()
     if not device:
         raise HTTPException(status_code=404, detail="Dispositivo não encontrado")
     
-    query = db.query(Reading).filter(Reading.device_id == device.id)
-    if start_date and start_date.tzinfo:
-        start_date = start_date.replace(tzinfo=None)
-        
-    if end_date and end_date.tzinfo:
-        end_date = end_date.replace(tzinfo=None)
-
-    if start_date:
-        query = query.filter(Reading.timestamp >= start_date)
-    if end_date:
-        query = query.filter(Reading.timestamp < end_date)
+    query = db.query(
+        Reading.timestamp,
+        Reading.depth_cm,
+        Reading.moisture_pct,
+        Reading.temperature_c,
+        Reading.battery_status,
+        Reading.rain_cm
+    ).filter(Reading.device_id == device.id)
     
-    # 2. AUMENTADO: O teto de segurança passa para 100.000 linhas para permitir 30 dias completos
-    safe_limit = max(1, min(limit, 500000))
+    # Tratamento de Timezone e Filtros
+    if start_date:
+        if start_date.tzinfo:
+            start_date = start_date.replace(tzinfo=None)
+        query = query.filter(Reading.timestamp >= start_date)
+        
+    if end_date:
+        if end_date.tzinfo:
+            end_date = end_date.replace(tzinfo=None)
+        query = query.filter(Reading.timestamp <= end_date)
+        
+    if not start_date and not end_date:
+        query = query.limit(10000)
 
-    if start_date or end_date:
-        readings = query.order_by(Reading.timestamp.desc()).limit(safe_limit).all()
-        readings = readings[::-1]
-    else:
-        readings = query.order_by(Reading.timestamp.desc()).limit(safe_limit).all()
-        readings = readings[::-1]
+    readings = query.order_by(Reading.timestamp.asc()).all()
 
-    return readings
+    return [
+        {
+            "timestamp": r.timestamp,
+            "depth_cm": r.depth_cm,
+            "moisture_pct": r.moisture_pct,
+            "temperature_c": r.temperature_c,
+            "battery_status": r.battery_status,
+            "rain_cm": r.rain_cm
+        }
+        for r in readings
+    ]
 
 @router.get("/logs")
 def view_uplink_logs(limit: int = 50, db: Session = Depends(get_db)):
