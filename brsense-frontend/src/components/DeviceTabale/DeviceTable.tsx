@@ -60,11 +60,19 @@ export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTabl
         return `${cv} cv (${kw} kW)`;
     };
 
-    const getStatusColor = (status: string) => {
-        if (status.includes('status_critical')) return 'red.400';
-        if (status.includes('status_alert')) return 'yellow.400';
-        if (status.includes('status_ok')) return 'green.400';
-        if (status.includes('status_saturated')) return 'blue.400';
+    const getStatusColor = (status: string, version: string) => {
+        if (version === 'desktop') {
+            if (status.includes('status_critical')) return 'red';
+            if (status.includes('status_alert')) return 'yellow';
+            if (status.includes('status_ok')) return 'green';
+            if (status.includes('status_saturated')) return 'blue';
+        }
+        else {
+            if (status.includes('status_critical')) return 'red.400';
+            if (status.includes('status_alert')) return 'yellow.400';
+            if (status.includes('status_ok')) return 'green.400';
+            if (status.includes('status_saturated')) return 'blue.400';
+        }
         return 'gray.400';
     };
 
@@ -166,7 +174,7 @@ export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTabl
                                     left: '0',
                                     width: '5px',
                                     borderRadius: '0 6px 6px 0',
-                                    bg: getStatusColor(row.status),
+                                    bg: getStatusColor(row.status, 'mobile'),
                                 }}
                             >
                                 {/* CABEÇALHO DO CARD */}
@@ -177,7 +185,7 @@ export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTabl
                                     </Box>
 
                                     <Flex align="center" gap={1}>
-                                        <Badge backgroundColor={getStatusColor(row.status)} variant="subtle" borderRadius="full" px={2} py={1} whiteSpace="nowrap">
+                                        <Badge backgroundColor={getStatusColor(row.status, 'mobile')} variant="subtle" borderRadius="full" px={2} py={1} whiteSpace="nowrap">
                                             {getStatusLabel(row.status)}
                                         </Badge>
                                     </Flex>
@@ -294,7 +302,7 @@ export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTabl
                                         <Td borderColor="gray.700" textAlign="center" color="blue.400" px={{ base: 1, md: 2 }} whiteSpace="nowrap">{formatRain(row.rain_7d)}</Td>
 
                                         <Td borderColor="gray.700">
-                                            <Badge colorScheme={getStatusColor(row.status)} variant="subtle" borderRadius="md" px={2} fontSize="0.75rem">
+                                            <Badge colorScheme={getStatusColor(row.status, 'desktop')} variant="subtle" borderRadius="md" px={2} fontSize="0.75rem">
                                                 {getStatusLabel(row.status)}
                                             </Badge>
                                         </Td>
