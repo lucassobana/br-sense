@@ -53,13 +53,19 @@ const formatLastCommunication = (value?: string) => {
 };
 
 const getLastCommunicationTimestamp = (probe: Probe) => {
+  const parseToUTC = (dateStr: string) => {
+    const normalized = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+    const utcStr = normalized.endsWith('Z') ? normalized : normalized + 'Z';
+    return new Date(utcStr).getTime();
+  };
+
   const latestReadingTimestamp = probe.readings
-    ?.map((reading) => new Date(reading.timestamp).getTime())
+    ?.map((reading) => parseToUTC(reading.timestamp))
     .filter((ts) => !Number.isNaN(ts))
     .sort((a, b) => b - a)[0];
 
   const probeLastCommunication = probe.last_communication
-    ? new Date(probe.last_communication.includes('T') ? probe.last_communication : probe.last_communication.replace(' ', 'T')).getTime()
+    ? parseToUTC(probe.last_communication)
     : NaN;
 
   if (!Number.isNaN(probeLastCommunication)) return probeLastCommunication;
