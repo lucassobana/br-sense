@@ -155,13 +155,9 @@ def _calculate_power_status(power_val: float, timestamp: datetime) -> tuple[floa
     de bateria e painel solar para ambas as versões.
     Retorna uma tupla: (battery_val, solar_val)
     """
-    is_solar = False
+    is_solar = (timestamp.hour % 2 != 0)
     
     if power_val > 8:
-        is_solar = True
-    elif (timestamp.hour >= 22 or timestamp.hour < 5) and power_val <= 1:
-        is_solar = True
-    elif timestamp.hour % 2 != 0:
         is_solar = True
 
     battery_val = None
