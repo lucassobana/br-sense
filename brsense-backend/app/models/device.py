@@ -1,7 +1,7 @@
 # app/models/device.py
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
-from sqlalchemy import String, DateTime, ForeignKey, Float, Integer
+from sqlalchemy import String, DateTime, ForeignKey, Float, Integer, Date
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.models.device_config import DeviceConfig
@@ -17,6 +17,10 @@ class Device(Base):
     esn: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(64), nullable=True)
     location: Mapped[str] = mapped_column(String(128), nullable=True)
+    
+    cultura: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    data_plantio: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)
+    potencia_cv: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     
     config_moisture_v1 = mapped_column(Float, default=30.0, nullable=True)
     config_moisture_v2 = mapped_column(Float, default=45.0, nullable=True)

@@ -4,7 +4,7 @@ from app.settings import settings
 
 DATABASE_URL = str(settings.DATABASE_URL)
 
-engine = create_engine(DATABASE_URL, pool_pre_ping=True, future=True)
+engine = create_engine(DATABASE_URL,pool_size=5,max_overflow=5, pool_pre_ping=True, future=True)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, future=True)
 
 def get_db():

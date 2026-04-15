@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -64,14 +64,14 @@ def populate_rain_metrics(db: Session, devices: List[Device]) -> List[Device]:
 @router.get("/devices", response_model=List[DeviceRead])
 def read_devices(
     skip: int = 0, 
-    limit: int = 100, 
+    limit: int = 25, 
     token_payload: dict = Depends(get_current_user_token),
     db: Session = Depends(get_db)
 ):
     user, is_admin = get_user_and_roles(db, token_payload)
     
     # Busca devices trazendo também as leituras de forma otimizada
-    query = db.query(Device).options(selectinload(Device.readings))
+    query = db.query(Device)
 
     if is_admin:
         pass
@@ -101,7 +101,7 @@ def read_user_devices(
 
     devices = (
         db.query(Device)
-        .options(selectinload(Device.readings))
+        
         .join(Farm)
         .filter(Farm.user_id == user_id)
         .offset(skip)
@@ -132,7 +132,7 @@ def create_or_associate_device(
             )
 
     clean_esn = device_data.esn.strip()
-    db_device = db.query(Device).options(selectinload(Device.readings)).filter(Device.esn == clean_esn).first()
+    db_device = db.query(Device).filter(Device.esn == clean_esn).first()
 
     if db_device:
         # Atualiza dados existentes
@@ -183,7 +183,7 @@ def update_device(
 ):
     user, is_admin = get_user_and_roles(db, token_payload)
 
-    db_device = db.query(Device).options(selectinload(Device.readings)).filter(Device.esn == esn).first()
+    db_device = db.query(Device).filter(Device.esn == esn).first()
     if not db_device:
         raise HTTPException(status_code=404, detail="Sonda não encontrada")
 

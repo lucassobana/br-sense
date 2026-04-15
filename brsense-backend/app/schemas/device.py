@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional, List # <--- Importante: Importar List
 
 class DeviceReadingSchema(BaseModel):
@@ -26,6 +26,10 @@ class DeviceRead(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     
+    cultura: Optional[str] = None
+    data_plantio: Optional[date] = None
+    potencia_cv: Optional[float] = None
+    
     config_moisture_v1: Optional[float] = 30.0
     config_moisture_v2: Optional[float] = 45.0
     config_moisture_v3: Optional[float] = 60.0
@@ -45,6 +49,9 @@ class DeviceUpdate(BaseModel):
     farm_id: Optional[int] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    cultura: Optional[str] = None
+    data_plantio: Optional[date] = None
+    potencia_cv: Optional[float] = None
     config_moisture_v1: Optional[float] = None
     config_moisture_v2: Optional[float] = None
     config_moisture_v3: Optional[float] = None
@@ -56,6 +63,9 @@ class DeviceCreate(BaseModel):
     name: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    cultura: Optional[str] = None
+    data_plantio: Optional[date] = None
+    potencia_cv: Optional[float] = None
     config_moisture_v1: Optional[float] = 30.0
     config_moisture_v2: Optional[float] = 45.0
     config_moisture_v3: Optional[float] = 60.0

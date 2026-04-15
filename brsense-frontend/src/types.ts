@@ -21,6 +21,10 @@ export interface Probe {
   last_communication: string;
   readings: Measurement[];
 
+  cultura?: string | null;
+  data_plantio?: string | null;
+  potencia_cv?: number | null;
+
   measurements?: Measurement[];
   position?: [number, number];
   farm_id?: number;
