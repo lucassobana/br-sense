@@ -264,10 +264,27 @@ export function Dashboard() {
         lastCommunicationTimestamp
       };
     });
+    const statusWeight: Record<string, number> = {
+      'status_critical': 1,
+      'status_alert': 2,
+      'status_ok': 3,
+      'status_saturated': 4,
+      'status_offline': 5
+    };
 
     return mapped.sort((a, b) => {
+      if (sortConfig.key === 'status') {
+        const weightA = statusWeight[a.status] || 99;
+        const weightB = statusWeight[b.status] || 99;
+
+        if (weightA < weightB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (weightA > weightB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      }
+
       const valA = a[sortConfig.key as keyof TableRowData];
       const valB = b[sortConfig.key as keyof TableRowData];
+
       if (valA === valB) return 0;
       if (valA === undefined || valA === null) return 1;
       if (valB === undefined || valB === null) return -1;
