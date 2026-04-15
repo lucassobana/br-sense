@@ -41,6 +41,7 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
             case 'status_critical': return 'Crítico';
             case 'status_ok': return 'Ideal';
             case 'status_saturated': return 'Saturado';
+            case 'status_alert': return 'Atenção';
             default: return 'Offline';
         }
     };
@@ -50,6 +51,7 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
             case 'status_critical': return 'red.400';
             case 'status_ok': return 'green.400';
             case 'status_saturated': return 'cyan.400';
+            case 'status_alert': return 'yellow.400';
             default: return 'gray.400';
         }
     };

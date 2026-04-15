@@ -18,7 +18,7 @@ import type { MapPoint } from '../components/SatelliteMap/SatelliteMap';
 import { isUserAdmin } from '../services/auth';
 import { BatteryStatusChart } from '../components/BatteryStatus/BatteryStatusChart';
 import { RainAccumulationCard } from '../components/RainAccumulationCard/RainAccumulationCard';
-import { DeviceTable, type TableRowData, type SortKey } from '../components/DeviceTabale/DeviceTable';
+import { DeviceTable, type TableRowData, type SortKey } from '../components/DeviceTable/DeviceTable';
 
 const SoilMoistureChart = lazy(() =>
   import('../components/SoilMoistureChart/SoilMoistureChart').then((module) => ({ default: module.SoilMoistureChart }))
@@ -482,7 +482,7 @@ export function Dashboard() {
               </Box>
             </Box>
 
-            <Container maxW="container.xl" mt={8} mb={10}>
+            <Container maxW="1500px" mt={8} mb={10}>
               <Flex justify="space-between" align="center" mb={6} wrap="wrap" gap={4}>
                 <Heading size="md" color={COLORS.textPrimary} borderLeft="4px solid" borderColor="blue.500" pl={3}>
                   Monitoramento Detalhado
