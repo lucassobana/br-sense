@@ -56,8 +56,10 @@ export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTabl
 
     const formatarPotencia = (cv?: number | null) => {
         if (cv === null || cv === undefined) return '-';
-        const kw = (cv * 0.7355).toFixed(2);
-        return `${cv} cv (${kw} kW)`;
+
+        const kw = Math.ceil(cv * 0.7355);
+
+        return `${Math.ceil(cv)}cv/(${kw}kW)`;
     };
 
     const getStatusColor = (status: string, version: string) => {
