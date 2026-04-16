@@ -59,7 +59,7 @@ export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTabl
 
         const kw = Math.ceil(cv * 0.7355);
 
-        return `${Math.ceil(cv)}cv/(${kw}kW)`;
+        return `${Math.ceil(cv)}cv/${kw}kw`;
     };
 
     const getStatusColor = (status: string, version: string) => {
