@@ -482,7 +482,7 @@ export function Dashboard() {
               </Box>
             </Box>
 
-            <Container maxW="1500px" mt={8} mb={10}>
+            <Container maxW="full" mt={8} mb={10} px={{ base: 4, lg: 12 }}>
               <Flex justify="space-between" align="center" mb={6} wrap="wrap" gap={4}>
                 <Heading size="md" color={COLORS.textPrimary} borderLeft="4px solid" borderColor="blue.500" pl={3}>
                   Monitoramento Detalhado
