@@ -39,6 +39,7 @@ import { parseJwt } from '../../services/auth'; // Importe sua função existent
 
 interface SidebarProps {
     organization?: boolean;
+    isAdmin?: boolean;
 }
 
 // 2. Crie um Dicionário de Organizações para facilitar a escala
@@ -86,11 +87,27 @@ const getUserOrganization = () => {
     }
 };
 
+const isUserAdmin = () => {
+    try {
+        const token = localStorage.getItem('access_token');
+        if (!token) return false;
+
+        const payload = parseJwt(token);
+        const roles: string[] = payload?.realm_access?.roles || [];
+
+        return roles.includes('admin'); // <-- CONFIRA o nome EXATO da role
+    } catch (error) {
+        console.error("Erro ao verificar admin:", error);
+        return false;
+    }
+};
+
 // --- SUB-COMPONENTE: Conteúdo Interno do Menu ---
 const SidebarContent = ({
     isExpanded,
     onItemClick,
-    organization = true // Mudado para true por padrão para exibir a logo
+    organization = true, // Mudado para true por padrão para exibir a logo
+    isAdmin = false,
 }: SidebarProps & {
     isExpanded: boolean;
     onItemClick?: () => void
@@ -109,10 +126,12 @@ const SidebarContent = ({
         if (onItemClick) onItemClick();
     };
 
-    const navItems = [
+    const navItems = isAdmin ? [
         { label: 'Mapa', icon: MdMap, path: '/' },
         { label: 'Fazendas', icon: MdAgriculture, path: '/farms' },
         { label: 'Sondas', icon: MdSensors, path: '/probes' },
+    ] : [
+        { label: 'Mapa', icon: MdMap, path: '/' }
     ];
 
     return (
@@ -230,6 +249,7 @@ export function Sidebar({ organization = true }) {
 
     // Obtém a config da org também para o header mobile
     const currentOrg = useMemo(() => getUserOrganization(), []);
+    const isAdmin = useMemo(() => isUserAdmin(), []);
 
     const MOBILE_HEADER_HEIGHT = "64px";
 
@@ -295,7 +315,7 @@ export function Sidebar({ organization = true }) {
                 zIndex={1000}
                 boxShadow="xl"
             >
-                <SidebarContent isExpanded={isHovered} organization={organization} />
+                <SidebarContent isExpanded={isHovered} organization={organization} isAdmin={isAdmin} />
             </Box>
 
             {/* 3. DRAWER MOBILE */}
@@ -312,7 +332,7 @@ export function Sidebar({ organization = true }) {
                                 color="white"
                             />
                         </Flex>
-                        <SidebarContent isExpanded={true} onItemClick={onClose} organization={organization} />
+                        <SidebarContent isExpanded={true} onItemClick={onClose} organization={organization} isAdmin={isAdmin} />
                     </DrawerBody>
                 </DrawerContent>
             </Drawer>
