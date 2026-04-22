@@ -123,6 +123,7 @@ const createCustomIcon = (color: string, rainValue: number | null, showRain: boo
 export interface MapPoint {
     id: number;
     esn: string;
+    name: string;
     lat: number;
     lng: number;
     statusCode: string;

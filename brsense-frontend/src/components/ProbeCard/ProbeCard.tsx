@@ -136,7 +136,7 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
                 {/* === FRENTE DO CARD (Sonda) === */}
                 <CardFace>
                     <Header
-                        title={`Sonda - ${point.esn}`}
+                        title={`${point.name}`}
                         statusColor={getStatusColor(point.statusCode)}
                         statusLabel={getStatusLabel(point.statusCode)}
                         onClose={onClose}
