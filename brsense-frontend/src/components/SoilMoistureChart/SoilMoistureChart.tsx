@@ -100,13 +100,32 @@ const CHART_MAX_POINTS = 1200;
 const CHART_MAX_POINTS_MOBILE_MOISTURE = 180;
 const MM_DOMAIN = [0, 50];
 const mmTicks = [5, 15, 25, 35, 45];
+// const MM_DOMAIN = [-50, 0];
+// const mmTicks = [-45, -35, -25, -15, -5];
 
-const downsampleData = <T,>(items: T[], maxPoints: number): T[] => {
+const downsampleData = <T extends ChartDataPoint & { index: number }>(items: T[], maxPoints: number): T[] => {
     if (items.length <= maxPoints) return items;
     const step = Math.ceil(items.length / maxPoints);
-    return items.filter((_, index) => index % step === 0 || index === items.length - 1);
-};
+    const result: T[] = [];
 
+    for (let i = 0; i < items.length; i += step) {
+        const chunk = items.slice(i, i + step);
+        const mainPoint = { ...chunk[0] };
+
+        // Nova funcionalidade: Usa o pico máximo para o mobile não estourar a barra
+        const chunkRains = chunk.map(item => Number(item.precipitacao) || 0);
+        const maxRain = Math.max(...chunkRains);
+
+        if (maxRain > 0) {
+            mainPoint.precipitacao = maxRain; // Apenas a lógica normal positiva
+        } else {
+            delete mainPoint.precipitacao;
+        }
+
+        result.push(mainPoint);
+    }
+    return result;
+};
 
 export function SoilMoistureChart({
     data = [],
@@ -340,15 +359,20 @@ export function SoilMoistureChart({
         const rawChartData = sortedTs.map((ts, index) => {
             const group = groupedMap.get(ts)!;
             const dateInBr = new Date(ts);
+
             const newItem: ChartDataPoint & { index: number } = {
                 index,
                 time: dateInBr.toISOString(),
-                ...(metric === 'moisture' ? { precipitacao: group.rainSum } : {})
             };
+
+            if (metric === 'moisture' && group.rainSum > 0) {
+                newItem.precipitacao = group.rainSum; // Apenas a lógica normal
+            }
 
             Object.keys(group.values).forEach(key => {
                 newItem[key] = group.values[key];
             });
+
             return newItem;
         });
 
@@ -508,10 +532,17 @@ export function SoilMoistureChart({
         if (!touch) return;
 
         const rect = chartContainerRef.current.getBoundingClientRect();
-        const x = touch.clientX - rect.left;
 
-        const ratio = x / rect.width;
+        const leftOffset = isMobileViewport ? 25 : 45;
+        const rightOffset = isMobileViewport ? 35 : 45;
 
+        const plotWidth = rect.width - leftOffset - rightOffset;
+
+        const x = touch.clientX - rect.left - leftOffset;
+
+        const ratio = Math.max(0, Math.min(1, x / plotWidth));
+
+        // 5. Calcula o índice exato
         const index = Math.round(
             range.startIndex +
             ratio * (range.endIndex - range.startIndex)
@@ -526,7 +557,7 @@ export function SoilMoistureChart({
         if (point) {
             setSelectedData(point);
         }
-    }, [chartData, range.endIndex, range.startIndex]);
+    }, [chartData, range.endIndex, range.startIndex, isMobileViewport]);
 
     // --- FECHAR SELEÇÃO AO TOCAR FORA ---
     useEffect(() => {
@@ -1227,8 +1258,6 @@ export function SoilMoistureChart({
                                     strokeWidth={2.5}
                                     dot={false}
                                     activeDot={{ r: 5, fill: color, stroke: '#fff', strokeWidth: 1 }}
-                                    // isAnimationActive={true}
-                                    // animationDuration={1000}
                                     isAnimationActive={useLightAnimations}
                                     animationDuration={useLightAnimations ? 500 : 0}
                                     animationEasing="ease-in-out"
@@ -1242,8 +1271,6 @@ export function SoilMoistureChart({
                             content={({ active, payload }) => {
                                 if (!isTouchDevice) {
                                     if (active && payload && payload.length) {
-                                        // setHoveredData(payload[0].payload);
-                                        // setActiveIndex(payload[0].payload.index);
                                         const payloadPoint = payload[0].payload as ChartDataPoint & { index?: number };
                                         const hoveredIndex = typeof payloadPoint.index === 'number' ? payloadPoint.index : null;
                                         if (hoveredIndex !== null && hoveredIndex !== lastHoverIndexRef.current) {
@@ -1264,21 +1291,6 @@ export function SoilMoistureChart({
                         {refAreaLeft && refAreaRight && (
                             <ReferenceArea yAxisId="left" x1={refAreaLeft} x2={refAreaRight} strokeOpacity={0.3} fill="#8884d8" fillOpacity={0.3} />
                         )}
-
-                        {/* <Brush
-                            dataKey="time"
-                            height={30}
-                            stroke="#3182ce"
-                            startIndex={range.startIndex}
-                            endIndex={range.endIndex}
-                            tickFormatter={() => ''}
-                            onChange={(r) => {
-                                const range = r as { startIndex?: number, endIndex?: number };
-                                if (typeof range?.startIndex === 'number' && typeof range?.endIndex === 'number') {
-                                    setRange({ startIndex: range.startIndex, endIndex: range.endIndex });
-                                }
-                            }}
-                        /> */}
                     </ComposedChart>
                 </ResponsiveContainer>
             </Box>
