@@ -82,17 +82,27 @@ def read_devices(
         dev_data["rain_24h"] = dev.rain_24h
         dev_data["rain_7d"] = dev.rain_7d
         
-        latest = db.query(Reading).filter(Reading.device_id == dev.id).order_by(desc(Reading.timestamp)).first()
+        recent_readings = (
+            db.query(Reading)
+            .filter(Reading.device_id == dev.id)
+            .order_by(desc(Reading.timestamp))
+            .limit(80)
+            .all()
+        )
         
-        latest_battery = db.query(Reading).filter(Reading.device_id == dev.id, Reading.battery_status.isnot(None)).order_by(desc(Reading.timestamp)).first()
+        latest_battery = (
+            db.query(Reading)
+            .filter(Reading.device_id == dev.id, Reading.battery_status.isnot(None))
+            .order_by(desc(Reading.timestamp))
+            .first()
+        )
         
-        readings = []
-        if latest:
-            readings.append(latest)
-        if latest_battery and (not latest or latest.id != latest_battery.id):
-            readings.append(latest_battery)
+        all_readings = list(recent_readings)
+        
+        if latest_battery and latest_battery.id not in [r.id for r in all_readings]:
+            all_readings.append(latest_battery)
             
-        dev_data["readings"] = readings
+        dev_data["readings"] = all_readings
         result_list.append(dev_data)
             
     return result_list
