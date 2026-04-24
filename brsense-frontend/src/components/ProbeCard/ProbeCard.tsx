@@ -22,7 +22,6 @@ import {
 } from 'react-icons/md';
 import type { MapPoint } from '../SatelliteMap/SatelliteMap';
 import type { Measurement } from '../../types';
-import { calculateRainStats } from '../../utils/rainUtils';
 
 interface ProbeCardProps {
     point: MapPoint | null; // Permitir null para evitar erros de tipagem na checagem
@@ -109,8 +108,12 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
     // }, [point]); // Dependência segura
 
     const rainStats = useMemo(() => {
-        return point?.readings ? calculateRainStats(point.readings) : {
-            '1h': 0, '24h': 0, '7d': 0, '15d': 0, '30d': 0
+        return {
+            '1h': point?.rain_1h ?? 0,
+            '24h': point?.rain_24h ?? 0,
+            '7d': point?.rain_7d ?? 0,
+            '15d': point?.rain_15d ?? 0,
+            '30d': point?.rain_30d ?? 0
         };
     }, [point]);
 
