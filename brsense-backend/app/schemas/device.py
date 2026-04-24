@@ -38,6 +38,8 @@ class DeviceRead(BaseModel):
     rain_1h: float = 0.0
     rain_24h: float = 0.0
     rain_7d: float = 0.0
+    rain_15d: float = 0.0
+    rain_30d: float = 0.0
 
     readings: List[DeviceReadingSchema] = Field(default_factory=list)
 
