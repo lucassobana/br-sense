@@ -9,7 +9,6 @@ import type { Measurement, RadarFrame } from '../../types';
 import { COLORS } from '../../colors/colors';
 import { PiAlignTopSimpleFill } from "react-icons/pi";
 import { ProbeCard } from '../ProbeCard/ProbeCard';
-import { calculateRainStats } from '../../utils/rainUtils';
 import { RainViewerRadarLayer } from "../RainViewer/RainViewer";
 import { RainViewerTimeline } from '../RainViewer/RainViewerTimeline';
 // import { GiRadarSweep } from "react-icons/gi";
@@ -133,6 +132,11 @@ export interface MapPoint {
     config_moisture_v1?: number;
     config_moisture_v2?: number;
     config_moisture_v3?: number;
+    rain_1h?: number;
+    rain_24h?: number;
+    rain_7d?: number;
+    rain_15d?: number;
+    rain_30d?: number;
 }
 
 interface DisplayMapPoint extends MapPoint {
@@ -458,16 +462,6 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
         return '#3182CE';                  // Azul (Saturado)
     };
 
-    const rainStatsByPoint = useMemo(() => {
-        const map: Record<number, Record<RainPeriod, number>> = {};
-
-        points.forEach(point => {
-            map[point.id] = calculateRainStats(point.readings);
-        });
-
-        return map;
-    }, [points]);
-
     // --- Dispersão de Pontos ---
     const processedPoints = useMemo(() => {
         const grouped: Record<string, MapPoint[]> = {};
@@ -758,7 +752,14 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                         : mapDepthFilter;
 
                     const markerColor = getMarkerColorForDepth(point, activeDepth);
-                    const rainVal = rainStatsByPoint[point.id]?.[rainPeriod] ?? 0;
+                    // const rainVal = rainStatsByPoint[point.id]?.[rainPeriod] ?? 0;1
+
+                    let rainVal = 0;
+                    if (rainPeriod === '1h') rainVal = point.rain_1h ?? 0;
+                    else if (rainPeriod === '24h') rainVal = point.rain_24h ?? 0;
+                    else if (rainPeriod === '7d') rainVal = point.rain_7d ?? 0;
+                    else if (rainPeriod === '15d') rainVal = point.rain_15d ?? 0;
+                    else if (rainPeriod === '30d') rainVal = point.rain_30d ?? 0;
 
                     return (
                         <React.Fragment key={point.id}>

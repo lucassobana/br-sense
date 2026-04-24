@@ -214,7 +214,12 @@ export function Dashboard() {
         // Passa as novas propriedades para o Mapa
         config_moisture_v1: v1,
         config_moisture_v2: v2,
-        config_moisture_v3: v3
+        config_moisture_v3: v3,
+        rain_1h: probe.rain_1h,
+        rain_24h: probe.rain_24h,
+        rain_7d: probe.rain_7d,
+        rain_15d: probe.rain_15d,
+        rain_30d: probe.rain_30d
       };
     });
   }, [filteredProbes, selectedDepthRefs, mapDepthFilter, viewMode]);

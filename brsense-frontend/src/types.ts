@@ -38,6 +38,8 @@ export interface Probe {
   rain_1h?: number;
   rain_24h?: number;
   rain_7d?: number;
+  rain_15d?: number;
+  rain_30d?: number;
 }
 
 export interface Farm {
