@@ -57,10 +57,11 @@ async def log_uplink_requests(request: Request, call_next):
             )
             db.add(log_entry)
             db.commit()
-            db.close()
         except Exception as e:
             print(f"Erro ao salvar log no middleware: {e}")
             # Não levantamos erro aqui para não parar o fluxo principal da API
+        finally:
+            db.close()
             
     # Continua o processamento normal para a rota de destino
     response = await call_next(request)
