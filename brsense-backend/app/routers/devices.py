@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import func, case
+from sqlalchemy import func, case, desc
 from typing import List, Optional
 from datetime import datetime, timedelta
 
@@ -59,8 +59,6 @@ def populate_rain_metrics(db: Session, devices: List[Device]) -> List[Device]:
     
     return devices
 
-# ---------------------------------------------------------
-
 @router.get("/devices", response_model=List[DeviceRead])
 def read_devices(
     skip: int = 0, 
@@ -70,20 +68,34 @@ def read_devices(
 ):
     user, is_admin = get_user_and_roles(db, token_payload)
     
-    # Busca devices trazendo também as leituras de forma otimizada
     query = db.query(Device)
-
-    if is_admin:
-        pass
-    else:
+    if not is_admin:
         query = query.join(Farm, Device.farm_id == Farm.id).filter(Farm.user_id == user.id)
         
     devices = query.offset(skip).limit(limit).all()
-    
-    # APLICA O CÁLCULO DE CHUVA AQUI
     devices = populate_rain_metrics(db, devices)
+    
+    result_list = []
+    for dev in devices:
+        dev_data = {col.name: getattr(dev, col.name) for col in dev.__table__.columns}
+        dev_data["rain_1h"] = dev.rain_1h
+        dev_data["rain_24h"] = dev.rain_24h
+        dev_data["rain_7d"] = dev.rain_7d
+        
+        latest = db.query(Reading).filter(Reading.device_id == dev.id).order_by(desc(Reading.timestamp)).first()
+        
+        latest_battery = db.query(Reading).filter(Reading.device_id == dev.id, Reading.battery_status.isnot(None)).order_by(desc(Reading.timestamp)).first()
+        
+        readings = []
+        if latest:
+            readings.append(latest)
+        if latest_battery and (not latest or latest.id != latest_battery.id):
+            readings.append(latest_battery)
             
-    return devices
+        dev_data["readings"] = readings
+        result_list.append(dev_data)
+            
+    return result_list
 
 @router.get("/devices/user/{user_id}", response_model=List[DeviceRead])
 def read_user_devices(
