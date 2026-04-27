@@ -1,6 +1,5 @@
 import {
-    Box, Flex, Text, Badge, Table, Thead, Tbody, Tr, Th, Td, TableContainer,
-    Icon, HStack, SimpleGrid, Hide, Show,
+    Box, Flex, Text, Badge, Table, Thead, Tbody, Tr, Th, Td, Icon, HStack, SimpleGrid, Hide, Show,
     Menu, MenuButton, MenuList, MenuItem, Button
 } from '@chakra-ui/react';
 import {
@@ -108,7 +107,7 @@ export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTabl
 
     return (
         <>
-            {/* VISÃO MOBILE (Intacta) */}
+            {/* VISÃO MOBILE (Intacta, como solicitado) */}
             <Hide above="md">
                 <Flex justify="space-between" align="center" mb={4} px={1}>
                     <Menu>
@@ -241,162 +240,175 @@ export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTabl
                 </SimpleGrid>
             </Hide>
 
+            {/* VISÃO DESKTOP REFATORADA (Design System de Referência, sem Scroll Lateral, Compactada e Corrigida) */}
             <Show above="md">
                 <Box bg="gray.800" borderRadius="2rem" overflow="hidden" boxShadow="2xl">
-                    <TableContainer overflowX="auto">
-                        <Table variant="unstyled" w="full" textAlign="left" sx={{ borderCollapse: 'collapse' }}>
-                            {/* CABEÇALHO */}
-                            <Thead bg="#0b243e">
-                                <Tr color="white" fontSize="10px" textTransform="uppercase" letterSpacing="0.2em" fontWeight="bold">
-                                    <Th py={6} px={8} minW="240px" cursor="pointer" onClick={() => onSort('name')} >
-                                        <HStack spacing={1}><Text>Nome do Dispositivo</Text>{renderSortIcon('name')}</HStack>
-                                    </Th>
-                                    <Th py={6} px={8} textAlign="right" borderLeft="1px solid" borderColor="whiteAlpha.100" >
-                                        Precipitação (mm) <Text as="span" ml={2} fontWeight="normal" color="blue.300">(1h | 24h | 7d)</Text>
-                                    </Th>
-                                    <Th py={6} px={8} textAlign="center" cursor="pointer" onClick={() => onSort('status')} >
-                                        <HStack spacing={1} justify="center"><Text>Status Operacional</Text>{renderSortIcon('status')}</HStack>
-                                    </Th>
-                                    <Th py={6} px={8} borderLeft="1px solid" borderColor="whiteAlpha.100" cursor="pointer" onClick={() => onSort('cultura')} >
-                                        <HStack spacing={1}><Text>Dados Agronômicos</Text>{renderSortIcon('cultura')}</HStack>
-                                    </Th>
-                                    <Th py={6} px={8} borderLeft="1px solid" borderColor="whiteAlpha.100" >
-                                        Dados Operacionais
-                                    </Th>
-                                    <Th py={6} px={8} borderLeft="1px solid" borderColor="whiteAlpha.100" cursor="pointer" onClick={() => onSort('lastCommunicationTimestamp')} >
-                                        <HStack spacing={1}><Text>Dados de Sistema</Text>{renderSortIcon('lastCommunicationTimestamp')}</HStack>
-                                    </Th>
-                                </Tr>
-                            </Thead>
+                    <Table
+                        variant="unstyled"
+                        w="full"
+                        textAlign="left"
+                        sx={{ borderCollapse: 'collapse' }}
+                    >
+                        {/* CABEÇALHO */}
+                        <Thead bg="whiteAlpha.50">
+                            <Tr color="gray.400" fontSize="10px" textTransform="uppercase" letterSpacing="0.2em" fontWeight="bold">
+                                <Th py={4} px={4} minW="200px" cursor="pointer" onClick={() => onSort('name')} color="gray.400">
+                                    <HStack spacing={1}><Text>Nome do Dispositivo</Text>{renderSortIcon('name')}</HStack>
+                                </Th>
+                                <Th py={4} px={4} textAlign="center" borderLeft="1px solid" borderColor="whiteAlpha.100" color="gray.400">
+                                    Precipitação (mm) <Text as="span" display="block" fontSize="9px" fontWeight="normal" color="whiteAlpha.600">(1h | 24h | 7d)</Text>
+                                </Th>
+                                <Th py={4} px={4} textAlign="center" cursor="pointer" onClick={() => onSort('status')} color="gray.400">
+                                    <HStack spacing={1} justify="center"><Text>Status Operacional</Text>{renderSortIcon('status')}</HStack>
+                                </Th>
+                                <Th py={4} px={4} borderLeft="1px solid" borderColor="whiteAlpha.100" cursor="pointer" onClick={() => onSort('cultura')} color="gray.400">
+                                    <HStack spacing={1}><Text>Dados Agronômicos</Text>{renderSortIcon('cultura')}</HStack>
+                                </Th>
+                                <Th py={4} px={4} borderLeft="1px solid" borderColor="whiteAlpha.100" color="gray.400">
+                                    Dados Operacionais
+                                </Th>
+                                <Th py={4} px={4} borderLeft="1px solid" borderColor="whiteAlpha.100" cursor="pointer" onClick={() => onSort('lastCommunicationTimestamp')} color="gray.400">
+                                    <HStack spacing={1}><Text>Dados de Sistema</Text>{renderSortIcon('lastCommunicationTimestamp')}</HStack>
+                                </Th>
+                            </Tr>
+                        </Thead>
 
-                            {/* CORPO DA TABELA */}
-                            <Tbody sx={{ '& tr': { borderBottom: '1px solid', borderColor: 'rgba(255, 255, 255, 0.05)' } }}>
-                                {data.map((row) => {
-                                    const batteryData = getBatteryStatus(row.batteryLevel);
-                                    const rawStatusColor = getStatusColor(row.status, 'desktop');
+                        {/* CORPO DA TABELA */}
+                        <Tbody sx={{ '& tr': { borderBottom: '1px solid', borderColor: 'rgba(255, 255, 255, 0.05)' } }}>
+                            {data.map((row) => {
+                                const batteryData = getBatteryStatus(row.batteryLevel);
+                                const rawStatusColor = getStatusColor(row.status, 'desktop');
 
-                                    // Cores do Badge baseadas no Design System enviado
-                                    let badgeBg, badgeColor, badgeDot;
-                                    if (rawStatusColor.includes('green')) { badgeBg = 'green.900'; badgeColor = 'green.300'; badgeDot = 'green.400'; }
-                                    else if (rawStatusColor.includes('red')) { badgeBg = 'red.900'; badgeColor = 'red.300'; badgeDot = 'red.400'; }
-                                    else if (rawStatusColor.includes('blue')) { badgeBg = 'blue.900'; badgeColor = 'blue.300'; badgeDot = 'blue.400'; }
-                                    else if (rawStatusColor.includes('yellow')) { badgeBg = 'yellow.900'; badgeColor = 'yellow.300'; badgeDot = 'yellow.400'; }
-                                    else { badgeBg = 'whiteAlpha.200'; badgeColor = 'gray.300'; badgeDot = 'gray.400'; }
+                                // Cores do Badge baseadas no Design System enviado
+                                let badgeBg, badgeColor, badgeDot;
+                                if (rawStatusColor.includes('green')) { badgeBg = 'green.900'; badgeColor = 'green.300'; badgeDot = 'green.400'; }
+                                else if (rawStatusColor.includes('red')) { badgeBg = 'red.900'; badgeColor = 'red.300'; badgeDot = 'red.400'; }
+                                else if (rawStatusColor.includes('blue')) { badgeBg = 'blue.900'; badgeColor = 'blue.300'; badgeDot = 'blue.400'; }
+                                else if (rawStatusColor.includes('yellow')) { badgeBg = 'yellow.900'; badgeColor = 'yellow.300'; badgeDot = 'yellow.400'; }
+                                else { badgeBg = 'whiteAlpha.200'; badgeColor = 'gray.300'; badgeDot = 'gray.400'; }
 
-                                    return (
-                                        <Tr
-                                            key={`desktop-row-${row.id}`}
-                                            onClick={() => onRowClick(row.id)}
-                                            role="group"
-                                            cursor="pointer"
-                                            backgroundColor="#021c36"
-                                            _hover={{ bg: "#172b3d" }}
-                                            transition="colors 0.2s"
-                                            position="relative"
-                                        >
-                                            {/* 1. Nome do Dispositivo */}
-                                            <Td py={8} px={8} position="relative" borderBottom="none">
-                                                <Flex align="center" gap={4}>
-                                                    {/* Hover Row Accent (A faixa azul à esquerda) */}
-                                                    <Box
-                                                        position="absolute" left={0} top={0} bottom={0} w="4px" bg="blue.500"
-                                                        opacity={0} _groupHover={{ opacity: 1 }} transition="opacity 0.2s"
-                                                    />
-
-                                                    <Flex h={10} w={10} minW={10} rounded="xl" bg="blue.900" color="blue.300" align="center" justify="center">
-                                                        <Icon as={MdSensors} boxSize={5} />
-                                                    </Flex>
-                                                    <Box>
-                                                        <Text fontFamily="heading" fontWeight="bold" fontSize="lg" color="white" lineHeight="short">
-                                                            {row.name || row.esn}
-                                                        </Text>
-                                                        <Flex align="center" gap={1} mt={0.5} fontSize="12px" color="gray.400">
-                                                            <Icon as={MdLocationOn} boxSize={3} />
-                                                            <Text>{row.farmName || 'Sem fazenda'}</Text>
-                                                        </Flex>
-                                                    </Box>
+                                return (
+                                    <Tr
+                                        key={`desktop-row-${row.id}`}
+                                        onClick={() => onRowClick(row.id)}
+                                        role="group"
+                                        cursor="pointer"
+                                        _hover={{ bg: 'whiteAlpha.50' }}
+                                        transition="colors 0.2s"
+                                        position="relative"
+                                    >
+                                        {/* 1. Nome do Dispositivo */}
+                                        <Td py={4} px={4} position="relative" borderBottom="none">
+                                            <Flex align="center" gap={3}>
+                                                {/* Hover Row Accent (A faixa azul à esquerda) */}
+                                                <Box
+                                                    position="absolute" left={0} top={0} bottom={0} w="3px" bg="blue.500"
+                                                    opacity={0} _groupHover={{ opacity: 1 }} transition="opacity 0.2s"
+                                                />
+                                                
+                                                <Flex h={8} w={8} minW={8} rounded="xl" bg="blue.900" color="blue.300" align="center" justify="center">
+                                                    <Icon as={MdSensors} boxSize={4} />
                                                 </Flex>
-                                            </Td>
-
-                                            {/* 2. Precipitação */}
-                                            <Td py={8} px={8} textAlign="right" borderLeft="1px solid" borderColor="whiteAlpha.100" borderBottom="none">
-                                                <Flex direction="column" align="flex-end" gap={1}>
-                                                    <Text color="blue.400" fontWeight="bold" fontSize="lg" lineHeight="none">
-                                                        {formatRain(row.rain_1h)} <Text as="span" fontSize="xs" fontWeight="medium" color="gray.400" ml={1}>mm</Text>
+                                                <Box>
+                                                    <Text fontFamily="heading" fontWeight="bold" fontSize="md" color="white" lineHeight="short" noOfLines={1} whiteSpace="nowrap">
+                                                        {row.name || row.esn}
                                                     </Text>
-                                                    <Flex gap={2} fontSize="12px" color="whiteAlpha.600">
-                                                        <Text>{formatRain(row.rain_24h)} mm</Text>
-                                                        <Text>{formatRain(row.rain_7d)} mm</Text>
+                                                    <Flex align="center" gap={1} mt={0.5} fontSize="10px" color="gray.400" whiteSpace="nowrap">
+                                                        <Icon as={MdLocationOn} boxSize={3} />
+                                                        <Text noOfLines={1}>{row.farmName || 'Sem fazenda'}</Text>
                                                     </Flex>
-                                                </Flex>
-                                            </Td>
+                                                </Box>
+                                            </Flex>
+                                        </Td>
 
-                                            {/* 3. Status Operacional */}
-                                            <Td py={8} px={8} textAlign="center" borderBottom="none">
-                                                <Flex
-                                                    display="inline-flex" align="center" px={4} py={1.5} rounded="full"
-                                                    bg={badgeBg} color={badgeColor} fontSize="xs" fontWeight="bold" letterSpacing="wider" textTransform="uppercase"
-                                                >
-                                                    <Box h={2} w={2} rounded="full" bg={badgeDot} mr={2} />
-                                                    {getStatusLabel(row.status)}
-                                                </Flex>
-                                            </Td>
+                                        {/* 2. Precipitação (Compactada, sem Scroll, Títulos Compactos) */}
+                                        <Td py={4} px={4} textAlign="center" borderLeft="1px solid" borderColor="whiteAlpha.100" borderBottom="none">
+                                            <HStack spacing={2} justify="center" whiteSpace="nowrap">
+                                                {/* 1h */}
+                                                <HStack spacing={1}>
+                                                    <Text color="blue.400" fontWeight="bold" fontSize="md" lineHeight="none">{formatRain(row.rain_1h)}</Text>
+                                                    <Text as="span" fontSize="xs" fontWeight="medium" color="white" lineHeight="none">mm</Text>
+                                                </HStack>
+                                                <Text as="span" color="whiteAlpha.400" fontSize="md">|</Text>
+                                                {/* 24h */}
+                                                <HStack spacing={1}>
+                                                    <Text color="blue.400" fontWeight="bold" fontSize="md" lineHeight="none">{formatRain(row.rain_24h)}</Text>
+                                                    <Text as="span" fontSize="xs" fontWeight="medium" color="white" lineHeight="none">mm</Text>
+                                                </HStack>
+                                                <Text as="span" color="whiteAlpha.400" fontSize="md">|</Text>
+                                                {/* 7d */}
+                                                <HStack spacing={1}>
+                                                    <Text color="blue.400" fontWeight="bold" fontSize="md" lineHeight="none">{formatRain(row.rain_7d)}</Text>
+                                                    <Text as="span" fontSize="xs" fontWeight="medium" color="white" lineHeight="none">mm</Text>
+                                                </HStack>
+                                            </HStack>
+                                        </Td>
 
-                                            {/* 4. Dados Agronômicos */}
-                                            <Td py={8} px={8} borderLeft="1px solid" borderColor="whiteAlpha.100" borderBottom="none">
-                                                <Flex direction="column" gap={1}>
-                                                    <Flex align="center" gap={2}>
-                                                        <Text fontSize="xs" color="gray.400">Cultura:</Text>
-                                                        <Text fontSize="sm" fontWeight="semibold" color="white">{row.cultura || '-'}</Text>
-                                                    </Flex>
-                                                    <Flex align="center" gap={2}>
-                                                        <Text fontSize="xs" color="gray.400">DAP:</Text>
-                                                        <Text fontSize="sm" fontWeight="semibold" color="white">
-                                                            {row.data_plantio ? calcularDAP(row.data_plantio) : '-'} <Text as="span" fontSize="10px" fontWeight="normal" color="whiteAlpha.600">dias</Text>
-                                                        </Text>
-                                                    </Flex>
-                                                </Flex>
-                                            </Td>
+                                        {/* 3. Status Operacional (Compactado) */}
+                                        <Td py={4} px={4} textAlign="center" borderBottom="none">
+                                            <Flex
+                                                display="inline-flex" align="center" px={3} py={1} rounded="full"
+                                                bg={badgeBg} color={badgeColor} fontSize="xs" fontWeight="bold" letterSpacing="wider" textTransform="uppercase" whiteSpace="nowrap"
+                                            >
+                                                <Box h={1.5} w={1.5} rounded="full" bg={badgeDot} mr={1.5} />
+                                                {getStatusLabel(row.status)}
+                                            </Flex>
+                                        </Td>
 
-                                            {/* 5. Dados Operacionais */}
-                                            <Td py={8} px={8} borderLeft="1px solid" borderColor="whiteAlpha.100" borderBottom="none">
-                                                <Flex direction="column" gap={1}>
-                                                    <Text fontSize="sm" fontWeight="bold" color="white">
-                                                        {row.potencia_cv ? Math.ceil(row.potencia_cv) : '-'} <Text as="span" fontSize="10px" fontWeight="normal" color="whiteAlpha.600">cv</Text>
+                                        {/* 4. Dados Agronômicos (Compactados) */}
+                                        <Td py={4} px={4} borderLeft="1px solid" borderColor="whiteAlpha.100" borderBottom="none">
+                                            <Flex direction="column" gap={0.5} fontSize="xs" whiteSpace="nowrap">
+                                                <HStack spacing={1}>
+                                                    <Text color="gray.400">Cultura:</Text>
+                                                    <Text fontWeight="semibold" color="white" noOfLines={1}>{row.cultura || '-'}</Text>
+                                                </HStack>
+                                                <HStack spacing={1}>
+                                                    <Text color="gray.400">DAP:</Text>
+                                                    <Text fontWeight="semibold" color="white">
+                                                        {row.data_plantio ? calcularDAP(row.data_plantio) : '-'} <Text as="span" fontSize="10px" fontWeight="normal" color="whiteAlpha.600">dias</Text>
                                                     </Text>
-                                                    <Text fontSize="sm" fontWeight="bold" color="white">
-                                                        {row.potencia_cv ? Math.ceil(row.potencia_cv * 0.7355) : '-'} <Text as="span" fontSize="10px" fontWeight="normal" color="whiteAlpha.600">kW</Text>
-                                                    </Text>
-                                                </Flex>
-                                            </Td>
+                                                </HStack>
+                                            </Flex>
+                                        </Td>
 
-                                            {/* 6. Dados de Sistema */}
-                                            <Td py={8} px={8} borderLeft="1px solid" borderColor="whiteAlpha.100" borderBottom="none">
-                                                <SimpleGrid columns={2} columnGap={4} rowGap={2} fontSize="11px">
-                                                    <Box>
-                                                        <Text display="block" fontSize="10px" color="gray.400" fontWeight="bold" textTransform="uppercase" mb={0.5}>Último Envio</Text>
-                                                        <Text color="white" fontSize="12px">
-                                                            {row.lastCommunicationFormatted}
-                                                        </Text>
-                                                    </Box>
-                                                    <Box>
-                                                        <Text display="block" fontSize="10px" color="gray.400" fontWeight="bold" textTransform="uppercase" mb={0.5}>Bateria</Text>
-                                                        <Flex align="center" gap={1} color={batteryData.color}>
-                                                            <Text>{batteryData.text}</Text>
-                                                            <Icon as={MdBatteryFull} fontSize="xs" />
-                                                        </Flex>
-                                                    </Box>
-                                                    <Box gridColumn="span 2" mt={1} pt={1} borderTop="1px solid" borderColor="whiteAlpha.200">
-                                                        <Text fontSize="12px" color="whiteAlpha.600">ESN: {row.esn}</Text>
-                                                    </Box>
-                                                </SimpleGrid>
-                                            </Td>
-                                        </Tr>
-                                    );
-                                })}
-                            </Tbody>
-                        </Table>
-                    </TableContainer>
+                                        {/* 5. Dados Operacionais (Compactados) */}
+                                        <Td py={4} px={4} borderLeft="1px solid" borderColor="whiteAlpha.100" borderBottom="none">
+                                            <Flex direction="column" gap={0.5} fontSize="sm" whiteSpace="nowrap">
+                                                <Text fontWeight="bold" color="white">
+                                                    {row.potencia_cv ? Math.ceil(row.potencia_cv) : '-'} <Text as="span" fontSize="10px" fontWeight="normal" color="whiteAlpha.600">cv</Text>
+                                                </Text>
+                                                <Text fontWeight="bold" color="white">
+                                                    {row.potencia_cv ? Math.ceil(row.potencia_cv * 0.7355) : '-'} <Text as="span" fontSize="10px" fontWeight="normal" color="whiteAlpha.600">kW</Text>
+                                                </Text>
+                                            </Flex>
+                                        </Td>
+
+                                        {/* 6. Dados de Sistema (Compactados, Bug Corrigido) */}
+                                        <Td py={4} px={4} borderLeft="1px solid" borderColor="whiteAlpha.100" borderBottom="none" minW="170px">
+                                            <SimpleGrid columns={2} columnGap={2} rowGap={1.5} fontSize="11px" whiteSpace="nowrap">
+                                                <Box>
+                                                    <Text display="block" fontSize="12px" color="gray.400" fontWeight="bold" textTransform="uppercase" mb={0.5} noOfLines={1}>Último Envio</Text>
+                                                    <Text color="white" noOfLines={1} fontSize="12px">
+                                                        {row.lastCommunicationFormatted}
+                                                    </Text>
+                                                </Box>
+                                                <Box textAlign="right">
+                                                    <Text display="block" fontSize="12px" color="gray.400" fontWeight="bold" textTransform="uppercase" mb={0.5} noOfLines={1}>Bateria</Text>
+                                                    <HStack justify="flex-end" spacing={1} color={batteryData.color}>
+                                                        <Text noOfLines={1}>{batteryData.text}</Text>
+                                                        <Icon as={MdBatteryFull} fontSize="md" />
+                                                    </HStack>
+                                                </Box>
+                                                <Box gridColumn="span 2" mt={0.5} pt={0.5} borderTop="1px solid" borderColor="whiteAlpha.200" whiteSpace="nowrap">
+                                                    <Text fontSize="12px" color="whiteAlpha.600" noOfLines={1}>ESN: {row.esn}</Text>
+                                                </Box>
+                                            </SimpleGrid>
+                                        </Td>
+                                    </Tr>
+                                );
+                            })}
+                        </Tbody>
+                    </Table>
                 </Box>
             </Show>
         </>
