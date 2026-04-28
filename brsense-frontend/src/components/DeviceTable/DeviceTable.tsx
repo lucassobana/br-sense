@@ -134,8 +134,8 @@ export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTabl
                                         {renderSortIcon('status')}
                                     </HStack>
                                 </Th>
-                                <Th py={4} px={4} textAlign="center" borderLeft="1px solid" borderColor="whiteAlpha.100" color="gray.400">
-                                    Precipitação (mm) <Text as="span" display="block" fontSize="10px" fontWeight="normal" color="whiteAlpha.600">(1h | 24h | 7d)</Text>
+                                <Th py={4} px={4} textAlign="center" borderLeft="1px solid" borderColor="whiteAlpha.100" color="gray.400" textTransform="none">
+                                    PRECIPITAÇÃO (mm) <Text as="span" display="block" fontSize="10px" fontWeight="normal" color="whiteAlpha.600">(1h | 24h | 7d)</Text>
                                 </Th>
                                 <Th py={4} px={4} borderLeft="1px solid" borderColor="whiteAlpha.100" cursor="pointer" onClick={() => onSort('cultura')} color="gray.400">
                                     <HStack spacing={1}><Text>Dados Agronômicos</Text>{renderSortIcon('cultura')}</HStack>
