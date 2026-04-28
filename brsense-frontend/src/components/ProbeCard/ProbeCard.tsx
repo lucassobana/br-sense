@@ -24,7 +24,7 @@ import type { MapPoint } from '../SatelliteMap/SatelliteMap';
 import type { Measurement } from '../../types';
 
 interface ProbeCardProps {
-    point: MapPoint | null; // Permitir null para evitar erros de tipagem na checagem
+    point: MapPoint | null;
     onViewGraph: (id: number) => void;
     onClose: () => void;
     selectedDepthRef?: number | null;
@@ -67,7 +67,6 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
     };
 
     // --- Dados da Sonda (Frente) ---
-    // Hook chamado INCONDICIONALMENTE (antes de qualquer return)
     const profileData = useMemo(() => {
         if (!point || !point.readings) return [];
         const uniqueDepths = new Map<number, Measurement>();
@@ -78,47 +77,55 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
             }
         });
         return Array.from(uniqueDepths.values()).sort((a, b) => a.depth_cm - b.depth_cm);
-    }, [point]); // Dependência segura
+    }, [point]); 
 
-    // --- Dados de Chuva (Verso) ---
-    // Hook chamado INCONDICIONALMENTE
-    // const rainStats = useMemo(() => {
-    //     const stats = { '1h': 0, '24h': 0, '7d': 0, '15d': 0, '30d': 0 };
-    //     if (point && point.readings && point.readings.length > 0) {
-    //         const now = new Date();
-    //         const time1h = new Date(now.getTime() - 60 * 60 * 1000);
-    //         const time24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    //         const time7d = new Date(); time7d.setDate(now.getDate() - 7);
-    //         const time15d = new Date(); time15d.setDate(now.getDate() - 15);
-    //         const time30d = new Date(); time30d.setDate(now.getDate() - 30);
+    // --- Cálculo do Último Envio ---
+    const lastCommunicationDate = useMemo(() => {
+        if (!point || !point.readings || point.readings.length === 0) return null;
+        
+        // Pega a leitura mais recente
+        const latestReading = [...point.readings].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+        
+        if (!latestReading || !latestReading.timestamp) return null;
 
-    //         point.readings.forEach(r => {
-    //             if (r.rain_cm && r.timestamp) {
-    //                 const rDate = new Date(r.timestamp);
-    //                 const val = Number(r.rain_cm);
-    //                 if (rDate >= time1h) stats['1h'] += val;
-    //                 if (rDate >= time24h) stats['24h'] += val;
-    //                 if (rDate >= time7d) stats['7d'] += val;
-    //                 if (rDate >= time15d) stats['15d'] += val;
-    //                 if (rDate >= time30d) stats['30d'] += val;
-    //             }
-    //         });
-    //     }
-    //     return stats;
-    // }, [point]); // Dependência segura
+        const date = new Date(latestReading.timestamp);
+        
+        // Formata para o padrão ex: 14/05 14:22
+        return date.toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }, [point]);
 
+    // --- Dados de Chuva com lógica interna (já que o arquivo foi deletado) ---
     const rainStats = useMemo(() => {
-        return {
-            '1h': point?.rain_1h ?? 0,
-            '24h': point?.rain_24h ?? 0,
-            '7d': point?.rain_7d ?? 0,
-            '15d': point?.rain_15d ?? 0,
-            '30d': point?.rain_30d ?? 0
-        };
+        const stats = { '1h': 0, '24h': 0, '7d': 0, '15d': 0, '30d': 0 };
+        if (point && point.readings && point.readings.length > 0) {
+            const now = new Date();
+            const time1h = new Date(now.getTime() - 60 * 60 * 1000);
+            const time24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            const time7d = new Date(); time7d.setDate(now.getDate() - 7);
+            const time15d = new Date(); time15d.setDate(now.getDate() - 15);
+            const time30d = new Date(); time30d.setDate(now.getDate() - 30);
+
+            point.readings.forEach(r => {
+                if (r.rain_cm && r.timestamp) {
+                    const rDate = new Date(r.timestamp);
+                    const val = Number(r.rain_cm);
+                    if (rDate >= time1h) stats['1h'] += val;
+                    if (rDate >= time24h) stats['24h'] += val;
+                    if (rDate >= time7d) stats['7d'] += val;
+                    if (rDate >= time15d) stats['15d'] += val;
+                    if (rDate >= time30d) stats['30d'] += val;
+                }
+            });
+        }
+        return stats;
     }, [point]);
 
     // --- Proteção contra renderização sem dados ---
-    // Agora o return null acontece DEPOIS de todos os hooks
     if (!point) return null;
 
     return (
@@ -142,12 +149,12 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
                         title={`${point.name}`}
                         statusColor={getStatusColor(point.statusCode)}
                         statusLabel={getStatusLabel(point.statusCode)}
+                        lastCommunication={lastCommunicationDate}
                         onClose={onClose}
                     />
 
                     <VStack align="stretch" spacing={2} my={2} flex="1">
                         {profileData.length > 0 ? profileData.map((r) => {
-                            // Verifica se esta é a profundidade atualmente selecionada
                             const isSelected = selectedDepthRef === r.depth_cm;
 
                             return (
@@ -172,7 +179,6 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
                                                 value={r.moisture_pct || 0}
                                                 size="xs"
                                                 borderRadius="full"
-                                                // --- MUDE ESTA LINHA ---
                                                 colorScheme={getProgressColor(r.moisture_pct || 0, point)}
                                                 bg="whiteAlpha.200"
                                             />
@@ -286,16 +292,27 @@ interface HeaderProps {
     title: string;
     statusColor: string;
     statusLabel: string;
+    lastCommunication?: string | null;
     onClose: () => void;
 }
 
-const Header = ({ title, statusColor, statusLabel, onClose }: HeaderProps) => (
+const Header = ({ title, statusColor, statusLabel, lastCommunication, onClose }: HeaderProps) => (
     <HStack justify="space-between" align="start">
-        <VStack align="start" spacing={0}>
-            <Text fontWeight="bold" fontSize="md" color="white">{title}</Text>
-            <Badge colorScheme={statusColor.split('.')[0]} fontSize="0.6em" variant="solid">
-                {statusLabel}
-            </Badge>
+        <VStack align="start" spacing={1.5} mb={1}>
+            <Text fontWeight="bold" fontSize="md" color="white" lineHeight="1">{title}</Text>
+            
+            <HStack spacing={2} align="center">
+                <Badge colorScheme={statusColor.split('.')[0]} fontSize="0.6em" variant="solid">
+                    {statusLabel}
+                </Badge>
+                
+                {lastCommunication && (
+                    <HStack spacing={1} color="gray.400">
+                        <Icon as={MdAccessTime} boxSize={3.5} />
+                        <Text fontSize="xs" fontWeight="medium">{lastCommunication}</Text>
+                    </HStack>
+                )}
+            </HStack>
         </VStack>
         <CloseButton size="sm" color="gray.400" onClick={onClose} _hover={{ color: "white" }} />
     </HStack>
