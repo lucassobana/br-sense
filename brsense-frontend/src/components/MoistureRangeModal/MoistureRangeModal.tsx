@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-    Modal, ModalOverlay, ModalContent, ModalBody, Box, Flex, Text, Button, Icon, HStack, VStack,
+    Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, Box, Flex, Text, Button, Icon, HStack, VStack,
     NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper,
     Slider, SliderTrack, SliderFilledTrack, SliderThumb
 } from '@chakra-ui/react';
@@ -58,7 +58,14 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
         setPrevIsOpen(false);
     }
 
-    const handleSave = () => {
+    const handleSave = (e?: React.FormEvent) => {
+        if (e) e.preventDefault(); // Impede o recarregamento da tela (comportamento de formulário)
+        
+        // Remove o foco do input atual para forçar o fechamento do teclado no mobile
+        if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+        }
+
         onSave({ v1: val1, v2: val2, v3: val3, intensity });
         onClose();
     };
@@ -78,7 +85,8 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
             </HStack>
             <NumberInput
                 value={value}
-                onChange={(_, val) => onChange(val || 0)}
+                // Prevenção extra para o mobile: Se o usuário apagar tudo e retornar NaN, assume 0 temporariamente
+                onChange={(_, valNumber) => onChange(isNaN(valNumber) ? 0 : valNumber)}
                 min={min}
                 max={max}
                 step={1}
@@ -98,19 +106,32 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
     return (
         <Modal isOpen={isOpen} onClose={onClose} size={{ base: "full", md: "2xl" }} isCentered motionPreset="slideInBottom">
             <ModalOverlay backdropFilter="blur(8px)" bg="blackAlpha.700" />
-            <ModalContent bg={cardDark} color="white" borderRadius={{ base: 0, md: "2xl" }} border={{ base: "none", md: "1px solid" }} borderColor="whiteAlpha.200" boxShadow="2xl">
-                <Flex px={6} py={5} borderBottom="1px solid" borderColor="whiteAlpha.100" justify="space-between" align="center">
+            
+            {/* O ModalContent agora é um 'form' para suportar o 'Enter/Ir' do teclado mobile */}
+            <ModalContent 
+                as="form" 
+                onSubmit={handleSave}
+                bg={cardDark} 
+                color="white" 
+                borderRadius={{ base: 0, md: "2xl" }} 
+                border={{ base: "none", md: "1px solid" }} 
+                borderColor="whiteAlpha.200" 
+                boxShadow="2xl"
+            >
+                {/* Header Nativo do Chakra (Evita quebrar o scroll) */}
+                <ModalHeader px={6} py={5} borderBottom="1px solid" borderColor="whiteAlpha.100" display="flex" justifyContent="space-between" alignItems="center">
                     <Box>
                         <HStack spacing={2} mb={1}>
                             <Icon as={MdWaterDrop} color={COLORS.status} boxSize={6} />
                             <Text fontSize="lg" fontWeight="bold">Configuração de Zonas (Alta Precisão)</Text>
                         </HStack>
-                        <Text fontSize="sm" color="gray.400">Defina os limites em % e a suavidade das cores do gráfico</Text>
+                        <Text fontSize="sm" color="gray.400" fontWeight="normal">Defina os limites em % e a suavidade das cores do gráfico</Text>
                     </Box>
                     <Icon as={MdSettings} color="gray.400" boxSize={5} />
-                </Flex>
+                </ModalHeader>
 
-                <ModalBody p={6}>
+                {/* Body Nativo (Garante o Scroll no Celular) */}
+                <ModalBody p={6} overflowY="auto">
                     <Flex direction={{ base: "column", md: "row" }} gap={4} mb={6}>
                         {renderInputCard("Crítico (Máx)", redColor, val1, setVal1, 0, val2)}
                         {renderInputCard("Alerta (Máx)", yellowColor, val2, setVal2, val1, val3)}
@@ -150,15 +171,16 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
                     </Box>
                 </ModalBody>
 
-                <Flex px={6} py={5} bg="whiteAlpha.50" justify="space-between" align="center" borderTop="1px solid" borderColor="whiteAlpha.100">
-                    <Button variant="ghost" size="sm" color="gray.400" _hover={{ color: "white", bg: "whiteAlpha.100" }} leftIcon={<Icon as={MdRestartAlt} />} onClick={handleReset}>
+                {/* Footer Nativo (Respeita "Safe Areas" do iPhone e barra de navegação Android) */}
+                <ModalFooter px={6} py={5} bg="whiteAlpha.50" justifyContent="space-between" alignItems="center" borderTop="1px solid" borderColor="whiteAlpha.100">
+                    <Button type="button" variant="ghost" size="sm" color="gray.400" _hover={{ color: "white", bg: "whiteAlpha.100" }} leftIcon={<Icon as={MdRestartAlt} />} onClick={handleReset}>
                         Restaurar
                     </Button>
                     <HStack spacing={3}>
-                        <Button variant="ghost" size="sm" color="gray.300" onClick={onClose}>Cancelar</Button>
-                        <Button colorScheme="blue" size="sm" px={6} onClick={handleSave}>Aplicar Valores</Button>
+                        <Button type="button" variant="ghost" size="sm" color="gray.300" onClick={onClose}>Cancelar</Button>
+                        <Button type="submit" colorScheme="blue" size="sm" px={6}>Aplicar Valores</Button>
                     </HStack>
-                </Flex>
+                </ModalFooter>
             </ModalContent>
         </Modal>
     );
