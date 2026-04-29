@@ -85,7 +85,7 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
             </HStack>
             <NumberInput
                 value={value}
-                // Prevenção extra para o mobile: Se o usuário apagar tudo e retornar NaN, assume 0 temporariamente
+                // Prevenção extra para o mobile: Se o utilizador apagar tudo e retornar NaN, assume 0 temporariamente
                 onChange={(_, valNumber) => onChange(isNaN(valNumber) ? 0 : valNumber)}
                 min={min}
                 max={max}
@@ -130,7 +130,7 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
                     <Icon as={MdSettings} color="gray.400" boxSize={5} />
                 </ModalHeader>
 
-                {/* Body Nativo (Garante o Scroll no Celular) */}
+                {/* Body Nativo (Garante o Scroll no Telemóvel) */}
                 <ModalBody p={6} overflowY="auto">
                     <Flex direction={{ base: "column", md: "row" }} gap={4} mb={6}>
                         {renderInputCard("Crítico (Máx)", redColor, val1, setVal1, 0, val2)}
@@ -143,7 +143,8 @@ export const MoistureRangeModal: React.FC<MoistureRangeModalProps> = ({
                         <Text mb={3} fontSize="sm" fontWeight="bold" color="gray.300">Intensidade do Gradiente</Text>
                         <NumberInput
                             value={intensity}
-                            onChange={(_, val) => setIntensity(Number.isFinite(val) ? val : 0)}
+                            // Agora também com a proteção idêntica aos de cima
+                            onChange={(_, valNumber) => setIntensity(isNaN(valNumber) ? 0 : valNumber)}
                             min={0}
                             max={100}
                             step={1}
