@@ -157,7 +157,6 @@ export function SoilMoistureChart({
     const [refAreaRight, setRefAreaRight] = useState<string | null>(null);
 
     // --- CONFIGURAÇÃO DE ZONAS ---
-    // const storageKey = `BRSENSE_${metric.toUpperCase()}_RANGES_${esn || 'DEFAULT'}`;
     const userStorageScope = useMemo(() => {
         const token = localStorage.getItem('access_token');
         if (!token) return 'ANON';
@@ -221,7 +220,6 @@ export function SoilMoistureChart({
 
         if (esn && isAdmin) {
             try {
-                // Mantemos o envio do intensity: 50 fixo para a API caso o back-end ainda exija esse campo
                 await updateDeviceConfig(esn, newRanges);
                 toast({ title: "Configuração salva!", status: "success", duration: 2000, isClosable: true });
                 if (onConfigUpdate) onConfigUpdate();
@@ -392,7 +390,6 @@ export function SoilMoistureChart({
 
     const useLightAnimations = chartData.length <= CHART_ANIMATION_POINT_LIMIT;
 
-    // Resetar zoom quando dados mudam
     useEffect(() => {
         const targetEnd = Math.max(0, chartData.length - 1);
         if (chartData.length > 0 && range.endIndex !== targetEnd) {
@@ -403,8 +400,6 @@ export function SoilMoistureChart({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chartData.length]);
 
-    // --- LÓGICA DE ZOOM MANUAL COM MOUSE ---
-    // const handleZoom = () => {
     const handleZoom = useCallback(() => {
         if (!refAreaLeft || !refAreaRight || !chartData.length) {
             setRefAreaLeft(null);
@@ -412,11 +407,6 @@ export function SoilMoistureChart({
             return;
         }
 
-        // let leftIndex = chartData.findIndex(d => d.time === refAreaLeft);
-        // let rightIndex = chartData.findIndex(d => d.time === refAreaRight);
-
-        // if (leftIndex < 0) leftIndex = 0;
-        // if (rightIndex < 0) rightIndex = chartData.length - 1;
         let leftIndex = chartDataIndexByTime.get(refAreaLeft) ?? 0;
         let rightIndex = chartDataIndexByTime.get(refAreaRight) ?? (chartData.length - 1);
         if (leftIndex > rightIndex) {
@@ -453,7 +443,6 @@ export function SoilMoistureChart({
         setRange({ startIndex: leftIndex, endIndex: rightIndex });
     }, [chartData, chartDataIndexByTime, onPeriodChange, refAreaLeft, refAreaRight]);
 
-    // --- ESCALA Y DINÂMICA (Apenas baseada nos pontos da curva) ---
     const activeYDomain = useMemo(() => {
         if (!chartData || chartData.length === 0) return yDomain;
         const visibleData = chartData.slice(range.startIndex, range.endIndex + 1);
@@ -481,7 +470,6 @@ export function SoilMoistureChart({
         let autoMin: number;
         let autoMax: number;
 
-        // SEPARAÇÃO DA LÓGICA DE MARGEM AQUI
         if (metric === 'temperature') {
             autoMin = Math.floor(min - 2);
             autoMax = Math.ceil(max + 1);
@@ -513,7 +501,6 @@ export function SoilMoistureChart({
             ? 7
             : (selectedPeriod === '24h' ? 24 : 15);
 
-        // Se houver menos pontos do que o alvo, mostra todos
         if (size <= targetTicks) return visibleData.map(d => d.time);
 
         const ticks = [];
@@ -542,7 +529,6 @@ export function SoilMoistureChart({
 
         const ratio = Math.max(0, Math.min(1, x / plotWidth));
 
-        // 5. Calcula o índice exato
         const index = Math.round(
             range.startIndex +
             ratio * (range.endIndex - range.startIndex)
@@ -559,7 +545,6 @@ export function SoilMoistureChart({
         }
     }, [chartData, range.endIndex, range.startIndex, isMobileViewport]);
 
-    // --- FECHAR SELEÇÃO AO TOCAR FORA ---
     useEffect(() => {
         if (!isTouchDevice || !selectedData) return;
 
@@ -574,7 +559,6 @@ export function SoilMoistureChart({
         return () => document.removeEventListener('touchstart', handleTouchOutside);
     }, [isTouchDevice, selectedData]);
 
-    // --- ZOOM COM SCROLL DO MOUSE ---
     useEffect(() => {
         const container = chartContainerRef.current;
         if (!container) return;
@@ -605,7 +589,6 @@ export function SoilMoistureChart({
         return () => container.removeEventListener('wheel', handleWheel);
     }, [chartData]);
 
-    // const toggleLine = (key: string) => setVisibleLines(prev => ({ ...prev, [key]: !prev[key] }));
     const toggleLine = useCallback((key: string) => {
         setVisibleLines(prev => ({ ...prev, [key]: !prev[key] }));
     }, []);
@@ -638,7 +621,6 @@ export function SoilMoistureChart({
         return null;
     };
 
-    // const formatDateHeader = (isoStr?: string) => {
     const headerDateFormatter = useMemo(() => new Intl.DateTimeFormat('pt-BR', {
         timeZone: 'America/Sao_Paulo',
         day: '2-digit',
@@ -678,7 +660,6 @@ export function SoilMoistureChart({
         return headerDateFormatter.format(date);
     }, [headerDateFormatter]);
 
-    // Dados ativos para exibição (Prioridade: Seleção Touch > Hover Mouse)
     const activeData: ChartDataPoint | null = selectedData ?? hoveredData;
 
     const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -767,6 +748,9 @@ export function SoilMoistureChart({
         }
         handleTouch(e);
     }, [chartData.length, handleTouch]);
+
+    // ==== SOLUÇÃO DO CACHE SVG (MOBILE) ====
+    const gradSuffix = `${rangeSettings.v1}-${rangeSettings.v2}-${rangeSettings.v3}-${rangeSettings.intensity ?? 50}`;
 
     return (
         <Box
@@ -1045,35 +1029,6 @@ export function SoilMoistureChart({
                         barCategoryGap={0}
                         barGap={0}
                     >
-                        {/* <defs>
-                            {(() => {
-                                const spread = (100 - (rangeSettings.intensity || 50)) / 2;
-                                const stop1 = Math.max(0, 50 - spread);
-                                const stop2 = Math.min(100, 50 + spread);
-
-                                const renderStops = (colorBottom: string, colorTop: string) => (
-                                    <>
-                                        <stop offset="0%" stopColor={colorBottom} />
-                                        <stop offset={`${stop1}%`} stopColor={colorBottom} />
-                                        <stop offset={`${stop2}%`} stopColor={colorTop} />
-                                        <stop offset="100%" stopColor={colorTop} />
-                                    </>
-                                );
-
-                                return (
-                                    <>
-                                        <linearGradient id="zone-1" x1="0" y1="1" x2="0" y2="0">{renderStops("#E53E3E", "#D69E2E")}</linearGradient>
-                                        <linearGradient id="zone-2" x1="0" y1="1" x2="0" y2="0">{renderStops("#D69E2E", "#38A169")}</linearGradient>
-                                        <linearGradient id="zone-3" x1="0" y1="1" x2="0" y2="0">{renderStops("#38A169", "#3182CE")}</linearGradient>
-                                    </>
-                                );
-                            })()}
-                            <linearGradient id="temp-zone" x1="0" y1="1" x2="0" y2="0">
-                                <stop offset="0%" stopColor="#7da3c9" />
-                                <stop offset="100%" stopColor="#003D7A" />
-                            </linearGradient>
-                        </defs> */}
-
                         <defs>
                             {(() => {
                                 // Garantimos que a intensidade seja de 0 a 100
@@ -1081,11 +1036,8 @@ export function SoilMoistureChart({
 
                                 const renderStops = (colorMain: string, colorNext: string) => (
                                     <>
-                                        {/* A cor principal se mantém sólida partindo da base até o percentual definido na intensidade */}
                                         <stop offset="0%" stopColor={colorMain} />
                                         <stop offset={`${intensity}%`} stopColor={colorMain} />
-
-                                        {/* No restante do espaço (se houver), ela faz a transição suave para a próxima cor */}
                                         <stop offset="100%" stopColor={intensity === 100 ? colorMain : colorNext} />
                                     </>
                                 );
@@ -1093,17 +1045,17 @@ export function SoilMoistureChart({
                                 return (
                                     <>
                                         {/* zone-1: Y=0 até v1 (Crítico -> Alerta) */}
-                                        <linearGradient id="zone-1" x1="0" y1="1" x2="0" y2="0">
+                                        <linearGradient id={`zone-1-${gradSuffix}`} x1="0" y1="1" x2="0" y2="0">
                                             {renderStops("#E53E3E", "#D69E2E")}
                                         </linearGradient>
 
                                         {/* zone-2: v1 até v2 (Alerta -> Ideal) */}
-                                        <linearGradient id="zone-2" x1="0" y1="1" x2="0" y2="0">
+                                        <linearGradient id={`zone-2-${gradSuffix}`} x1="0" y1="1" x2="0" y2="0">
                                             {renderStops("#D69E2E", "#38A169")}
                                         </linearGradient>
 
                                         {/* zone-3: v2 até v3 (Ideal -> Saturado) */}
-                                        <linearGradient id="zone-3" x1="0" y1="1" x2="0" y2="0">
+                                        <linearGradient id={`zone-3-${gradSuffix}`} x1="0" y1="1" x2="0" y2="0">
                                             {renderStops("#38A169", "#3182CE")}
                                         </linearGradient>
 
@@ -1117,7 +1069,6 @@ export function SoilMoistureChart({
                             })()}
                         </defs>
 
-                        {/* <CartesianGrid strokeDasharray="3 3" stroke="#3179c7" opacity={0.3} vertical={false} /> */}
                         <CartesianGrid
                             yAxisId="left" // <--- Ligar apenas ao eixo 'left'
                             horizontal={true}
@@ -1192,14 +1143,6 @@ export function SoilMoistureChart({
                                 tickLine={false}
                                 hide={false}
                                 width={isMobileViewport ? 24 : 30}
-                                // label={{
-                                //     value: 'mm',
-                                //     position: 'top',
-                                //     offset: 10,
-                                //     fill: '#6b7280',
-                                //     fontSize: isMobileViewport ? 9 : 12,
-                                // }}
-
                                 label={({ viewBox }) => (
                                     <text
                                         x={viewBox.x + viewBox.width - 20}
@@ -1216,9 +1159,9 @@ export function SoilMoistureChart({
 
                         {showZones && metric === 'moisture' && (
                             <>
-                                {renderZone(0, rangeSettings.v1, "url(#zone-1)", "z-critico")}
-                                {renderZone(rangeSettings.v1, rangeSettings.v2, "url(#zone-2)", "z-alerta")}
-                                {renderZone(rangeSettings.v2, rangeSettings.v3, "url(#zone-3)", "z-ideal")}
+                                {renderZone(0, rangeSettings.v1, `url(#zone-1-${gradSuffix})`, "z-critico")}
+                                {renderZone(rangeSettings.v1, rangeSettings.v2, `url(#zone-2-${gradSuffix})`, "z-alerta")}
+                                {renderZone(rangeSettings.v2, rangeSettings.v3, `url(#zone-3-${gradSuffix})`, "z-ideal")}
                                 {renderZone(rangeSettings.v3, 100, "#3182CE", "z-saturado")}
                             </>
                         )}
@@ -1237,8 +1180,6 @@ export function SoilMoistureChart({
                                 opacity={0.8}
                                 // Se for alta resolução, barras mais finas
                                 barSize={isMobileViewport ? (isHighResolution ? 18 : 26) : (isHighResolution ? 6 : 15)}
-                                // isAnimationActive={true}
-                                // animationDuration={800}
                                 isAnimationActive={useLightAnimations}
                                 animationDuration={useLightAnimations ? 400 : 0}
                                 name="Chuva"
