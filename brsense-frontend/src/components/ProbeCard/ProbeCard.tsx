@@ -90,7 +90,8 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
 
         const date = new Date(latestReading.timestamp);
         
-        // Formata para o padrão ex: 14/05 14:22
+        date.setHours(date.getHours() - 3);
+        
         return date.toLocaleString('pt-BR', {
             day: '2-digit',
             month: '2-digit',
