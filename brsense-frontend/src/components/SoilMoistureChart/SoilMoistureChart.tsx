@@ -110,16 +110,33 @@ const downsampleData = <T extends ChartDataPoint & { index: number }>(items: T[]
 
     for (let i = 0; i < items.length; i += step) {
         const chunk = items.slice(i, i + step);
-        const mainPoint = { ...chunk[0] };
+        
+        // Mantém a tipagem original para o array final
+        const mainPoint = { ...chunk[chunk.length - 1] };
+        
+        // Alias temporário para permitir a escrita dinâmica sem erros do TypeScript
+        const mp = mainPoint as ChartDataPoint;
 
-        // Nova funcionalidade: Usa o pico máximo para o mobile não estourar a barra
+        const depths = ['depth10', 'depth20', 'depth30', 'depth40', 'depth50', 'depth60'];
+        depths.forEach(depth => {
+            if (mp[depth] === undefined || mp[depth] === null) {
+                for (let j = chunk.length - 2; j >= 0; j--) {
+                    const pastPoint = chunk[j] as ChartDataPoint;
+                    if (pastPoint[depth] !== undefined && pastPoint[depth] !== null) {
+                        mp[depth] = pastPoint[depth];
+                        break;
+                    }
+                }
+            }
+        });
+
         const chunkRains = chunk.map(item => Number(item.precipitacao) || 0);
         const maxRain = Math.max(...chunkRains);
 
         if (maxRain > 0) {
-            mainPoint.precipitacao = maxRain; // Apenas a lógica normal positiva
+            mp.precipitacao = maxRain;
         } else {
-            delete mainPoint.precipitacao;
+            delete mp.precipitacao;
         }
 
         result.push(mainPoint);
