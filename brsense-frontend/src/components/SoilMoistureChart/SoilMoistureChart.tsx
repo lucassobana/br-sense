@@ -748,10 +748,11 @@ export function SoilMoistureChart({
         return (
             <text
                 x={x + width / 2}
-                y={point.rainLabelY || 15}
+                // y={point.rainLabelY || 15}
+                y={22}
                 textAnchor="middle"
                 fill="white"
-                fontSize={isMobileViewport ? 9 : 11}
+                fontSize={isMobileViewport ? 7 : 11}
                 fontWeight="bold"
             >
                 {value % 1 === 0 ? value.toFixed(0) : value.toFixed(1)}

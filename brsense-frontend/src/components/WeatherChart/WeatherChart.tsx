@@ -88,8 +88,8 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
           <foreignObject x={-30} y={4} width={60} height={20}>
             <Flex align="center" justify="center" h="100%">
               <HStack spacing={1}>
-                <Icon as={MdWaterDrop} boxSize={3.5} color="#63B3ED" />
-                <Text fontSize="10px" fontWeight="bold" color="#63B3ED">
+                <Icon as={MdWaterDrop} boxSize={3.5} color={COLORS.primaryDark} />
+                <Text fontSize="10px" fontWeight="bold" color={COLORS.primaryDark}>
                   {currentDay.precipProb}%
                 </Text>
               </HStack>
@@ -205,7 +205,7 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
               <Text color="gray.300">Precipitação prevista (mm)</Text>
             </HStack>
             <HStack spacing={1}>
-              <Icon as={MdWaterDrop} boxSize={4} color="gray.300" />
+              <Icon as={MdWaterDrop} boxSize={4} color={COLORS.primaryDark} />
               <Text color="gray.300">Probabilidade (%)</Text>
             </HStack>
           </HStack>
