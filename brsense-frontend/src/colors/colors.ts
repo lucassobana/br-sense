@@ -1,8 +1,6 @@
 export const COLORS = {
-  //* background: "#0A2540", antigo 
   background: "#0A1226FF",
   surface: "#050B18",
-  // surface: "#1A1D21",
   primary: "#3084c9ff",
   primaryDark: "#0B5FA5",
   textPrimary: "#FFFFFF",
@@ -16,10 +14,10 @@ export const COLORS = {
 };
 
 export const DEPTH_COLORS = {
-  depth10: "#ffffff",  // 60cm (vermelho mais intenso)
-  depth20: "#FDD835", // verde intenso
-  depth30: "#40ff79", // laranja escuro vibrante
-  depth40: "#6498f8", // roxo profundo e vivo
-  depth50: "#522b0f", // rosa/vermelho forte
-  depth60: "#000000", // azul escuro vivo
+  depth10: "#ffffff",
+  depth20: "#FDD835",
+  depth30: "#40ff79",
+  depth40: "#0010f1",
+  depth50: "#522b0f",
+  depth60: "#000000",
 };
