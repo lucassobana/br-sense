@@ -142,7 +142,7 @@ export const ForecastTab: React.FC<ForecastTabProps> = ({ lat, lng }) => {
                                     {day.precipProb}%
                                 </Text>
                                 <Text fontSize="10px" color="cyan.100" lineHeight="1">
-                                    {day.precipSum} mm
+                                    {Math.round(day.precipSum)} mm
                                 </Text>
                             </VStack>
 

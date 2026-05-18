@@ -85,21 +85,39 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
     return (
       <g transform={`translate(${x},${y})`}>
         {currentDay.precipProb > 0 && (
-          <foreignObject x={-30} y={4} width={60} height={20}>
+          <foreignObject x={-30} y={0} width={60} height={40}>
             <Flex align="center" justify="center" h="100%">
-              <HStack spacing={1}>
-                <Icon as={MdWaterDrop} boxSize={3.5} color={COLORS.primaryDark} />
-                <Text fontSize="10px" fontWeight="bold" color={COLORS.primaryDark}>
-                  {currentDay.precipProb}%
+              <VStack spacing={1} align="center">
+                <HStack spacing={1}>
+                  <Icon
+                    as={MdWaterDrop}
+                    boxSize={3.5}
+                    color={COLORS.primaryDark}
+                  />
+                  <Text
+                    fontSize={{ base: "10px", md: "12px" }}
+                    fontWeight="bold"
+                    color={COLORS.primaryDark}
+                  >
+                    {currentDay.precipProb}%
+                  </Text>
+                </HStack>
+
+                <Text
+                  fontSize={{ base: "10px", md: "12px" }}
+                  fontWeight="medium"
+                  color={COLORS.textPrimary}
+                >
+                  {Math.round(currentDay.precipSum)} mm
                 </Text>
-              </HStack>
+              </VStack>
             </Flex>
           </foreignObject>
         )}
 
         <text
           x={0}
-          y={40}
+          y={52}
           textAnchor="middle"
           fill="#A0AEC0"
           fontSize={12}
@@ -109,19 +127,19 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
             currentDay.dayName.slice(1)}
         </text>
 
-        <text x={0} y={56} textAnchor="middle" fill="#718096" fontSize={10}>
+        <text x={0} y={70} textAnchor="middle" fill="#718096" fontSize={10}>
           {currentDay.dayNumber}
         </text>
 
         {currentDay.tempMin !== undefined &&
           currentDay.tempMax !== undefined && (
-            <foreignObject x={-40} y={64} width={80} height={32}>
+            <foreignObject x={-40} y={76} width={80} height={40}>
               <Flex
                 align="center"
                 justify="center"
                 h="100%"
-                direction={{ base: "column", md: "row" }}
-                gap="2px"
+                direction="column"
+                gap="4px"
               >
                 <Flex align="center">
                   <Icon as={FaThermometerFull} boxSize={3} color="red.400" />
@@ -229,7 +247,7 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={chartData}
-                margin={{ top: 10, right: 15, left: 0, bottom: 85 }}
+                margin={{ top: 10, right: 15, left: 0, bottom: 120 }}
               >
                 <defs>
                   <linearGradient
@@ -288,7 +306,7 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
                     formatter={(val: unknown) =>
                       (typeof val === "number" || typeof val === "string") &&
                       Number(val) > 0
-                        ? `${Number(val)}mm`
+                        ? `${Math.round(Number(val))}mm`
                         : ""
                     }
                   />
