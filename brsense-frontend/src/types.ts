@@ -58,6 +58,17 @@ export interface RequestLog {
 }
 
 export interface RadarFrame {
-    time: number;   // Unix timestamp
-    path: string;   // Path do tile
+    time: number;
+    path: string;
+}
+
+export interface DailyForecast {
+    date: string;
+    dayName: string;
+    dayNumber: string;
+    tempMin: number;
+    tempMax: number;
+    precipProb: number;
+    precipSum: number;
+    tempRange: [number, number];
 }

@@ -797,7 +797,9 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                     <Box
                         position="absolute"
                         bottom={4}
-                        left={4}
+                        // left={4}
+                        left={{ base: '4px', md: '1rem' }}
+                        right={{ md: 'auto' }}
                         zIndex={1000}
                         bg="rgba(26, 32, 44, 0.95)"
                         borderRadius="xl"
