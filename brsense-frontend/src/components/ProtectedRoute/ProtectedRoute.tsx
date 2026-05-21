@@ -1,39 +1,51 @@
-// brsense-frontend/src/components/ProtectedRoute/ProtectedRoute.tsx
 import { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom'; // Use Outlet se usar Layout
-import { parseJwt } from '../../services/auth';
+import { Navigate } from 'react-router-dom';
+import { parseJwt, refreshTokenKeycloak } from '../../services/auth';
 import { Center, Spinner } from '@chakra-ui/react';
 
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
 
     useEffect(() => {
-        const token = localStorage.getItem('access_token');
+        const checkAuth = async () => {
+            const token = localStorage.getItem('access_token');
+            const refreshToken = localStorage.getItem('refresh_token');
 
-        if (!token) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
-            setIsAuthorized(false);
-            return;
-        }
+            if (!token) {
+                setIsAuthorized(false);
+                return;
+            }
 
-        const payload = parseJwt(token);
-        
-        // Validação de Expiração
-        // JWT 'exp' é em SEGUNDOS. Date.now() é em MILISSEGUNDOS.
-        const currentTime = Date.now() / 1000;
+            const payload = parseJwt(token);
+            const currentTime = Date.now() / 1000;
+ 
+            if (payload && payload.exp > currentTime) {
+                setIsAuthorized(true);
+                return;
+            }
 
-        if (payload && payload.exp < currentTime) {
-            // Token expirou
-            console.warn("Sessão expirada");
-            localStorage.clear(); // Limpa tudo para garantir
-            setIsAuthorized(false);
-        } else {
-            setIsAuthorized(true);
-        }
+            if (refreshToken) {
+                try {
+                    const tokens = await refreshTokenKeycloak(refreshToken);
+                    localStorage.setItem('access_token', tokens.access_token);
+                    localStorage.setItem('refresh_token', tokens.refresh_token);
+                    setIsAuthorized(true);
+                } catch  {
+                    console.warn("Falha ao renovar token. Sessão encerrada.");
+                    localStorage.removeItem('access_token');
+                    localStorage.removeItem('refresh_token');
+                    setIsAuthorized(false);
+                }
+            } else {
+                localStorage.removeItem('access_token');
+                setIsAuthorized(false);
+            }
+        };
+
+        checkAuth();
     }, []);
 
     if (isAuthorized === null) {
-        // Estado de verificação (evita "flash" de conteúdo ou redirect prematuro)
         return <Center h="100vh"><Spinner /></Center>;
     }
 
