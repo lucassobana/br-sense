@@ -1,26 +1,12 @@
-// brsense-frontend/src/components/AddDeviceModal/AddDeviceModal.tsx
 import {
-    Modal,
-    ModalOverlay,
-    ModalContent,
-    ModalHeader,
-    ModalFooter,
-    ModalBody,
-    ModalCloseButton,
-    Button,
-    FormControl,
-    FormLabel,
-    Input,
-    Select,
-    VStack,
-    HStack,
-    useToast,
-    Text
+    Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter,
+    ModalBody, ModalCloseButton, Button, FormControl, FormLabel,
+    Input, Select, VStack, Stack, useToast, Text
 } from '@chakra-ui/react';
-import { useState, useEffect, useCallback } from 'react'; // <--- 1. Importar useCallback
+import { useState, useEffect, useCallback } from 'react';
 import { AxiosError } from 'axios';
-import { createDevice, getUserFarms } from '../../services/api';
-import type { Farm } from '../../types';
+import { createDevice, getUserFarms, updateDeviceAdmin } from '../../services/api';
+import type { Farm, Probe } from '../../types';
 import { COLORS } from '../../colors/colors';
 
 interface AddDeviceModalProps {
@@ -28,227 +14,157 @@ interface AddDeviceModalProps {
     onClose: () => void;
     onSuccess: () => void;
     farmId?: number | null;
+    initialData?: Probe | null;
 }
 
-export function AddDeviceModal({ isOpen, onClose, onSuccess }: AddDeviceModalProps) {
+export function AddDeviceModal({ isOpen, onClose, onSuccess, initialData }: AddDeviceModalProps) {
     const toast = useToast();
+    const isEditMode = !!initialData;
 
-    // Estados
     const [name, setName] = useState('');
     const [esn, setEsn] = useState('');
     const [selectedFarmId, setSelectedFarmId] = useState('');
-
-    // Novos Estados para Geolocalização
     const [lat, setLat] = useState('');
     const [lng, setLng] = useState('');
+    const [cultura, setCultura] = useState('');
+    const [dataPlantio, setDataPlantio] = useState('');
 
     const [farms, setFarms] = useState<Farm[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
-    // 2. Envolver a função no useCallback para ela não ser recriada a cada render
     const loadFarms = useCallback(async () => {
         try {
             const data = await getUserFarms();
             setFarms(data);
-            if (data.length === 1) {
-                setSelectedFarmId(String(data[0].id));
-            }
         } catch (error) {
             console.error("Erro ao buscar fazendas", error);
-            toast({
-                title: 'Erro ao carregar fazendas',
-                status: 'error',
-                duration: 3000
-            });
         }
-    }, [toast]); // Dependência: toast (o resto são setters estáveis ou imports)
+    }, []);
 
-    // 3. Adicionar loadFarms no array de dependências
     useEffect(() => {
         if (isOpen) {
             loadFarms();
-            // Limpa campos ao abrir
-            setName('');
-            setEsn('');
-            setLat('');
-            setLng('');
-            setSelectedFarmId('');
+            if (initialData) {
+                setName(initialData.name || '');
+                setEsn(initialData.esn || '');
+                setSelectedFarmId(initialData.farm_id ? String(initialData.farm_id) : '');
+                setLat(initialData.latitude ? String(initialData.latitude) : '');
+                setLng(initialData.longitude ? String(initialData.longitude) : '');
+                setCultura(initialData.cultura || '');
+                setDataPlantio(initialData.data_plantio ? initialData.data_plantio.split('T')[0] : '');
+            } else {
+                setName('');
+                setEsn('');
+                setLat('');
+                setLng('');
+                setCultura('');
+                setDataPlantio('');
+                setSelectedFarmId('');
+            }
         }
-    }, [isOpen, loadFarms]);
+    }, [isOpen, loadFarms, initialData]);
 
     const handleSubmit = async () => {
-        if (!name || !esn || !selectedFarmId) {
-            toast({
-                title: 'Dados incompletos',
-                description: 'Nome, ESN e Fazenda são obrigatórios.',
-                status: 'warning',
-                duration: 3000,
-                isClosable: true,
-                position: 'top-right'
-            });
+        if (!name || !esn) {
+            toast({ title: 'Dados incompletos', status: 'warning' });
             return;
         }
 
         try {
             setIsLoading(true);
-
-            // Converte lat/lng se preenchidos
             const latitude = lat ? parseFloat(lat.replace(',', '.')) : undefined;
             const longitude = lng ? parseFloat(lng.replace(',', '.')) : undefined;
 
-            await createDevice({
-                name: name,
-                esn: esn,
-                farm_id: Number(selectedFarmId),
-                latitude,
-                longitude
-            });
-
-            toast({
-                title: 'Sonda Vinculada!',
-                description: 'A sonda agora está associada a esta fazenda e os dados históricos (se houver) serão exibidos.',
-                status: 'success',
-                duration: 5000,
-                isClosable: true,
-                position: 'top-right'
-            });
+            if (isEditMode && initialData) {
+                await updateDeviceAdmin(initialData.esn, {
+                    name,
+                    farm_id: selectedFarmId ? Number(selectedFarmId) : undefined,
+                    cultura,
+                    data_plantio: dataPlantio || undefined,
+                    latitude,
+                    longitude
+                });
+                toast({ title: 'Sonda atualizada!', status: 'success' });
+            } else {
+                await createDevice({
+                    name, esn,
+                    farm_id: Number(selectedFarmId),
+                    latitude, longitude
+                });
+                toast({ title: 'Sonda Vinculada!', status: 'success' });
+            }
 
             onSuccess();
             onClose();
-
         } catch (err) {
             const error = err as AxiosError<{ detail: string }>;
-            const msg = error.response?.data?.detail || 'Ocorreu um erro ao vincular a sonda.';
-
-            toast({
-                title: 'Falha na operação',
-                description: msg,
-                status: 'error',
-                duration: 5000,
-                isClosable: true,
-                position: 'top-right'
-            });
+            toast({ title: 'Falha na operação', description: error.response?.data?.detail, status: 'error' });
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} isCentered size="md">
+        <Modal isOpen={isOpen} onClose={onClose} isCentered size={{ base: "sm", md: "md" }}>
             <ModalOverlay />
-            <ModalContent
-                bg={COLORS.surface}
-                borderWidth="1px"
-                borderColor="gray.700"
-                color="white"
-                boxShadow="xl"
-            >
-                <ModalHeader borderBottomWidth="1px" borderColor="gray.700">
-                    Vincular Sonda (Admin)
+            <ModalContent bg={COLORS.surface} borderWidth="1px" borderColor="#2D2D2D" color="white" mx={4}>
+                <ModalHeader borderBottomWidth="1px" borderColor="#2D2D2D">
+                    {isEditMode ? `Editar Sonda (${initialData.esn})` : 'Vincular Sonda (Admin)'}
                 </ModalHeader>
                 <ModalCloseButton />
 
-                <ModalBody py={6}>
-                    <VStack spacing={5} align="stretch">
+                <ModalBody py={{ base: 4, md: 6 }}>
+                    <VStack spacing={4} align="stretch">
+                        {!isEditMode && <Text fontSize="xs" color="gray.400">Insira o ESN da sonda física para associá-la a um cliente.</Text>}
 
-                        <Text fontSize="sm" color="gray.400">
-                            Insira o ESN da sonda física para associá-la a um cliente.
-                        </Text>
-
-                        {/* Select Fazenda */}
                         <FormControl isRequired>
+                            <FormLabel color="gray.300" fontSize="sm">ESN (Identificador Globalstar)</FormLabel>
+                            <Input value={esn} onChange={(e) => setEsn(e.target.value)} isDisabled={isEditMode} bg={COLORS.background} border="none" />
+                        </FormControl>
+
+                        <FormControl isRequired>
+                            <FormLabel color="gray.300" fontSize="sm">Nome Amigável</FormLabel>
+                            <Input value={name} onChange={(e) => setName(e.target.value)} bg={COLORS.background} border="none" />
+                        </FormControl>
+
+                        <FormControl>
                             <FormLabel color="gray.300" fontSize="sm">Fazenda do Cliente</FormLabel>
-                            <Select
-                                placeholder="Selecione a fazenda de destino"
-                                value={selectedFarmId}
-                                onChange={(e) => setSelectedFarmId(e.target.value)}
-                                bg={COLORS.background}
-                                borderColor="gray.600"
-                                color="white"
-                                _hover={{ borderColor: 'gray.500' }}
-                                sx={{
-                                    '> option': {
-                                        background: '#222',
-                                        color: 'white',
-                                    },
-                                }}
-                            >
-                                {farms.map(farm => (
-                                    <option key={farm.id} value={farm.id}>
-                                        {farm.name} (ID: {farm.id})
-                                    </option>
-                                ))}
+                            <Select placeholder="Sem Fazenda" value={selectedFarmId} onChange={(e) => setSelectedFarmId(e.target.value)} bg={COLORS.background} border="none">
+                                {farms.map(farm => <option key={farm.id} value={farm.id} style={{color: 'black'}}>{farm.name}</option>)}
                             </Select>
                         </FormControl>
 
-                        {/* Input ESN */}
-                        <FormControl isRequired>
-                            <FormLabel color="gray.300" fontSize="sm">ESN (Identificador Globalstar)</FormLabel>
-                            <Input
-                                placeholder="Ex: 0-123456"
-                                value={esn}
-                                onChange={(e) => setEsn(e.target.value)}
-                                bg={COLORS.background}
-                                borderColor="gray.600"
-                                _placeholder={{ color: 'gray.500' }}
-                            />
-                        </FormControl>
+                        {/* Alterado para Stack Responsivo */}
+                        <Stack direction={{ base: "column", sm: "row" }} spacing={4}>
+                            <FormControl>
+                                <FormLabel color="gray.300" fontSize="sm">Cultura</FormLabel>
+                                <Input placeholder="Ex: Soja" value={cultura} onChange={(e) => setCultura(e.target.value)} bg={COLORS.background} border="none" />
+                            </FormControl>
+                            <FormControl>
+                                <FormLabel color="gray.300" fontSize="sm">Data Plantio</FormLabel>
+                                <Input type="date" value={dataPlantio} onChange={(e) => setDataPlantio(e.target.value)} bg={COLORS.background} border="none" css={{ '::-webkit-calendar-picker-indicator': { filter: 'invert(1)' } }} />
+                            </FormControl>
+                        </Stack>
 
-                        {/* Input Nome */}
-                        <FormControl isRequired>
-                            <FormLabel color="gray.300" fontSize="sm">Nome Amigável (para o cliente)</FormLabel>
-                            <Input
-                                placeholder="Ex: Sonda Pivô 01"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                bg={COLORS.background}
-                                borderColor="gray.600"
-                                _placeholder={{ color: 'gray.500' }}
-                            />
-                        </FormControl>
-
-                        {/* Lat / Long (Opcionais) */}
-                        <HStack>
+                        <Stack direction={{ base: "column", sm: "row" }} spacing={4}>
                             <FormControl>
                                 <FormLabel color="gray.300" fontSize="sm">Latitude</FormLabel>
-                                <Input
-                                    placeholder="-22.1234"
-                                    value={lat}
-                                    onChange={(e) => setLat(e.target.value)}
-                                    bg={COLORS.background}
-                                    borderColor="gray.600"
-                                    type="number"
-                                />
+                                <Input value={lat} onChange={(e) => setLat(e.target.value)} bg={COLORS.background} border="none" type="number" />
                             </FormControl>
                             <FormControl>
                                 <FormLabel color="gray.300" fontSize="sm">Longitude</FormLabel>
-                                <Input
-                                    placeholder="-46.5678"
-                                    value={lng}
-                                    onChange={(e) => setLng(e.target.value)}
-                                    bg={COLORS.background}
-                                    borderColor="gray.600"
-                                    type="number"
-                                />
+                                <Input value={lng} onChange={(e) => setLng(e.target.value)} bg={COLORS.background} border="none" type="number" />
                             </FormControl>
-                        </HStack>
-
+                        </Stack>
                     </VStack>
                 </ModalBody>
 
-                <ModalFooter borderTopWidth="1px" borderColor="gray.700">
-                    <Button variant="ghost" mr={3} onClick={onClose} color="gray.400" _hover={{ bg: "whiteAlpha.100", color: "white" }}>
+                <ModalFooter borderTopWidth="1px" borderColor="#2D2D2D" gap={2}>
+                    <Button variant="ghost" onClick={onClose} color="gray.400" _hover={{ bg: "whiteAlpha.100" }} flex={{ base: 1, md: "initial" }}>
                         Cancelar
                     </Button>
-                    <Button
-                        bg={COLORS.primary}
-                        color="white"
-                        _hover={{ bg: COLORS.primaryDark }}
-                        onClick={handleSubmit}
-                        isLoading={isLoading}
-                        loadingText="Vinculando..."
-                    >
-                        Salvar e Vincular
+                    <Button bg={COLORS.primary} color="white" onClick={handleSubmit} isLoading={isLoading} flex={{ base: 1, md: "initial" }}>
+                        {isEditMode ? 'Salvar' : 'Salvar e Vincular'}
                     </Button>
                 </ModalFooter>
             </ModalContent>

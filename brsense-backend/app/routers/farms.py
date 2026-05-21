@@ -6,7 +6,7 @@ from typing import List, Optional
 from app.db.session import get_db
 from app.models.farm import Farm
 from app.models.user import User
-from app.schemas.farm import FarmCreate, FarmRead
+from app.schemas.farm import FarmCreate, FarmRead, FarmUpdate
 # Importa a dependência que valida o token e extrai os dados do Keycloak
 from app.core.security import get_current_user_token, get_user_and_roles
 
@@ -54,15 +54,16 @@ def create_farm(
     token_payload: dict = Depends(get_current_user_token),
     db: Session = Depends(get_db)
 ):
-    # 1. Identifica o usuário logado
     user, is_admin = get_user_and_roles(db, token_payload)
 
-    # 2. Cria a fazenda vinculada a este usuário
+    final_user_id = farm.user_id if (is_admin and farm.user_id) else user.id
+
     new_farm = Farm(
         name=farm.name,
         location=farm.location,
-        user_id=user.id # Força o ID do usuário autenticado
+        user_id=final_user_id
     )
+    
     db.add(new_farm)
     db.commit()
     db.refresh(new_farm)
@@ -111,3 +112,28 @@ def read_user_farms(
 
     farms = db.query(Farm).filter(Farm.user_id == user_id).offset(skip).limit(limit).all()
     return farms
+
+@router.patch("/farms/{farm_id}", response_model=FarmRead)
+def update_farm(
+    farm_id: int,
+    farm_update: FarmUpdate,
+    token_payload: dict = Depends(get_current_user_token),
+    db: Session = Depends(get_db)
+):
+    user, is_admin = get_user_and_roles(db, token_payload)
+    
+    # Apenas admins podem editar fazendas por esta rota centralizada
+    if not is_admin:
+        raise HTTPException(status_code=403, detail="Acesso restrito a administradores")
+        
+    farm = db.query(Farm).filter(Farm.id == farm_id).first()
+    if not farm:
+        raise HTTPException(status_code=404, detail="Fazenda não encontrada")
+        
+    update_data = farm_update.model_dump(exclude_unset=True) # ou .dict(exclude_unset=True) se pydantic v1
+    for key, value in update_data.items():
+        setattr(farm, key, value)
+        
+    db.commit()
+    db.refresh(farm)
+    return farm
