@@ -6,6 +6,7 @@ import { Layout } from './components/Layout/Layout';
 import { MyFarms } from './pages/MyFarms';
 import { MyProbes } from './pages/MyProbList';
 import { ProtectedRoute } from './components/ProtectedRoute/ProtectedRoute';
+import { Settings } from './pages/Settings';
 
 export function App() {
   return (
@@ -14,6 +15,8 @@ export function App() {
       <Route path="/" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
       <Route path="/farms" element={<ProtectedRoute><Layout><MyFarms /></Layout></ProtectedRoute>} />
       <Route path="/probes" element={<ProtectedRoute><Layout><MyProbes /></Layout></ProtectedRoute>} />
+
+      <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
 
       {/* Rota Pública - Login não pode ter ProtectedRoute */}
       <Route path="/login" element={<Login />} />

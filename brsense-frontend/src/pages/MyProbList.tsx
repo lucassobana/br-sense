@@ -16,21 +16,33 @@ import { ProbeList } from '../components/ProbeList/ProbeList';
 import { AddDeviceModal } from '../components/AddDeviceModal/AddDeviceModal';
 import { COLORS } from '../colors/colors';
 import type { Probe, Farm } from '../types';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { isUserAdmin } from '../services/auth';
 
 export function MyProbes() {
+    const navigate = useNavigate();
+    const isAdmin = isUserAdmin();
+    const [searchParams] = useSearchParams();
+    const farmIdFilter = searchParams.get('farmId');
+
     const [probes, setProbes] = useState<Probe[]>([]);
-    const [farms, setFarms] = useState<Farm[]>([]); // Necessário para selecionar fazenda no modal
+    const [farms, setFarms] = useState<Farm[]>([]);
     const [loading, setLoading] = useState(true);
 
     const toast = useToast();
     const { isOpen, onOpen, onClose } = useDisclosure();
 
-    // Carrega Sondas e Fazendas (para passar o ID da fazenda no modal, se necessário)
     const loadData = useCallback(async () => {
         try {
             setLoading(true);
             const [probesData, farmsData] = await Promise.all([getProbes(), getFarms()]);
-            setProbes(probesData);
+            
+            let finalProbes = probesData;
+            if (farmIdFilter) {
+                finalProbes = probesData.filter(probe => probe.farm_id === Number(farmIdFilter));
+            }
+
+            setProbes(finalProbes);
             setFarms(farmsData);
         } catch (error) {
             console.error(error);
@@ -44,23 +56,16 @@ export function MyProbes() {
         } finally {
             setLoading(false);
         }
-    }, [toast]);
+    }, [toast, farmIdFilter]);
 
     useEffect(() => {
         loadData();
     }, [loadData]);
 
     const handleProbeSelect = (probe: Probe) => {
-        // Aqui você pode redirecionar para o Dashboard focando nessa sonda
-        console.log("Sonda selecionada:", probe);
-        // navigate('/?probe=' + probe.esn); (Exemplo futuro)
+        navigate(`/?probeId=${probe.id}`); 
     };
 
-    // Lógica para o Modal:
-    // O AddDeviceModal original pede um farmId fixo. 
-    // Se quisermos que o usuário escolha a fazenda no momento de criar a sonda aqui nesta tela,
-    // precisaríamos adaptar o Modal para ter um <Select> de fazendas se o farmId for nulo.
-    // Por enquanto, vamos passar o ID da primeira fazenda se existir, ou null.
     const defaultFarmId = farms.length > 0 ? farms[0].id : null;
 
     return (
@@ -71,8 +76,8 @@ export function MyProbes() {
                         <Heading color={COLORS.textPrimary} size="lg">Minhas Sondas</Heading>
                         <Text color="gray.500" fontSize="sm" mt={1}>Gerenciamento de dispositivos</Text>
                     </Box>
-
-                    <Button
+                    {isAdmin && (
+                        <Button
                         leftIcon={<MdAdd />}
                         bg={COLORS.primary}
                         color="white"
@@ -82,7 +87,9 @@ export function MyProbes() {
                         title={farms.length === 0 ? "Crie uma fazenda primeiro" : "Adicionar nova sonda"}
                     >
                         Nova Sonda
-                    </Button>
+                        </Button>
+                    )}
+                    
                 </Flex>
 
                 {farms.length === 0 && !loading && (

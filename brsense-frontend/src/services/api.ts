@@ -66,6 +66,15 @@ api.interceptors.response.use(
 
 // --- Interfaces de DTO ---
 
+export interface User {
+  id: number;
+  username?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+}
+
 export interface ReadingHistory {
   timestamp: string;
   depth_cm: number;
@@ -78,6 +87,7 @@ export interface ReadingHistory {
 export interface CreateFarmDTO {
   name: string;
   location: string;
+  user_id?: number;
 }
 
 export interface CreateDeviceDTO {
@@ -106,6 +116,10 @@ export interface DeviceConfigUpdateDTO {
   intensity: number;
 }
 
+export interface GetUsersResponse {
+  status: string;
+  users: User[];
+}
 // Nota: AuthResponse e CreateUserDTO foram removidos pois
 // o login e criação de usuários agora são gerenciados pelo Keycloak.
 
@@ -121,6 +135,11 @@ export const getProbes = async () => {
 export const getFarms = async () => {
   // O backend identifica o usuário pelo Token Bearer e retorna apenas as fazendas dele
   const response = await api.get<Farm[]>("/api/farms");
+  return response.data;
+};
+
+export const getUsers = async () => {
+  const response = await api.get<GetUsersResponse>("/api/users");
   return response.data;
 };
 
@@ -160,6 +179,16 @@ export const getDeviceHistory = async (esn: string, params?: HistoryParams) => {
 export const getUserFarms = async () => {
   // Chama a rota padrão. O backend deve filtrar pelo usuário do token.
   const response = await api.get<import("../types").Farm[]>("/api/farms");
+  return response.data;
+};
+
+export const updateFarm = async (farmId: number, data: Partial<CreateFarmDTO & { user_id: number }>) => {
+  const response = await api.patch(`/api/farms/${farmId}`, data);
+  return response.data;
+};
+
+export const updateDeviceAdmin = async (esn: string, data: Partial<CreateDeviceDTO & { cultura: string, data_plantio: string }>) => {
+  const response = await api.patch(`/api/devices/${esn}`, data);
   return response.data;
 };
 

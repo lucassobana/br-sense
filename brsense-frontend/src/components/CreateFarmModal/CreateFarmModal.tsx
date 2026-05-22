@@ -1,35 +1,56 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
-    Modal,
-    ModalOverlay,
-    ModalContent,
-    ModalHeader,
-    ModalFooter,
-    ModalBody,
-    ModalCloseButton,
-    Button,
-    VStack,
-    FormControl,
-    FormLabel,
-    Input,
-    useToast
+    Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter,
+    ModalBody, ModalCloseButton, Button, VStack, FormControl,
+    FormLabel, Input, Select, useToast
 } from '@chakra-ui/react';
-import { createFarm } from '../../services/api';
+import { createFarm, updateFarm, getUsers, type User } from '../../services/api'; 
+import type { Farm } from '../../types';
 import { COLORS } from '../../colors/colors';
 
 interface CreateFarmModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSuccess: () => void; // Callback para recarregar dados
+    onSuccess: () => void;
+    initialData?: Farm | null;
 }
 
-export function CreateFarmModal({ isOpen, onClose, onSuccess }: CreateFarmModalProps) {
+export function CreateFarmModal({ isOpen, onClose, onSuccess, initialData }: CreateFarmModalProps) {
     const [name, setName] = useState("");
     const [location, setLocation] = useState("");
+    const [userId, setUserId] = useState(""); 
+    const [users, setUsers] = useState<User[]>([]); 
     const [loading, setLoading] = useState(false);
     const toast = useToast();
 
-    const handleCreate = async () => {
+    const isEditMode = !!initialData;
+
+    useEffect(() => {
+        if (isOpen) {
+            getUsers()
+                .then(data => {
+                    const response = data as { users?: User[] };
+                    if (response && Array.isArray(response.users)) {
+                        setUsers(response.users);
+                    } else if (Array.isArray(data)) {
+                        setUsers(data);
+                    }
+                })
+                .catch(err => console.error("Erro ao carregar usuários:", err));
+
+            if (initialData) {
+                setName(initialData.name);
+                setLocation(initialData.location);
+                setUserId(initialData.user_id ? String(initialData.user_id) : "");
+            } else {
+                setName("");
+                setLocation("");
+                setUserId("");
+            }
+        }
+    }, [isOpen, initialData]);
+
+    const handleSubmit = async () => {
         if (!name) {
             toast({ title: "Nome obrigatório", status: "warning" });
             return;
@@ -37,64 +58,65 @@ export function CreateFarmModal({ isOpen, onClose, onSuccess }: CreateFarmModalP
 
         try {
             setLoading(true);
-            await createFarm({ name, location });
-            toast({ title: "Fazenda criada!", status: "success" });
+            const payload = userId 
+                ? { name, location, user_id: Number(userId) } 
+                : { name, location };
 
-            // Limpa e fecha
-            setName("");
-            setLocation("");
-            onSuccess(); // Avisa o pai para recarregar
+            if (isEditMode && initialData) {
+                await updateFarm(initialData.id, payload);
+                toast({ title: "Fazenda atualizada!", status: "success" });
+            } else {
+                await createFarm(payload);
+                toast({ title: "Fazenda criada!", status: "success" });
+            }
+
+            onSuccess();
             onClose();
         } catch (error) {
             console.error(error);
-            toast({ title: "Erro ao criar fazenda", status: "error" });
+            toast({ title: `Erro ao ${isEditMode ? 'atualizar' : 'criar'} fazenda`, status: "error" });
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} isCentered>
+        <Modal isOpen={isOpen} onClose={onClose} isCentered size={{ base: "sm", md: "md" }}>
             <ModalOverlay />
-            <ModalContent bg={COLORS.surface} color="white">
-                <ModalHeader borderBottomWidth="1px">Nova Fazenda</ModalHeader>
+            {/* mx={4} garante que o modal não fique colado nas bordas do celular */}
+            <ModalContent bg={COLORS.surface} color="white" mx={4}>
+                <ModalHeader borderBottomWidth="1px" borderColor="#2D2D2D">
+                    {isEditMode ? `Editar Fazenda` : 'Nova Fazenda'}
+                </ModalHeader>
                 <ModalCloseButton />
-                <ModalBody>
+                <ModalBody py={{ base: 4, md: 6 }}>
                     <VStack spacing={4}>
                         <FormControl>
-                            <FormLabel>Nome</FormLabel>
-                            <Input
-                                placeholder="Ex: Fazenda Santa Maria"
-                                value={name}
-                                onChange={e => setName(e.target.value)}
-                                bg={COLORS.background}
-                                border="none"
-                            />
+                            <FormLabel fontSize="sm">Nome</FormLabel>
+                            <Input placeholder="Ex: Fazenda Santa Maria" value={name} onChange={e => setName(e.target.value)} bg={COLORS.background} border="none" />
                         </FormControl>
                         <FormControl>
-                            <FormLabel>Localização (Cidade/Estado)</FormLabel>
-                            <Input
-                                placeholder="Ex: Rio Verde - GO"
-                                value={location}
-                                onChange={e => setLocation(e.target.value)}
-                                bg={COLORS.background}
-                                border="none"
-                            />
+                            <FormLabel fontSize="sm">Localização (Cidade/Estado)</FormLabel>
+                            <Input placeholder="Ex: Rio Verde - GO" value={location} onChange={e => setLocation(e.target.value)} bg={COLORS.background} border="none" />
+                        </FormControl>
+                        <FormControl>
+                            <FormLabel fontSize="sm">Vincular ao Usuário</FormLabel>
+                            <Select placeholder="Selecione um usuário (Opcional)" value={userId} onChange={(e) => setUserId(e.target.value)} bg={COLORS.background} border="none">
+                                {users.map(user => (
+                                    <option key={user.id} value={user.id} style={{ color: 'black' }}>
+                                        {user.name || user.username || user.email || `ID: ${user.id}`}
+                                    </option>
+                                ))}
+                            </Select>
                         </FormControl>
                     </VStack>
                 </ModalBody>
-                <ModalFooter borderTopWidth="1px">
-                    <Button variant="ghost" mr={3} onClick={onClose} color={COLORS.textSecondary} _hover={{ bg: "whiteAlpha.100" }}>
+                <ModalFooter borderTopWidth="1px" borderColor="#2D2D2D" gap={2}>
+                    <Button variant="ghost" onClick={onClose} color={COLORS.textSecondary} _hover={{ bg: "whiteAlpha.100" }} flex={{ base: 1, md: "initial" }}>
                         Cancelar
                     </Button>
-                    <Button 
-                        bg={COLORS.primary}
-                        onClick={handleCreate}
-                        isLoading={loading}
-                        color="white"
-                        _hover={{ bg: COLORS.primaryDark }}
-                    >
-                        Criar
+                    <Button bg={COLORS.primary} onClick={handleSubmit} isLoading={loading} color="white" _hover={{ bg: COLORS.primaryDark }} flex={{ base: 1, md: "initial" }}>
+                        {isEditMode ? 'Salvar' : 'Criar'}
                     </Button>
                 </ModalFooter>
             </ModalContent>

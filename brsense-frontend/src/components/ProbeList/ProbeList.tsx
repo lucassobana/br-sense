@@ -7,25 +7,66 @@ import {
     HStack,
     Badge
 } from '@chakra-ui/react';
-import { MdSensors, MdLocationOn, MdSignalCellularAlt } from 'react-icons/md';
+import { MdSensors, MdSignalCellularAlt } from 'react-icons/md';
 import type { Probe } from '../../types';
-import { COLORS } from '../../colors/colors'; // Ajuste o caminho conforme sua estrutura
+import { COLORS } from '../../colors/colors'; 
 
 interface ProbeListProps {
     probes: Probe[];
     onSelect?: (probe: Probe) => void;
 }
 
-export function ProbeList({ probes, onSelect }: ProbeListProps) {
+const getStatusLabel = (code?: string) => {
+    switch (code) {
+        case 'status_critical': return 'Crítico';
+        case 'status_ok': return 'Ideal';
+        case 'status_saturated': return 'Saturado';
+        case 'status_alert': return 'Atenção';
+        default: return 'Offline';
+    }
+};
 
-    const getStatusColor = (status: string) => {
-        switch (status?.toLowerCase()) {
-            case 'ativo': return COLORS.status.ok;
-            case 'atenção': return COLORS.status.attention;
-            case 'estresse': return COLORS.status.stress;
-            default: return COLORS.status.offline;
-        }
-    };
+const getStatusColor = (code?: string) => {
+    switch (code) {
+        case 'status_critical': return 'red.400';
+        case 'status_ok': return 'green.400';
+        case 'status_saturated': return 'cyan.400';
+        case 'status_alert': return 'yellow.400';
+        default: return 'gray.400';
+    }
+};
+
+const getStatusPriority = (code?: string) => {
+    switch (code) {
+        case 'status_critical': return 1;
+        case 'status_alert': return 2;
+        case 'status_ok': return 3;
+        case 'status_saturated': return 4;
+        default: return 5;
+    }
+};
+
+const calculateProbeStatus = (probe: Probe) => {
+    if (!probe.readings || probe.readings.length === 0) return 'status_offline';
+
+    const validReading = [...probe.readings]
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .find(r => r.moisture_pct !== null && r.moisture_pct !== undefined);
+
+    if (!validReading) return 'status_offline';
+
+    const val = Number(validReading.moisture_pct);
+    const v1 = probe.config_moisture_v1 ?? 30;
+    const v2 = probe.config_moisture_v2 ?? 45;
+    const v3 = probe.config_moisture_v3 ?? 60;
+
+    if (val < v1) return 'status_critical';
+    if (val < v2) return 'status_alert';
+    if (val <= v3) return 'status_ok';
+    return 'status_saturated';
+};
+
+export function ProbeList({ probes, onSelect }: ProbeListProps) {
 
     if (probes.length === 0) {
         return (
@@ -36,10 +77,20 @@ export function ProbeList({ probes, onSelect }: ProbeListProps) {
         );
     }
 
+    const sortedProbes = [...probes].sort((a, b) => {
+        const statusA = calculateProbeStatus(a);
+        const statusB = calculateProbeStatus(b);
+        return getStatusPriority(statusA) - getStatusPriority(statusB);
+    });
+
     return (
         <VStack align="stretch" spacing={3}>
-            {probes.map((probe) => {
-                const statusColor = getStatusColor(probe.status);
+            {sortedProbes.map((probe) => {
+                const realStatus = calculateProbeStatus(probe);
+                
+                const statusColor = getStatusColor(realStatus);
+                const statusLabel = getStatusLabel(realStatus);
+                const colorScheme = statusColor.split('.')[0];
 
                 return (
                     <Box
@@ -56,7 +107,6 @@ export function ProbeList({ probes, onSelect }: ProbeListProps) {
                     >
                         <Flex justify="space-between" align="center">
                             <Flex align="center" gap={3}>
-                                {/* Ícone com indicador de status */}
                                 <Box position="relative">
                                     <Flex
                                         align="center"
@@ -86,13 +136,6 @@ export function ProbeList({ probes, onSelect }: ProbeListProps) {
                                         {probe.name || `Sonda ${probe.esn}`}
                                     </Text>
                                     <HStack spacing={3} mt={1}>
-                                        <Flex align="center">
-                                            <Icon as={MdLocationOn} color={COLORS.textSecondary} boxSize={3} mr={1} />
-                                            <Text fontSize="xs" color={COLORS.textSecondary}>
-                                                {probe.location || "Sem local"}
-                                            </Text>
-                                        </Flex>
-                                        <Text fontSize="xs" color="gray.600" fontFamily="mono">|</Text>
                                         <Text fontSize="xs" color={COLORS.textSecondary} fontFamily="mono">
                                             ESN: {probe.esn}
                                         </Text>
@@ -102,14 +145,13 @@ export function ProbeList({ probes, onSelect }: ProbeListProps) {
 
                             <Flex direction="column" align="flex-end" gap={1}>
                                 <Badge
-                                    bg={statusColor}
-                                    color="black"
+                                    colorScheme={colorScheme}
                                     fontSize="0.6em"
                                     variant="solid"
                                     borderRadius="full"
                                     px={2}
                                 >
-                                    {probe.status || 'OFFLINE'}
+                                    {statusLabel}
                                 </Badge>
                                 <Flex align="center" title="Última comunicação">
                                     <Icon as={MdSignalCellularAlt} color="gray.600" boxSize={3} mr={1} />

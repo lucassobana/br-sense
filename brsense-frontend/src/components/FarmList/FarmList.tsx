@@ -4,7 +4,6 @@ import {
     Text,
     Flex,
     Icon,
-    Badge
 } from '@chakra-ui/react';
 import { MdAgriculture, MdLocationOn } from 'react-icons/md';
 import type { Farm } from '../../types'; // Certifique-se de ter a interface Farm no types.ts
@@ -70,11 +69,6 @@ export function FarmList({ farms, onSelect }: FarmListProps) {
                                 </Flex>
                             </Box>
                         </Flex>
-
-                        {/* Exemplo de Badge ou Status se houver futuramente */}
-                        <Badge colorScheme="green" variant="subtle" fontSize="0.6em">
-                            ATIVO
-                        </Badge>
                     </Flex>
                 </Box>
             ))}

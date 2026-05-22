@@ -6,7 +6,7 @@ class FarmBase(BaseModel):
     location: Optional[str] = None
 
 class FarmCreate(FarmBase):
-    pass # user_id será pego do token do usuário logado
+    user_id: Optional[int] = None
 
 class FarmRead(FarmBase):
     id: int
@@ -14,3 +14,8 @@ class FarmRead(FarmBase):
     
     class Config:
         from_attributes = True
+        
+class FarmUpdate(BaseModel):
+    name: Optional[str] = None
+    location: Optional[str] = None
+    user_id: Optional[int] = None

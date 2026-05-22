@@ -28,7 +28,8 @@ import {
     MdSensors,
     MdLogout,
     MdMenu,
-    MdClose
+    MdClose,
+    MdSettings
 } from 'react-icons/md';
 
 // 1. Importe todas as logos necessárias
@@ -126,13 +127,16 @@ const SidebarContent = ({
         if (onItemClick) onItemClick();
     };
 
-    const navItems = isAdmin ? [
+    const baseNavItems = [
         { label: 'Mapa', icon: MdMap, path: '/' },
         { label: 'Fazendas', icon: MdAgriculture, path: '/farms' },
         { label: 'Sondas', icon: MdSensors, path: '/probes' },
-    ] : [
-        { label: 'Mapa', icon: MdMap, path: '/' }
     ];
+
+    // Adiciona o menu de Configurações apenas para administradores
+    const navItems = isAdmin 
+        ? [...baseNavItems, { label: 'Configurações', icon: MdSettings, path: '/settings' }] 
+        : baseNavItems;
 
     return (
         <Flex direction="column" h="100%" justify="space-between">

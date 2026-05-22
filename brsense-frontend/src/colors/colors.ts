@@ -10,7 +10,8 @@ export const COLORS = {
     attention: "#FBBF24",
     stress: "#EF4444",
     offline: "#6B7280",
-  }
+  },
+  tabColor: "#17354e",
 };
 
 export const DEPTH_COLORS = {
