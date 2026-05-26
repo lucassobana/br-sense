@@ -21,22 +21,13 @@ interface TokenResponse {
 export const loginKeycloak = async (
   username: string,
   password: string,
-  rememberMe: boolean = false,
 ): Promise<TokenResponse> => {
   const params = new URLSearchParams();
   params.append("client_id", CLIENT_ID);
   params.append("username", username);
   params.append("password", password);
   params.append("grant_type", "password");
-
-  // A MÁGICA ACONTECE AQUI:
-  // Se "Lembrar de mim" for true, pedimos um token offline (dura 30 dias)
-  // Se for false, pedimos o token padrão (dura as horas normais configuradas)
-  if (rememberMe) {
-    params.append("scope", "openid offline_access");
-  } else {
-    params.append("scope", "openid");
-  }
+  params.append("scope", "openid offline_access");
 
   try {
     const response = await axios.post<TokenResponse>(KEYCLOAK_URL, params, {
