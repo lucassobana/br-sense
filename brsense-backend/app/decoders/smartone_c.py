@@ -132,9 +132,17 @@ def _decode_new_v2(p: bytes, timestamp: datetime) -> list[dict]:
             })
             
     else:
-        # TEMPERATURA (O valor extra é a Bateria/Painel Solar)
-        power_val = pluv_ou_bat / 10.0
-        battery_val, solar_val = _calculate_power_status(power_val, timestamp)
+        origem_tensao = (pluv_ou_bat >> 8) & 0x01
+        tensao_decimos = pluv_ou_bat & 0xFF
+        
+        power_val = tensao_decimos / 10.0
+        
+        if origem_tensao == 1:
+            solar_val = power_val
+            battery_val = None
+        else:
+            battery_val = power_val
+            solar_val = None
 
         for i, val in enumerate(sonda_valores):
             readings.append({
