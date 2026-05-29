@@ -59,6 +59,7 @@ export interface RawApiData {
     temperature_c: number | null;
     rain_cm?: number | null;
     battery_status?: number | null;
+    solar_status?: number | null;
 }
 
 interface ChartDataPoint {

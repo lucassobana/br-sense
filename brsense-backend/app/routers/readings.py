@@ -19,6 +19,7 @@ class ReadingResponse(BaseModel):
     moisture_pct: Optional[float] = None
     temperature_c: Optional[float] = None
     battery_status: Optional[int] = None
+    solar_status: Optional[int] = None
     rain_cm: Optional[float] = None
     
     class Config:
@@ -44,6 +45,7 @@ def get_device_history(
         Reading.moisture_pct,
         Reading.temperature_c,
         Reading.battery_status,
+        Reading.solar_status,
         Reading.rain_cm
     ).filter(Reading.device_id == device.id)
     
@@ -70,6 +72,7 @@ def get_device_history(
             "moisture_pct": r.moisture_pct,
             "temperature_c": r.temperature_c,
             "battery_status": r.battery_status,
+            "solar_status": r.solar_status,
             "rain_cm": r.rain_cm
         }
         for r in readings
