@@ -25,6 +25,7 @@ export function TelemetryChart({
     // 2. Prepara os dados (com segurança contra arrays vazios)
     // Se não tiver timestamp válido, evita erro no parseISO
     const chartData = (data || [])
+        .filter(d => (d.reading_type === 'U' || !d.reading_type) && d.moisture_pct !== null && d.moisture_pct !== undefined)
         .slice(-20) // Pega apenas os últimos 20 pontos
         .map(d => {
             let timeLabel = '-';
