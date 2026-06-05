@@ -1,5 +1,6 @@
 # app/decoders/smartone_c.py
 from datetime import datetime
+from typing import Optional
 
 def decode_soil_payload(hex_payload: str, timestamp: datetime) -> list[dict]:
     """
@@ -21,8 +22,7 @@ def decode_soil_payload(hex_payload: str, timestamp: datetime) -> list[dict]:
         
         if tipo_mensagem in (0, 1):
             # Payload de Localização/GPS (Nativo do SmartOne C)
-            print("SmartOne Decoder: Pacote de localização/GPS ignorado.")
-            return []
+            return [_decode_location(raw)]
         
         elif tipo_mensagem == 2:
             # Payload de Sensores (Mensagem Raw - ESP32 V4.2 ou Legado)
@@ -87,6 +87,35 @@ def _decode_legacy(raw: bytes, timestamp: datetime) -> list[dict]:
                     "rain_cm": None
                 })
     return readings
+
+
+def _decode_location(raw: bytes) -> dict:
+    """
+    Decodifica latitude/longitude do payload nativo de localização do SmartOne C.
+    Bytes 1-3 representam latitude e bytes 4-6 representam longitude.
+    """
+    latitude_raw = int.from_bytes(raw[1:4], byteorder="big", signed=False)
+    longitude_raw = int.from_bytes(raw[4:7], byteorder="big", signed=False)
+
+    latitude = latitude_raw * (90 / 0x800000)
+    longitude = longitude_raw * (180 / 0x800000)
+
+    if latitude > 90:
+        latitude -= 180
+    if longitude > 180:
+        longitude -= 360
+
+    return {
+        "depth_cm": None,
+        "moisture_pct": None,
+        "temperature_c": None,
+        "battery_status": None,
+        "solar_status": None,
+        "rain_cm": None,
+        "latitude": round(latitude, 6),
+        "longitude": round(longitude, 6),
+        "reading_type": "L",
+    }
 
 
 def _decode_new_v2(p: bytes, timestamp: datetime) -> list[dict]:
@@ -157,7 +186,7 @@ def _decode_new_v2(p: bytes, timestamp: datetime) -> list[dict]:
     return readings
 
 
-def _calculate_power_status(power_val: float, timestamp: datetime) -> tuple[float | None, float | None]:
+def _calculate_power_status(power_val: float, timestamp: datetime) -> tuple[Optional[float], Optional[float]]:
     """
     Função auxiliar isolada para aplicar as regras de negócio 
     de bateria e painel solar para ambas as versões.

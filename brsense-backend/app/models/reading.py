@@ -22,6 +22,8 @@ class Reading(Base):
     
     battery_status: Mapped[int] = mapped_column(Integer, nullable=True)
     solar_status: Mapped[int] = mapped_column(Integer, nullable=True)
+    latitude: Mapped[float] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float] = mapped_column(Float, nullable=True)
 
     device = relationship("Device", back_populates="readings")
     

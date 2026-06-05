@@ -9,6 +9,8 @@ class DeviceReadingSchema(BaseModel):
     timestamp: Optional[datetime] = None
     battery_status: Optional[int] = None
     solar_status: Optional[int] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     rain_cm: Optional[float] = None
     
     class Config:

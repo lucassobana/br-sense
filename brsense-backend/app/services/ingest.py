@@ -111,19 +111,27 @@ def ingest_envelope(payload: Dict[str, Any], db: Session) -> dict:
                 decoded = decode_soil_payload(raw_payload, timestamp=ts)
                 if decoded:                    
                     for r in decoded:
-                        # Determina o tipo: se tem umidade é 'H', senão assumimos que é temperatura 'T'
-                        # (Lembrando que o decoder coloca None no campo que não existe no pacote)
-                        current_type = 'H' if r["moisture_pct"] is not None else 'T'
+                        current_type = r.get("reading_type")
+                        if not current_type:
+                            # Determina o tipo: se tem umidade é 'H', senão assumimos que é temperatura 'T'
+                            # (Lembrando que o decoder coloca None no campo que não existe no pacote)
+                            current_type = 'H' if r["moisture_pct"] is not None else 'T'
+
+                        if current_type == "L":
+                            device.latitude = r.get("latitude")
+                            device.longitude = r.get("longitude")
 
                         reading = Reading(
                             device_id=device.id,
                             reading_type=current_type,  # <--- Nova coluna preenchida aqui
-                            depth_cm=r["depth_cm"],
-                            moisture_pct=r["moisture_pct"],
-                            temperature_c=r["temperature_c"],
+                            depth_cm=r.get("depth_cm"),
+                            moisture_pct=r.get("moisture_pct"),
+                            temperature_c=r.get("temperature_c"),
                             rain_cm=r.get("rain_cm"),                          
                             battery_status=r.get("battery_status"),
                             solar_status=r.get("solar_status"),
+                            latitude=r.get("latitude"),
+                            longitude=r.get("longitude"),
                             timestamp=ts
                         )
                         db.add(reading)

@@ -1,5 +1,5 @@
 # app/routers/readings.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
@@ -9,18 +9,23 @@ from app.db.session import get_db
 from app.models.reading import Reading
 from app.models.device import Device
 from app.models.request_log import RequestLog
+from app.services.location_history import get_location_history_from_logs
+from app.services.weather_service import generate_weekly_report
 
 router = APIRouter()
 
 # Modelo de resposta para o Frontend
 class ReadingResponse(BaseModel):
     timestamp: datetime
-    depth_cm: float
+    depth_cm: Optional[float] = None
     moisture_pct: Optional[float] = None
     temperature_c: Optional[float] = None
     battery_status: Optional[int] = None
     solar_status: Optional[int] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     rain_cm: Optional[float] = None
+    reading_type: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -30,6 +35,7 @@ def get_device_history(
     esn: str, 
     start_date: Optional[datetime] = None, 
     end_date: Optional[datetime] = None,
+    reading_type: Optional[str] = Query(None, description="Filtrar por U (Umidade), T (Temperatura) ou L (Localização)"),
     db: Session = Depends(get_db)
 ):
     """
@@ -46,8 +52,15 @@ def get_device_history(
         Reading.temperature_c,
         Reading.battery_status,
         Reading.solar_status,
-        Reading.rain_cm
+        Reading.latitude,
+        Reading.longitude,
+        Reading.rain_cm,
+        Reading.reading_type
     ).filter(Reading.device_id == device.id)
+    
+    # Filtra por tipo de leitura (se solicitado pelo frontend)
+    if reading_type:
+        query = query.filter(Reading.reading_type == reading_type)
     
     # Tratamento de Timezone e Filtros
     if start_date:
@@ -65,7 +78,8 @@ def get_device_history(
 
     readings = query.order_by(Reading.timestamp.asc()).all()
 
-    return [
+    # Cria a lista original contendo TODAS as profundidades
+    reading_history = [
         {
             "timestamp": r.timestamp,
             "depth_cm": r.depth_cm,
@@ -73,10 +87,27 @@ def get_device_history(
             "temperature_c": r.temperature_c,
             "battery_status": r.battery_status,
             "solar_status": r.solar_status,
-            "rain_cm": r.rain_cm
+            "latitude": r.latitude,
+            "longitude": r.longitude,
+            "rain_cm": r.rain_cm,
+            "reading_type": r.reading_type
         }
         for r in readings
     ]
+
+    # Injeção de Logs de Localização Condicional
+    # Usa ".append()" direto na lista, evitando sobrescrever as profundidades
+    if reading_type in [None, "L"]:
+        location_history = get_location_history_from_logs(db, device.esn, start_date, end_date)
+        
+        for item in location_history:
+            item["reading_type"] = item.get("reading_type", "L")
+            reading_history.append(item)
+
+    # Ordena a lista completa final baseada no timestamp
+    reading_history.sort(key=lambda x: x["timestamp"])
+
+    return reading_history
 
 @router.get("/logs")
 def view_uplink_logs(limit: int = 50, db: Session = Depends(get_db)):
@@ -96,3 +127,25 @@ def view_uplink_logs(limit: int = 50, db: Session = Depends(get_db)):
         }
         for l in logs
     ]
+
+@router.get("/{esn}/weather-report")
+def get_device_weather_report(esn: str, db: Session = Depends(get_db)):
+    device = db.query(Device).filter(Device.esn == esn).first()
+    if not device:
+        raise HTTPException(status_code=404, detail="Dispositivo não encontrado")
+        
+    if device.latitude is None or device.longitude is None:
+        raise HTTPException(status_code=400, detail="Dispositivo sem latitude/longitude")
+
+    # Passa apenas lat e long para o serviço
+    report = generate_weekly_report(device.latitude, device.longitude)
+    
+    if not report:
+        raise HTTPException(status_code=502, detail="Erro ao comunicar com a API de clima")
+        
+    return {
+        "esn": device.esn,
+        "name": device.name,
+        "location": {"latitude": device.latitude, "longitude": device.longitude},
+        "report": report
+    }
