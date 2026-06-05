@@ -8,12 +8,20 @@ import {
   Button,
   Icon,
   Skeleton,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverArrow,
+  PopoverBody,
+  FormControl,
+  FormLabel,
+  Input
 } from "@chakra-ui/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MdWaterDrop, MdCalendarToday } from "react-icons/md";
+import { MdWaterDrop, MdCalendarToday, MdDateRange } from "react-icons/md";
 import { COLORS } from "../../colors/colors";
 
-export type RainPeriod = "1h" | "24h" | "7d" | "15d" | "30d";
+export type RainPeriod = "1h" | "24h" | "7d" | "15d" | "30d" | "Personalizado";
 
 export interface RainReadingData {
   timestamp: string;
@@ -61,26 +69,61 @@ export function RainAccumulationCard({
 }: RainAccumulationCardProps) {
   const [period, setPeriod] = useState<RainPeriod>("30d");
 
+  // Estados aplicados
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  // Estados temporários do input
+  const [tempStartDate, setTempStartDate] = useState('');
+  const [tempEndDate, setTempEndDate] = useState('');
+
+  // Aplica as datas e muda o período apenas no clique do botão
+  const handleApplyFilters = () => {
+    setStartDate(tempStartDate);
+    setEndDate(tempEndDate);
+    setPeriod("Personalizado");
+  };
+
   const { totalRain, lastRainDate } = useMemo(() => {
     if (!readings || readings.length === 0) {
       return { totalRain: 0, lastRainDate: null, lastRainVolume: 0 };
     }
 
-    const now = new Date().getTime();
+    let filteredReadings = readings;
 
-    const periodOffsets: Record<RainPeriod, number> = {
-      "1h": 60 * 60 * 1000,
-      "24h": 24 * 60 * 60 * 1000,
-      "7d": 7 * 24 * 60 * 60 * 1000,
-      "15d": 15 * 24 * 60 * 60 * 1000,
-      "30d": 30 * 24 * 60 * 60 * 1000,
-    };
+    // Se for personalizado, aplica a filtragem exata pelas datas
+    if (period === "Personalizado" && startDate && endDate) {
+      const startObj = new Date(startDate);
+      startObj.setHours(0, 0, 0, 0);
 
-    const startTime = now - periodOffsets[period];
+      const endObj = new Date(endDate);
+      endObj.setHours(23, 59, 59, 999);
 
-    const filteredReadings = readings.filter(
-      (r) => new Date(r.timestamp).getTime() >= startTime,
-    );
+      const sTime = startObj.getTime();
+      const eTime = endObj.getTime();
+
+      filteredReadings = readings.filter(r => {
+        const t = new Date(r.timestamp).getTime();
+        return t >= sTime && t <= eTime;
+      });
+
+    } else if (period !== "Personalizado") {
+      // Se for um período rápido (1h, 24h, 7d...), usa a matemática de Offset
+      const now = new Date().getTime();
+      const periodOffsets: Record<Exclude<RainPeriod, "Personalizado">, number> = {
+        "1h": 60 * 60 * 1000,
+        "24h": 24 * 60 * 60 * 1000,
+        "7d": 7 * 24 * 60 * 60 * 1000,
+        "15d": 15 * 24 * 60 * 60 * 1000,
+        "30d": 30 * 24 * 60 * 60 * 1000,
+      };
+
+      const startTime = now - periodOffsets[period as Exclude<RainPeriod, "Personalizado">];
+
+      filteredReadings = readings.filter(
+        (r) => new Date(r.timestamp).getTime() >= startTime,
+      );
+    }
 
     let accRain = 0;
     let latestRainEvent: RainReadingData | null = null;
@@ -110,7 +153,7 @@ export function RainAccumulationCard({
         ? new Date(finalEvent.timestamp)
         : null,
     };
-  }, [readings, period]);
+  }, [readings, period, startDate, endDate]);
 
   return (
     <Box
@@ -148,7 +191,10 @@ export function RainAccumulationCard({
               </Text>
             </HStack>
             <Text color="gray.400" fontSize="xs">
-              Acumulado do período
+              {period === "Personalizado" && startDate && endDate 
+                ? `${new Date(startDate).toLocaleDateString('pt-BR')} até ${new Date(endDate).toLocaleDateString('pt-BR')}`
+                : "Acumulado do período"
+              }
             </Text>
           </VStack>
         </HStack>
@@ -162,6 +208,7 @@ export function RainAccumulationCard({
           borderColor="whiteAlpha.100"
           w={{ base: "100%", lg: "auto" }}
           overflowX="auto"
+          align="center"
           sx={{
             "&::-webkit-scrollbar": { display: "none" },
             msOverflowStyle: "none",
@@ -198,6 +245,59 @@ export function RainAccumulationCard({
             currentPeriod={period}
             onSelect={setPeriod}
           />
+
+          {/* Botão de Filtro Customizado Integrado com a Aba de Opções */}
+          <Popover placement="bottom-end" isLazy>
+            <PopoverTrigger>
+              <Button 
+                size="xs" 
+                height="26px"
+                variant={period === "Personalizado" ? "solid" : "ghost"}
+                colorScheme="blue"
+                bg={period === "Personalizado" ? COLORS.primaryDark : "transparent"}
+                color={period === "Personalizado" ? "white" : COLORS.primary}
+                px={2}
+              >
+                <Icon as={MdDateRange} mr={period === "Personalizado" ? 1 : 0} />
+                {period === "Personalizado" ? "Personalizado" : ""}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent bg="gray.800" borderColor="gray.600" p={3} w="auto" boxShadow="xl" zIndex={2000}>
+              <PopoverArrow bg="gray.800" />
+              <PopoverBody>
+                <VStack spacing={3} align="stretch">
+                  <FormControl>
+                    <FormLabel fontSize="xs" color="gray.400" mb={1}>Data Inicial</FormLabel>
+                    <Input 
+                        size="xs" 
+                        type="date" 
+                        value={tempStartDate} 
+                        onChange={(e) => setTempStartDate(e.target.value)} 
+                        color="white"
+                    />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel fontSize="xs" color="gray.400" mb={1}>Data Final</FormLabel>
+                    <Input 
+                        size="xs" 
+                        type="date" 
+                        value={tempEndDate} 
+                        onChange={(e) => setTempEndDate(e.target.value)} 
+                        color="white"
+                    />
+                  </FormControl>
+                  <Button 
+                    size="xs" 
+                    colorScheme="blue" 
+                    onClick={handleApplyFilters} 
+                    isDisabled={!tempStartDate || !tempEndDate}
+                  >
+                    Aplicar filtros
+                  </Button>
+                </VStack>
+              </PopoverBody>
+            </PopoverContent>
+          </Popover>
         </Flex>
       </Flex>
 
@@ -265,7 +365,7 @@ export function RainAccumulationCard({
           ) : (
             <HStack spacing={1.5} color="gray.500">
               <Icon as={MdCalendarToday} boxSize={3.5} />
-              <Text fontSize="xs">Sem registo de chuva</Text>
+              <Text fontSize="xs">Sem registo de chuva no período</Text>
             </HStack>
           )}
         </Box>

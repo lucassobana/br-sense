@@ -102,13 +102,13 @@ export function Dashboard() {
     direction: 'asc'
   });
 
-  // --- ESTADO DO FILTRO DE PERÍODO ---
   const [selectedPeriod, setSelectedPeriod] = useState<TimeRange>('30d');
-
-  // Novos estados para guardar as datas customizadas caso o usuário navegue entre abas
   const [customRange, setCustomRange] = useState<{ start?: string, end?: string }>({});
 
+  // ESTADOS DESACOPLADOS: Um para Umidade/Temperatura e outro Exclusivo para Bateria
   const [chartData, setChartData] = useState<RawApiData[]>([]);
+  const [batteryData, setBatteryData] = useState<RawApiData[]>([]); 
+  
   const [loading, setLoading] = useState(true);
   const [loadingChart, setLoadingChart] = useState(false);
   const toast = useToast();
@@ -152,6 +152,7 @@ export function Dashboard() {
     setDirection(-1);
     setSearchParams({});
     setChartData([]);
+    setBatteryData([]);
   };
 
   const handleSort = (key: SortKey) => {
@@ -175,9 +176,7 @@ export function Dashboard() {
       const v3 = probe.config_moisture_v3 ?? 60;
 
       let currentStatusCode = 'status_offline';
-
       const readings = probe.readings || [];
-
       const probeDepthRef = selectedDepthRefs[probe.id];
       const activeDepth = probeDepthRef !== undefined && probeDepthRef !== null
         ? probeDepthRef
@@ -228,7 +227,6 @@ export function Dashboard() {
 
   const initialMapPosition = useMemo(() => {
     if (viewMode !== 'map') return null;
-
     if (probes.length === 0) return null;
     const validProbes = probes.filter(p =>
       p.latitude !== undefined && p.latitude !== null &&
@@ -280,7 +278,6 @@ export function Dashboard() {
       if (sortConfig.key === 'status') {
         const weightA = statusWeight[a.status] || 99;
         const weightB = statusWeight[b.status] || 99;
-
         if (weightA < weightB) return sortConfig.direction === 'asc' ? -1 : 1;
         if (weightA > weightB) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
@@ -319,7 +316,46 @@ export function Dashboard() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // --- FUNÇÃO CENTRAL DE BUSCA DE HISTÓRICO ---
+  // EFEITO INDEPENDENTE PARA A BATERIA (Traz um range fixo e amplo, blindado dos filtros)
+  useEffect(() => {
+    if (viewMode !== 'chart' || !selectedProbe || !userIsAdmin) return;
+
+    const fetchBatteryData = async () => {
+        const now = new Date();
+        const target = new Date(now);
+        target.setDate(now.getDate() - 30); // Busca últimos 30 dias fixos para o gráfico de status
+
+        try {
+            const history = await getDeviceHistory(selectedProbe.esn, {
+                start_date: target.toISOString(),
+                end_date: now.toISOString(),
+                limit: 50000
+            });
+
+            if (isMountedRef.current) {
+                const formatted: RawApiData[] = history.map(r => ({
+                    timestamp: r.timestamp,
+                    depth_cm: r.depth_cm,
+                    moisture_pct: r.moisture_pct,
+                    temperature_c: r.temperature_c,
+                    rain_cm: r.rain_cm,
+                    battery_status: r.battery_status,
+                    solar_status: r.solar_status,
+                    latitude: r.latitude,
+                    longitude: r.longitude,
+                    reading_type: r.reading_type
+                }));
+                setBatteryData(formatted);
+            }
+        } catch (error) {
+            console.error("Erro ao carregar histórico de bateria", error);
+        }
+    };
+
+    fetchBatteryData();
+  }, [selectedProbe, viewMode, userIsAdmin]);
+
+  // FUNÇÃO DE BUSCA DO HISTÓRICO DE UMIDADE/TEMPERATURA
   const fetchHistory = useCallback(async (period: TimeRange, startDateStr?: string, endDateStr?: string) => {
     if (!selectedProbe) return;
 
@@ -375,7 +411,10 @@ export function Dashboard() {
         temperature_c: r.temperature_c,
         rain_cm: r.rain_cm,
         battery_status: r.battery_status,
-        solar_status: r.solar_status
+        solar_status: r.solar_status,
+        latitude: r.latitude,
+        longitude: r.longitude,
+        reading_type: r.reading_type
       }));
 
       setChartData(formattedData);
@@ -392,10 +431,8 @@ export function Dashboard() {
     }
   }, [selectedProbe, toast]);
 
-
   const handlePeriodChange = (period: TimeRange, start?: string, end?: string) => {
     setSelectedPeriod(period);
-
     if (period === 'Personalizado' && start && end) {
       setCustomRange({ start, end });
     }
@@ -403,7 +440,6 @@ export function Dashboard() {
 
   useEffect(() => {
     if (viewMode !== 'chart' || !selectedProbe) return;
-
     if (selectedPeriod === 'Personalizado') {
       if (customRange.start && customRange.end) {
         fetchHistory('Personalizado', customRange.start, customRange.end);
@@ -428,18 +464,9 @@ export function Dashboard() {
   const MotionBox = motion.create(Box);
 
   const pageVariants = {
-    initial: (direction: number) => ({
-      x: direction > 0 ? 100 : -100,
-      opacity: 0
-    }),
-    animate: {
-      x: 0,
-      opacity: 1
-    },
-    exit: (direction: number) => ({
-      x: direction > 0 ? -100 : 100,
-      opacity: 0
-    })
+    initial: (direction: number) => ({ x: direction > 0 ? 100 : -100, opacity: 0 }),
+    animate: { x: 0, opacity: 1 },
+    exit: (direction: number) => ({ x: direction > 0 ? -100 : 100, opacity: 0 })
   };
 
   return (
@@ -574,7 +601,6 @@ export function Dashboard() {
                   initial="hidden" animate="visible"
                   variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.15 } } }}
                 >
-                  {/* GRÁFICO DE UMIDADE */}
                   <MotionBox
                     p={0}
                     variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0 } }}
@@ -618,7 +644,6 @@ export function Dashboard() {
                     </Suspense>
                   </MotionBox>
 
-                  {/* GRÁFICO DE TEMPERATURA */}
                   <MotionBox
                     p={0}
                     variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0 } }}
@@ -644,14 +669,13 @@ export function Dashboard() {
                     </Suspense>
                   </MotionBox>
 
-                  {/* GRÁFICO DE BATERIA (ADMIN) */}
                   {userIsAdmin && (
                     <MotionBox
                       p={0}
                       variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0 } }}
                       transition={{ duration: 0.4 }}
                     >
-                      <BatteryStatusChart data={chartData} />
+                      <BatteryStatusChart data={batteryData} />
                     </MotionBox>
                   )}
                 </VStack>
