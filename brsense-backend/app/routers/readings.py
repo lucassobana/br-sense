@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.db.session import get_db
 from app.models.reading import Reading
@@ -39,12 +39,13 @@ def get_device_history(
     db: Session = Depends(get_db)
 ):
     """
-    Retorna o histórico otimizado, suportando grandes períodos de tempo.
+    Retorna o histórico otimizado, suportando grandes períodos de tempo e inatividade da sonda.
     """
     device = db.query(Device).filter(Device.esn == esn).first()
     if not device:
         raise HTTPException(status_code=404, detail="Dispositivo não encontrado")
     
+    # 1. Monta a Query Base
     query = db.query(
         Reading.timestamp,
         Reading.depth_cm,
@@ -62,7 +63,7 @@ def get_device_history(
     if reading_type:
         query = query.filter(Reading.reading_type == reading_type)
     
-    # Tratamento de Timezone e Filtros
+    # Tratamento de Timezone e Filtros Originais
     if start_date:
         if start_date.tzinfo:
             start_date = start_date.replace(tzinfo=None)
@@ -76,9 +77,50 @@ def get_device_history(
     if not start_date and not end_date:
         query = query.limit(10000)
 
+    # 2. Executa a primeira tentativa
     readings = query.order_by(Reading.timestamp.asc()).all()
 
-    # Cria a lista original contendo TODAS as profundidades
+    # --- NOVA CONDIÇÃO DE FALLBACK PARA SONDAS INATIVAS ---
+    # Se o frontend pediu um período, mas a sonda não enviou nada nesse intervalo:
+    if not readings and start_date:
+        # Busca a última leitura absoluta desta sonda no banco de dados
+        last_reading = db.query(Reading).filter(Reading.device_id == device.id).order_by(Reading.timestamp.desc()).first()
+        
+        if last_reading:
+            # Retrocede 30 dias a partir do último sinal real da sonda
+            fallback_start = last_reading.timestamp - timedelta(days=30)
+            fallback_end = last_reading.timestamp
+            
+            # Recria a query apontando para a janela de tempo onde realmente existem dados
+            fallback_query = db.query(
+                Reading.timestamp,
+                Reading.depth_cm,
+                Reading.moisture_pct,
+                Reading.temperature_c,
+                Reading.battery_status,
+                Reading.solar_status,
+                Reading.latitude,
+                Reading.longitude,
+                Reading.rain_cm,
+                Reading.reading_type
+            ).filter(
+                Reading.device_id == device.id,
+                Reading.timestamp >= fallback_start,
+                Reading.timestamp <= fallback_end
+            )
+            
+            if reading_type:
+                fallback_query = fallback_query.filter(Reading.reading_type == reading_type)
+                
+            readings = fallback_query.order_by(Reading.timestamp.asc()).all()
+            
+            # Atualiza start_date e end_date para que o location_history logo abaixo
+            # também busque as localizações dessa janela antiga, e não da atual vazia
+            start_date = fallback_start
+            end_date = fallback_end
+    # -----------------------------------------------------
+
+    # 3. Cria a lista original contendo TODAS as profundidades
     reading_history = [
         {
             "timestamp": r.timestamp,
