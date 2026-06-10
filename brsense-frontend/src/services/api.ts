@@ -77,11 +77,15 @@ export interface User {
 
 export interface ReadingHistory {
   timestamp: string;
-  depth_cm: number;
-  moisture_pct: number;
-  temperature_c: number;
+  depth_cm: number | null;
+  moisture_pct: number | null;
+  temperature_c: number | null;
   rain_cm?: number | null;
   battery_status?: number | null;
+  solar_status?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  reading_type?: string | null;
 }
 
 export interface CreateFarmDTO {

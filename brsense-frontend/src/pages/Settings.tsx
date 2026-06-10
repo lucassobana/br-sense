@@ -10,6 +10,7 @@ import {
   TabPanel,
   Text,
   IconButton,
+  Button,
   Flex,
   Spinner,
   useToast,
@@ -20,7 +21,7 @@ import {
   HStack,
   Icon,
 } from "@chakra-ui/react";
-import { MdEdit, MdLocationOn, MdSensors, MdAgriculture } from "react-icons/md";
+import { MdAdd, MdEdit, MdLocationOn, MdSensors, MdAgriculture } from "react-icons/md";
 import { COLORS } from "../colors/colors";
 import { isUserAdmin } from "../services/auth";
 import { Navigate } from "react-router-dom";
@@ -86,6 +87,11 @@ export function Settings() {
   const handleEditProbe = (probe: Probe) => {
     setSelectedProbe(probe);
     probeModal.onOpen();
+  };
+
+  const handleCreateFarm = () => {
+    setSelectedFarm(null);
+    farmModal.onOpen();
   };
 
   const closeFarmModal = () => {
@@ -234,6 +240,17 @@ export function Settings() {
             >
               {/* TAB FAZENDAS */}
               <TabPanel p={0}>
+                <Flex justify="flex-end" mb={4}>
+                  <Button
+                    leftIcon={<MdAdd />}
+                    bg={COLORS.primary}
+                    color="white"
+                    _hover={{ bg: COLORS.primaryDark }}
+                    onClick={handleCreateFarm}
+                  >
+                    Nova fazenda
+                  </Button>
+                </Flex>
                 <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
                   {farms.map((farm) => (
                     <Box
@@ -333,7 +350,6 @@ export function Settings() {
                 </SimpleGrid>
               </TabPanel>
 
-              {/* TAB SONDAS */}
               <TabPanel p={0}>
                 <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
                   {[...probes]

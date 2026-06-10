@@ -7,6 +7,7 @@ import { MyFarms } from './pages/MyFarms';
 import { MyProbes } from './pages/MyProbList';
 import { ProtectedRoute } from './components/ProtectedRoute/ProtectedRoute';
 import { Settings } from './pages/Settings';
+// import { Lading } from './pages/Lading';
 
 export function App() {
   return (
@@ -20,6 +21,7 @@ export function App() {
 
       {/* Rota Pública - Login não pode ter ProtectedRoute */}
       <Route path="/login" element={<Login />} />
+      {/* <Route path="/page" element={<Lading />} /> */}
     </Routes>
   );
 }

@@ -5,23 +5,17 @@ import {
     Container,
     Spinner,
     useToast,
-    Button,
     Flex,
-    useDisclosure,
     Text
 } from '@chakra-ui/react';
-import { MdAdd } from 'react-icons/md';
 import { getProbes, getFarms } from '../services/api'; // Import getFarms para o modal precisar
 import { ProbeList } from '../components/ProbeList/ProbeList';
-import { AddDeviceModal } from '../components/AddDeviceModal/AddDeviceModal';
 import { COLORS } from '../colors/colors';
 import type { Probe, Farm } from '../types';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { isUserAdmin } from '../services/auth';
 
 export function MyProbes() {
     const navigate = useNavigate();
-    const isAdmin = isUserAdmin();
     const [searchParams] = useSearchParams();
     const farmIdFilter = searchParams.get('farmId');
 
@@ -30,7 +24,6 @@ export function MyProbes() {
     const [loading, setLoading] = useState(true);
 
     const toast = useToast();
-    const { isOpen, onOpen, onClose } = useDisclosure();
 
     const loadData = useCallback(async () => {
         try {
@@ -66,8 +59,6 @@ export function MyProbes() {
         navigate(`/?probeId=${probe.id}`); 
     };
 
-    const defaultFarmId = farms.length > 0 ? farms[0].id : null;
-
     return (
         <Box minH="100vh" bg={COLORS.background} p={8}>
             <Container maxW="container.lg">
@@ -75,21 +66,7 @@ export function MyProbes() {
                     <Box>
                         <Heading color={COLORS.textPrimary} size="lg">Minhas Sondas</Heading>
                         <Text color="gray.500" fontSize="sm" mt={1}>Gerenciamento de dispositivos</Text>
-                    </Box>
-                    {isAdmin && (
-                        <Button
-                        leftIcon={<MdAdd />}
-                        bg={COLORS.primary}
-                        color="white"
-                        _hover={{ bg: COLORS.primaryDark }}
-                        onClick={onOpen}
-                        isDisabled={farms.length === 0} // Desabilita se não tiver fazenda para vincular
-                        title={farms.length === 0 ? "Crie uma fazenda primeiro" : "Adicionar nova sonda"}
-                    >
-                        Nova Sonda
-                        </Button>
-                    )}
-                    
+                    </Box>                    
                 </Flex>
 
                 {farms.length === 0 && !loading && (
@@ -110,16 +87,6 @@ export function MyProbes() {
                         onSelect={handleProbeSelect}
                     />
                 )}
-
-                {/* Reutilizando o Modal existente */}
-                {/* Nota: Idealmente, o modal deveria permitir escolher a fazenda se farmId for null. 
-            Como o componente atual exige farmId, usaremos o da primeira fazenda ou teremos que refatorar o modal depois. */}
-                <AddDeviceModal
-                    isOpen={isOpen}
-                    onClose={onClose}
-                    farmId={defaultFarmId}
-                    onSuccess={loadData}
-                />
             </Container>
         </Box>
     );

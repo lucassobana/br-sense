@@ -5,8 +5,11 @@ export interface Measurement {
   temperature_c?: number | null;
   battery_status?: number | null;
   solar_status?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
   rain_cm?: number | null;
   timestamp: string;
+  reading_type?: string | null;
 
   value?: number;
   sensor_index?: number;
@@ -71,4 +74,5 @@ export interface DailyForecast {
     precipProb: number;
     precipSum: number;
     tempRange: [number, number];
+    et0: number;
 }

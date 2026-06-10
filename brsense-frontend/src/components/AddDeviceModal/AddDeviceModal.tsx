@@ -17,7 +17,7 @@ interface AddDeviceModalProps {
     initialData?: Probe | null;
 }
 
-export function AddDeviceModal({ isOpen, onClose, onSuccess, initialData }: AddDeviceModalProps) {
+export function AddDeviceModal({ isOpen, onClose, onSuccess, farmId, initialData }: AddDeviceModalProps) {
     const toast = useToast();
     const isEditMode = !!initialData;
 
@@ -26,6 +26,7 @@ export function AddDeviceModal({ isOpen, onClose, onSuccess, initialData }: AddD
     const [selectedFarmId, setSelectedFarmId] = useState('');
     const [lat, setLat] = useState('');
     const [lng, setLng] = useState('');
+    const [locationMode, setLocationMode] = useState<'latest' | 'manual'>('latest');
     const [cultura, setCultura] = useState('');
     const [dataPlantio, setDataPlantio] = useState('');
 
@@ -50,6 +51,7 @@ export function AddDeviceModal({ isOpen, onClose, onSuccess, initialData }: AddD
                 setSelectedFarmId(initialData.farm_id ? String(initialData.farm_id) : '');
                 setLat(initialData.latitude ? String(initialData.latitude) : '');
                 setLng(initialData.longitude ? String(initialData.longitude) : '');
+                setLocationMode('manual');
                 setCultura(initialData.cultura || '');
                 setDataPlantio(initialData.data_plantio ? initialData.data_plantio.split('T')[0] : '');
             } else {
@@ -57,12 +59,13 @@ export function AddDeviceModal({ isOpen, onClose, onSuccess, initialData }: AddD
                 setEsn('');
                 setLat('');
                 setLng('');
+                setLocationMode('latest');
                 setCultura('');
                 setDataPlantio('');
-                setSelectedFarmId('');
+                setSelectedFarmId(farmId ? String(farmId) : '');
             }
         }
-    }, [isOpen, loadFarms, initialData]);
+    }, [isOpen, loadFarms, initialData, farmId]);
 
     const handleSubmit = async () => {
         if (!name || !esn) {
@@ -70,10 +73,21 @@ export function AddDeviceModal({ isOpen, onClose, onSuccess, initialData }: AddD
             return;
         }
 
+        if (!selectedFarmId) {
+            toast({ title: 'Selecione uma fazenda', status: 'warning' });
+            return;
+        }
+
         try {
             setIsLoading(true);
-            const latitude = lat ? parseFloat(lat.replace(',', '.')) : undefined;
-            const longitude = lng ? parseFloat(lng.replace(',', '.')) : undefined;
+            const shouldUseManualLocation = isEditMode || locationMode === 'manual';
+            const latitude = shouldUseManualLocation && lat ? parseFloat(lat.replace(',', '.')) : undefined;
+            const longitude = shouldUseManualLocation && lng ? parseFloat(lng.replace(',', '.')) : undefined;
+
+            if (shouldUseManualLocation && (latitude === undefined || longitude === undefined || Number.isNaN(latitude) || Number.isNaN(longitude))) {
+                toast({ title: 'Informe latitude e longitude válidas', status: 'warning' });
+                return;
+            }
 
             if (isEditMode && initialData) {
                 await updateDeviceAdmin(initialData.esn, {
@@ -146,16 +160,18 @@ export function AddDeviceModal({ isOpen, onClose, onSuccess, initialData }: AddD
                             </FormControl>
                         </Stack>
 
-                        <Stack direction={{ base: "column", sm: "row" }} spacing={4}>
-                            <FormControl>
-                                <FormLabel color="gray.300" fontSize="sm">Latitude</FormLabel>
-                                <Input value={lat} onChange={(e) => setLat(e.target.value)} bg={COLORS.background} border="none" type="number" />
-                            </FormControl>
-                            <FormControl>
-                                <FormLabel color="gray.300" fontSize="sm">Longitude</FormLabel>
-                                <Input value={lng} onChange={(e) => setLng(e.target.value)} bg={COLORS.background} border="none" type="number" />
-                            </FormControl>
-                        </Stack>
+                        {(isEditMode || locationMode === 'manual') && (
+                            <Stack direction={{ base: "column", sm: "row" }} spacing={4}>
+                                <FormControl isRequired={!isEditMode && locationMode === 'manual'}>
+                                    <FormLabel color="gray.300" fontSize="sm">Latitude</FormLabel>
+                                    <Input value={lat} onChange={(e) => setLat(e.target.value)} bg={COLORS.background} border="none" type="number" step="any" />
+                                </FormControl>
+                                <FormControl isRequired={!isEditMode && locationMode === 'manual'}>
+                                    <FormLabel color="gray.300" fontSize="sm">Longitude</FormLabel>
+                                    <Input value={lng} onChange={(e) => setLng(e.target.value)} bg={COLORS.background} border="none" type="number" step="any" />
+                                </FormControl>
+                            </Stack>
+                        )}
                     </VStack>
                 </ModalBody>
 

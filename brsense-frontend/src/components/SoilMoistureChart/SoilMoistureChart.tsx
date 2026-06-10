@@ -54,11 +54,15 @@ export type TimeRange = '24h' | '7d' | '15d' | '30d' | '60d' | '90d' | '120d' | 
 
 export interface RawApiData {
     timestamp: string;
-    depth_cm: number;
+    depth_cm: number | null;
     moisture_pct: number | null;
     temperature_c: number | null;
     rain_cm?: number | null;
     battery_status?: number | null;
+    solar_status?: number | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    reading_type?: string | null;
 }
 
 interface ChartDataPoint {
@@ -178,10 +182,33 @@ export function SoilMoistureChart({
         return title?.replace(/\s*\(\s*%\s*\)/g, '') || 'Temperatura do Solo';
     }, [metric, cultura, dap, title]);
 
+    // Estados reais usados pelo gráfico para filtrar
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    
+    // Estados temporários usados apenas nos inputs do Popover (evita recarregamento)
+    const [tempStartDate, setTempStartDate] = useState('');
+    const [tempEndDate, setTempEndDate] = useState('');
+
     const [refAreaLeft, setRefAreaLeft] = useState<string | null>(null);
     const [refAreaRight, setRefAreaRight] = useState<string | null>(null);
+
+    // Aplica os filtros apenas quando o botão for clicado
+    const handleApplyFilters = () => {
+        setStartDate(tempStartDate);
+        setEndDate(tempEndDate);
+        if (tempStartDate && tempEndDate && onPeriodChange) {
+            onPeriodChange('Personalizado', tempStartDate, tempEndDate);
+        }
+    };
+
+    // Função auxiliar para limpar datas de forma uniforme
+    const clearDates = () => {
+        setStartDate('');
+        setEndDate('');
+        setTempStartDate('');
+        setTempEndDate('');
+    };
 
     const userStorageScope = useMemo(() => {
         const token = localStorage.getItem('access_token');
@@ -276,7 +303,19 @@ export function SoilMoistureChart({
     const { chartData, isHighResolution } = useMemo(() => {
         if (!data || data.length === 0) return { chartData: [], isHighResolution: true };
 
-        let filteredData = data;
+        let filteredData = data.filter(item => {
+            const isMoisture = metric === 'moisture';
+            const expectedType = isMoisture ? 'H' : 'T';
+            
+            const isValidType = item.reading_type === expectedType || !item.reading_type;
+            
+            const hasValidValue = isMoisture 
+                ? item.moisture_pct !== null && item.moisture_pct !== undefined
+                : item.temperature_c !== null && item.temperature_c !== undefined;
+
+            return isValidType && hasValidValue;
+        });
+
         const useHourly = true;
 
         if (startDate && endDate) {
@@ -358,16 +397,17 @@ export function SoilMoistureChart({
                 if (metric === 'moisture') {
                     const lastValid = lastValidByDepth[key];
 
-                    if (currentVal === 0) {
-                        lastValidByDepth[key] = 0;
-                        
-                    } else if (lastValid === 0 || lastValid === undefined || lastValid === null) {
-                        lastValidByDepth[key] = currentVal;
-                        
+                    if (lastValid === undefined || lastValid === null) {
+                        if (currentVal !== 0) {
+                            lastValidByDepth[key] = currentVal;
+                        }
                     } else {
-                        const diff = Math.abs(currentVal - lastValid);
+                        const diff = currentVal - lastValid;
                         
-                        if (diff > 20) {
+                        const isQuedaInvalida = diff < 0 && diff < -10;
+                        const isSubidaInvalida = diff > 0 && diff > 20;
+
+                        if (currentVal === 0 || isQuedaInvalida || isSubidaInvalida) {
                             currentVal = lastValid;
                         } else {
                             lastValidByDepth[key] = currentVal;
@@ -487,6 +527,8 @@ export function SoilMoistureChart({
 
             setStartDate(localStart);
             setEndDate(localEnd);
+            setTempStartDate(localStart);
+            setTempEndDate(localEnd);
 
             if (onPeriodChange) {
                 onPeriodChange('Personalizado', localStart, localEnd);
@@ -566,36 +608,27 @@ export function SoilMoistureChart({
 
 
     const handleChartInteraction = useCallback((state: { activeTooltipIndex?: number | string | null; activeLabel?: string | number } | null | undefined) => {
-        if (!state || state.activeTooltipIndex == null) return;
+        if (!state || state.activeTooltipIndex == null) {
+            setSelectedData(null);
+            setHoveredData(null);
+            return;
+        }
+
         if (refAreaLeft !== null) return;
 
-        const baseIndex = Number(state.activeTooltipIndex); // Garante que a string vire número
+        const baseIndex = Number(state.activeTooltipIndex);
         if (isNaN(baseIndex) || baseIndex < 0 || baseIndex >= chartData.length) return;
 
-        const plotWidth = chartContainerRef.current ? chartContainerRef.current.clientWidth - 50 : 300;
-        const pointWidth = plotWidth / Math.max(1, chartData.length);
+        const point = chartData[baseIndex];
         
-        const MAGNET_PX = 35; 
-        const searchRadius = Math.ceil(MAGNET_PX / pointWidth);
-
-        let bestIndex = baseIndex;
-        let minDist = Infinity;
-
-        for (let i = Math.max(0, baseIndex - searchRadius); i <= Math.min(chartData.length - 1, baseIndex + searchRadius); i++) {
-            if (chartData[i]?.precipitacao) {
-                const pixelDist = Math.abs(i - baseIndex) * pointWidth;
-                if (pixelDist < minDist && pixelDist <= MAGNET_PX) {
-                    minDist = pixelDist;
-                    bestIndex = i;
-                }
+        if (point) {
+            if (isTouchDevice) {
+                setSelectedData(point);
+            } else {
+                setHoveredData(point);
             }
         }
-
-        const point = chartData[bestIndex];
-        if (point) {
-            setSelectedData(point);
-        }
-    }, [chartData, refAreaLeft]);
+    }, [chartData, refAreaLeft, isTouchDevice]);
 
     useEffect(() => {
         if (!isTouchDevice || !selectedData) return;
@@ -745,16 +778,13 @@ export function SoilMoistureChart({
 
     const activeData: ChartDataPoint | null = selectedData ?? hoveredData;
 
-    // Rótulo Inteligente (Lê a altura "rainLabelY" calculada em cascata)
     const renderRainLabel = (props: RainLabelProps) => {
         const { index } = props;
 
-        // 1. Garante que o index existe antes de buscar no array
         if (index === undefined) return null;
 
         const point = chartData[index];
         
-        // 2. Converte as propriedades com segurança para números
         const x = Number(props.x);
         const width = Number(props.width);
         const value = Number(props.value);
@@ -772,7 +802,6 @@ export function SoilMoistureChart({
         return (
             <text
                 x={x + width / 2}
-                // y={point.rainLabelY || 15}
                 y={22}
                 textAnchor="middle"
                 fill="white"
@@ -785,9 +814,8 @@ export function SoilMoistureChart({
     };
 
     const handleResetView = () => {
-        if (startDate || endDate) {
-            setStartDate('');
-            setEndDate('');
+        if (startDate || endDate || tempStartDate || tempEndDate) {
+            clearDates();
             if (onPeriodChange) onPeriodChange('24h');
         }
         if (chartData.length > 0) {
@@ -857,13 +885,13 @@ export function SoilMoistureChart({
                                 {startDate || endDate ? 'Personalizado' : selectedPeriod}
                             </MenuButton>
                             <MenuList bg="gray.800" borderColor="gray.600" zIndex={2000}>
-                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('24h'); }}>Últimas 24h</MenuItem>
-                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('7d'); }}>Últimos 7 Dias</MenuItem>
-                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('15d'); }}>Últimos 15 Dias</MenuItem>
-                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('30d'); }}>Últimos 30 Dias</MenuItem>
-                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('60d'); }}>Últimos 60 Dias</MenuItem>
-                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('90d'); }}>Últimos 90 Dias</MenuItem>
-                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { setStartDate(''); setEndDate(''); onPeriodChange('120d'); }}>Últimos 120 Dias</MenuItem>
+                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { clearDates(); onPeriodChange('24h'); }}>Últimas 24h</MenuItem>
+                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { clearDates(); onPeriodChange('7d'); }}>Últimos 7 Dias</MenuItem>
+                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { clearDates(); onPeriodChange('15d'); }}>Últimos 15 Dias</MenuItem>
+                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { clearDates(); onPeriodChange('30d'); }}>Últimos 30 Dias</MenuItem>
+                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { clearDates(); onPeriodChange('60d'); }}>Últimos 60 Dias</MenuItem>
+                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { clearDates(); onPeriodChange('90d'); }}>Últimos 90 Dias</MenuItem>
+                                <MenuItem bg="gray.800" _hover={{ bg: "gray.700" }} onClick={() => { clearDates(); onPeriodChange('120d'); }}>Últimos 120 Dias</MenuItem>
                             </MenuList>
                         </Menu>
                     )}
@@ -878,12 +906,20 @@ export function SoilMoistureChart({
                                 <VStack spacing={3} align="stretch">
                                     <FormControl>
                                         <FormLabel fontSize="xs" color="gray.400" mb={1}>Data Inicial</FormLabel>
-                                        <Input size="xs" type="date" value={startDate} onChange={(e) => { const v = e.target.value; setStartDate(v); if (v && endDate && onPeriodChange) onPeriodChange('Personalizado', v, endDate); }} />
+                                        <Input size="xs" type="date" value={tempStartDate} onChange={(e) => setTempStartDate(e.target.value)} />
                                     </FormControl>
                                     <FormControl>
                                         <FormLabel fontSize="xs" color="gray.400" mb={1}>Data Final</FormLabel>
-                                        <Input size="xs" type="date" value={endDate} onChange={(e) => { const v = e.target.value; setEndDate(v); if (startDate && v && onPeriodChange) onPeriodChange('Personalizado', startDate, v); }} />
+                                        <Input size="xs" type="date" value={tempEndDate} onChange={(e) => setTempEndDate(e.target.value)} />
                                     </FormControl>
+                                    <Button 
+                                        size="xs" 
+                                        colorScheme="blue" 
+                                        onClick={handleApplyFilters} 
+                                        isDisabled={!tempStartDate || !tempEndDate}
+                                    >
+                                        Aplicar filtros
+                                    </Button>
                                 </VStack>
                             </PopoverBody>
                         </PopoverContent>
