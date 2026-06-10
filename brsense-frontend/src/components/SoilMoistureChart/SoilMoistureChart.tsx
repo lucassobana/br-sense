@@ -397,16 +397,17 @@ export function SoilMoistureChart({
                 if (metric === 'moisture') {
                     const lastValid = lastValidByDepth[key];
 
-                    if (currentVal === 0) {
-                        lastValidByDepth[key] = 0;
-                        
-                    } else if (lastValid === 0 || lastValid === undefined || lastValid === null) {
-                        lastValidByDepth[key] = currentVal;
-                        
+                    if (lastValid === undefined || lastValid === null) {
+                        if (currentVal !== 0) {
+                            lastValidByDepth[key] = currentVal;
+                        }
                     } else {
-                        const diff = Math.abs(currentVal - lastValid);
+                        const diff = currentVal - lastValid;
                         
-                        if (diff > 20) {
+                        const isQuedaInvalida = diff < 0 && diff < -10;
+                        const isSubidaInvalida = diff > 0 && diff > 20;
+
+                        if (currentVal === 0 || isQuedaInvalida || isSubidaInvalida) {
                             currentVal = lastValid;
                         } else {
                             lastValidByDepth[key] = currentVal;
@@ -607,36 +608,27 @@ export function SoilMoistureChart({
 
 
     const handleChartInteraction = useCallback((state: { activeTooltipIndex?: number | string | null; activeLabel?: string | number } | null | undefined) => {
-        if (!state || state.activeTooltipIndex == null) return;
+        if (!state || state.activeTooltipIndex == null) {
+            setSelectedData(null);
+            setHoveredData(null);
+            return;
+        }
+
         if (refAreaLeft !== null) return;
 
         const baseIndex = Number(state.activeTooltipIndex);
         if (isNaN(baseIndex) || baseIndex < 0 || baseIndex >= chartData.length) return;
 
-        const plotWidth = chartContainerRef.current ? chartContainerRef.current.clientWidth - 50 : 300;
-        const pointWidth = plotWidth / Math.max(1, chartData.length);
+        const point = chartData[baseIndex];
         
-        const MAGNET_PX = 35; 
-        const searchRadius = Math.ceil(MAGNET_PX / pointWidth);
-
-        let bestIndex = baseIndex;
-        let minDist = Infinity;
-
-        for (let i = Math.max(0, baseIndex - searchRadius); i <= Math.min(chartData.length - 1, baseIndex + searchRadius); i++) {
-            if (chartData[i]?.precipitacao) {
-                const pixelDist = Math.abs(i - baseIndex) * pointWidth;
-                if (pixelDist < minDist && pixelDist <= MAGNET_PX) {
-                    minDist = pixelDist;
-                    bestIndex = i;
-                }
+        if (point) {
+            if (isTouchDevice) {
+                setSelectedData(point);
+            } else {
+                setHoveredData(point);
             }
         }
-
-        const point = chartData[bestIndex];
-        if (point) {
-            setSelectedData(point);
-        }
-    }, [chartData, refAreaLeft]);
+    }, [chartData, refAreaLeft, isTouchDevice]);
 
     useEffect(() => {
         if (!isTouchDevice || !selectedData) return;
