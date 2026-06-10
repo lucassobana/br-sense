@@ -8,6 +8,7 @@ import {
   Icon,
   VStack,
   Fade,
+  Stack,
 } from "@chakra-ui/react";
 import {
   BarChart,
@@ -21,6 +22,7 @@ import {
 } from "recharts";
 import { BsCloudRainFill } from "react-icons/bs";
 import { MdWaterDrop } from "react-icons/md";
+import { WiHot } from "react-icons/wi";
 import { FaThermometerFull, FaThermometerQuarter } from "react-icons/fa";
 import type { DailyForecast } from "../../types";
 import { COLORS } from "../../colors/colors";
@@ -133,7 +135,7 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
 
         {currentDay.tempMin !== undefined &&
           currentDay.tempMax !== undefined && (
-            <foreignObject x={-40} y={76} width={80} height={40}>
+            <foreignObject x={-40} y={76} width={80} height={65}>
               <Flex
                 align="center"
                 justify="center"
@@ -156,6 +158,17 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
                   />
                   <Text fontSize="12px" color="gray.300" fontWeight="medium">
                     {Math.round(currentDay.tempMin)}°
+                  </Text>
+                </Flex>
+
+                <Flex align="center">
+                  <Icon as={WiHot} boxSize={5} color="orange.400" />
+                  <Text
+                    fontSize={{ base: "10px", md: "12px" }}
+                    color={COLORS.textPrimary}
+                    fontWeight="medium"
+                  >
+                    {currentDay.et0?.toFixed(1)}mm
                   </Text>
                 </Flex>
               </Flex>
@@ -212,7 +225,13 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
             </VStack>
           </HStack>
 
-          <HStack spacing={4} fontSize={{ base: "10px", md: "xs" }}>
+          <Stack
+            direction={{ base: "column", md: "row" }}
+            spacing={4}
+            fontSize={{ base: "10px", md: "xs" }}
+            gap={3}
+            pl={{ base: 4, md: 0 }}
+          >
             <HStack spacing={1.5}>
               <Box
                 w="12px"
@@ -222,11 +241,17 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
               />
               <Text color="gray.300">Precipitação prevista (mm)</Text>
             </HStack>
+
             <HStack spacing={1}>
               <Icon as={MdWaterDrop} boxSize={4} color={COLORS.primaryDark} />
               <Text color="gray.300">Probabilidade (%)</Text>
             </HStack>
-          </HStack>
+
+            <HStack spacing={1.5}>
+              <Icon as={WiHot} boxSize={4} color="orange.400" />
+              <Text color="gray.300">Evapotranspiração (mm)</Text>
+            </HStack>
+          </Stack>
         </Flex>
 
         <Box

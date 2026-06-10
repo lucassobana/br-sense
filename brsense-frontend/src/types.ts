@@ -74,4 +74,5 @@ export interface DailyForecast {
     precipProb: number;
     precipSum: number;
     tempRange: [number, number];
+    et0: number;
 }
