@@ -8,6 +8,7 @@ import {
     MdSensors, MdLocationOn, MdBatteryFull
 } from 'react-icons/md';
 import type { Probe } from '../../types';
+import { useEffect, useState } from 'react';
 
 export interface TableRowData extends Probe {
     farmName: string;
@@ -25,6 +26,7 @@ interface DeviceTableProps {
     onRowClick: (id: number) => void;
     sortConfig: { key: SortKey; direction: 'asc' | 'desc' };
     onSort: (key: SortKey) => void;
+    isAdmin?: boolean; // <-- Nova propriedade adicionada aqui
 }
 
 const sortLabels: Record<SortKey, string> = {
@@ -37,7 +39,21 @@ const sortLabels: Record<SortKey, string> = {
     farmName: 'Fazenda'
 };
 
-export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTableProps) {
+export function DeviceTable({ data, onRowClick, sortConfig, onSort, isAdmin }: DeviceTableProps) {
+
+    const [currentTime, setCurrentTime] = useState(() => Date.now());
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setCurrentTime(Date.now());
+        }, 60000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const checkIsOffline = (timestamp: number) => {
+        const oneHourMs = 60 * 60 * 1000;
+        return (currentTime - timestamp) > oneHourMs;
+    };
 
     const formatRain = (val?: number) => {
         if (val === undefined || val === null) return '-';
@@ -106,7 +122,7 @@ export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTabl
 
     return (
         <>
-            {/* VISÃO MOBILE (Intacta) */}
+            {/* VISÃO MOBILE */}
             <Hide above="md">
                 <Flex justify="space-between" align="center" mb={4} px={1}>
                     <Menu>
@@ -149,6 +165,7 @@ export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTabl
                 <SimpleGrid gridTemplateColumns="1fr" gap={4} w="100%">
                     {data.map((row) => {
                         const batteryData = getBatteryStatus(row.batteryLevel);
+                        const isOffline = checkIsOffline(row.lastCommunicationTimestamp);
 
                         return (
                             <Box
@@ -178,7 +195,22 @@ export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTabl
                             >
                                 <Flex justify="space-between" align="center" gap={2} mb={3} pl={2}>
                                     <Box flex="1" minW={0}>
+                                        <HStack>
+
                                         <Text fontSize="lg" fontWeight="bold" color="white" noOfLines={1}>{row.name || row.esn}</Text>
+                                        {isAdmin && (
+                                            <Badge
+                                                // colorScheme={isOffline ? 'gray' : 'green'}
+                                                bg={isOffline ? 'gray' : 'green'}
+                                                // color={isOffline ? 'gray.400' : 'green.400'}
+                                                variant="subtle"
+                                                borderRadius="full"
+                                                px={1.5}
+                                                py={1.5}
+                                                whiteSpace="nowrap"
+                                            />
+                                        )}
+                                        </HStack>
                                         {row.name && <Text fontSize="xs" color="gray.400" noOfLines={1}>ESN: {row.esn}</Text>}
                                     </Box>
 
@@ -239,13 +271,12 @@ export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTabl
                 </SimpleGrid>
             </Hide>
 
-            {/* VISÃO DESKTOP ATUALIZADA */}
+            {/* VISÃO DESKTOP */}
             <Show above="md">
                 <Box bg="gray.800" borderRadius="2rem" overflow="hidden" boxShadow="2xl">
                     <Table variant="unstyled" w="full" textAlign="left" sx={{ borderCollapse: 'collapse' }}>
                         <Thead bg="whiteAlpha.50">
                             <Tr color="gray.400" fontSize="10px" textTransform="uppercase" letterSpacing="0.2em" fontWeight="bold">
-                                {/* Ordenação por Status vinculada ao cabeçalho de Nome */}
                                 <Th py={4} px={4} minW="260px" cursor="pointer" onClick={() => onSort('status')} color="gray.400">
                                     <HStack spacing={1}>
                                         <Text>Nome do Dispositivo</Text>
@@ -270,6 +301,7 @@ export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTabl
                         <Tbody sx={{ '& tr': { borderBottom: '1px solid', borderColor: 'rgba(255, 255, 255, 0.05)' } }}>
                             {data.map((row) => {
                                 const batteryData = getBatteryStatus(row.batteryLevel);
+                                const isOffline = checkIsOffline(row.lastCommunicationTimestamp);
                                 const rawStatusColor = getStatusColor(row.status, 'desktop');
                                 const accentColor = rawStatusColor === 'gray.400' ? 'gray.500' : `${rawStatusColor}.500`;
 
@@ -283,7 +315,6 @@ export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTabl
                                 return (
                                     <Tr key={`desktop-row-${row.id}`} onClick={() => onRowClick(row.id)} role="group" cursor="pointer" _hover={{ bg: 'whiteAlpha.50' }} transition="colors 0.2s" position="relative">
                                         <Td py={4} px={4} position="relative" borderBottom="none">
-                                            {/* Accent Lateral Fixo (estilo mobile) */}
                                             <Box position="absolute" left={0} top={0} bottom={0} w="4px" bg={accentColor} />
                                             
                                             <Flex align="center" gap={3} ml={2}>
@@ -291,23 +322,33 @@ export function DeviceTable({ data, onRowClick, sortConfig, onSort }: DeviceTabl
                                                     <Icon as={MdSensors} boxSize={4} />
                                                 </Flex>
                                                 <VStack align="start" spacing={1}>
-                                                    <Text fontFamily="heading" fontWeight="bold" fontSize="md" color="white" lineHeight="short" noOfLines={1}>
-                                                        {row.name || row.esn}
-                                                    </Text>
+                                                    <HStack>
+                                                        <Text fontFamily="heading" fontWeight="bold" fontSize="md" color="white" lineHeight="short" noOfLines={1}>
+                                                            {row.name || row.esn}
+                                                        </Text>
+                                                        {isAdmin && (
+                                                            <Flex display="inline-flex" align="center" px={2} py={0.5} rounded="full" color={isOffline ? 'gray.300' : 'green.300'} fontSize="10px" fontWeight="bold" letterSpacing="wider" textTransform="uppercase">
+                                                                <Box h={1.5} w={1.5} rounded="full" bg={isOffline ? 'gray.400' : 'green.400'} mr={1} />
+                                                                {isOffline ? 'Offline' : 'Online'}
+                                                            </Flex>
+                                                        )}
+                                                    </HStack>
+                                                    
                                                     <HStack spacing={1} fontSize="10px" color="gray.400">
                                                         <Icon as={MdLocationOn} boxSize={3} />
                                                         <Text noOfLines={1}>{row.farmName || 'Sem fazenda'}</Text>
                                                     </HStack>
-                                                    {/* Status agora abaixo da fazenda */}
-                                                    <Flex display="inline-flex" align="center" px={2} py={0.5} rounded="full" bg={badgeBg} color={badgeColor} fontSize="10px" fontWeight="bold" letterSpacing="wider" textTransform="uppercase">
-                                                        <Box h={1.5} w={1.5} rounded="full" bg={badgeDot} mr={1} />
-                                                        {getStatusLabel(row.status)}
-                                                    </Flex>
+                                                    
+                                                    <HStack spacing={2} mt={1}>
+                                                        <Flex display="inline-flex" align="center" px={2} py={0.5} rounded="full" bg={badgeBg} color={badgeColor} fontSize="10px" fontWeight="bold" letterSpacing="wider" textTransform="uppercase">
+                                                            <Box h={1.5} w={1.5} rounded="full" bg={badgeDot} mr={1} />
+                                                            {getStatusLabel(row.status)}
+                                                        </Flex>
+                                                    </HStack>
                                                 </VStack>
                                             </Flex>
                                         </Td>
 
-                                        {/* Precipitação sem "mm" nos valores azuis */}
                                         <Td py={4} px={4} textAlign="center" borderLeft="1px solid" borderColor="whiteAlpha.100" borderBottom="none">
                                             <HStack spacing={3} justify="center" whiteSpace="nowrap">
                                                 <Text color="blue.400" fontWeight="bold" fontSize="md">{formatRain(row.rain_1h)}</Text>
