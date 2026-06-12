@@ -665,7 +665,7 @@ export function DeviceTable({
                                   w={1.5}
                                   rounded="full"
                                   bg={isOffline ? "gray.400" : "green.400"}
-                                  mr={{ base: 0, md: 0 }}
+                                  mr={{ base: 0, md: 0, lg: 1 }}
                                 />
 
                                 <Box
