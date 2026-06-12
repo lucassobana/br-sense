@@ -135,7 +135,7 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
 
         {currentDay.tempMin !== undefined &&
           currentDay.tempMax !== undefined && (
-            <foreignObject x={-40} y={76} width={80} height={65}>
+            <foreignObject x={-47} y={76} width={90} height={65}>
               <Flex
                 align="center"
                 justify="center"
@@ -183,7 +183,7 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
       <Flex
         direction="column"
         w="100%"
-        h="500px"
+        h="540px"
         bg={COLORS.surface}
         borderRadius="xl"
         p={4}
@@ -231,6 +231,7 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
             fontSize={{ base: "10px", md: "xs" }}
             gap={3}
             pl={{ base: 4, md: 0 }}
+            flexWrap="wrap"
           >
             <HStack spacing={1.5}>
               <Box
@@ -239,7 +240,7 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
                 bgGradient="linear(to-t, #003764de, #0093fc)"
                 borderRadius="sm"
               />
-              <Text color="gray.300">Precipitação prevista (mm)</Text>
+              <Text color="gray.300">Precipitação (mm)</Text>
             </HStack>
 
             <HStack spacing={1}>
@@ -268,11 +269,12 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
             },
           }}
         >
-          <Box minW={{ base: "800px", md: "100%" }} h="100%">
+          {/* ADICIONADO: Mudança de md para lg e xl. Agora Tablets ganham o scroll horizontal em vez de espremer o conteúdo */}
+          <Box minW={{ base: "1100px", xl: "100%" }} h="100%">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={chartData}
-                margin={{ top: 10, right: 15, left: 0, bottom: 120 }}
+                margin={{ top: 10, right: 15, left: 0, bottom: 145 }}
               >
                 <defs>
                   <linearGradient
