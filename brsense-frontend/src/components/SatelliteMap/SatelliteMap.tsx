@@ -691,6 +691,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                                 value={mapDepthFilter}
                                 onChange={(e) => onMapDepthFilterChange && onMapDepthFilterChange(Number(e.target.value))}
                                 bg="transparent"
+                                color="black"
                                 border="none"
                                 fontWeight="bold"
                                 _focus={{ boxShadow: 'none' }}
