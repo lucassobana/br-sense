@@ -514,6 +514,7 @@ export function Dashboard() {
                 onRowClick={handleMapGraphClick}
                 sortConfig={sortConfig}
                 onSort={handleSort}
+                isAdmin={userIsAdmin}
               />
             </Container>
           </MotionBox>
@@ -675,7 +676,11 @@ export function Dashboard() {
                       variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0 } }}
                       transition={{ duration: 0.4 }}
                     >
-                      <BatteryStatusChart data={batteryData} />
+                      <BatteryStatusChart
+                        data={batteryData}
+                        selectedPeriod={selectedPeriod}
+                        onPeriodChange={handlePeriodChange} 
+                      />
                     </MotionBox>
                   )}
                 </VStack>
