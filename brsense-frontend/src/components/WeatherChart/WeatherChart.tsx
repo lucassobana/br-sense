@@ -226,7 +226,7 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
           </HStack>
 
           <Stack
-            direction={{ base: "column", md: "row" }}
+            direction="row"
             spacing={4}
             fontSize={{ base: "10px", md: "xs" }}
             gap={3}
@@ -240,17 +240,17 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
                 bgGradient="linear(to-t, #003764de, #0093fc)"
                 borderRadius="sm"
               />
-              <Text color="gray.300">Precipitação (mm)</Text>
+              <Text color="gray.300">Prec (mm)</Text>
             </HStack>
 
             <HStack spacing={1}>
               <Icon as={MdWaterDrop} boxSize={4} color={COLORS.primaryDark} />
-              <Text color="gray.300">Probabilidade (%)</Text>
+              <Text color="gray.300">Prob (%)</Text>
             </HStack>
 
             <HStack spacing={1.5}>
               <Icon as={WiHot} boxSize={4} color="orange.400" />
-              <Text color="gray.300">Evapotranspiração (mm)</Text>
+              <Text color="gray.300">ETo (mm)</Text>
             </HStack>
           </Stack>
         </Flex>
