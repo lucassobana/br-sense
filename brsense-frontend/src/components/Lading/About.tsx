@@ -19,7 +19,7 @@ export default function About() {
           spacing={16}
           align="center"
         >
-          <Box flex={0.5} w="full" display="flex" justify="center">
+          <Box flex={0.5} w="full" display="flex" justifyContent="center">
             <Box
               p={10}
               bg="whiteAlpha.50"
