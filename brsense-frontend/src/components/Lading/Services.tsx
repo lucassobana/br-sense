@@ -6,119 +6,188 @@ import {
   Text,
   VStack,
   Flex,
+  List,
+  ListItem,
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
-import Lottie from "lottie-react";
-import chartAnimation from '../../assets/lotties/chart_line.json';
-import manageAnimation from '../../assets/lotties/manage.json';
-import maintenanceAnimation from '../../assets/lotties/maintenance.json';
 
-const services = [
-  {
-    lottieData: chartAnimation,
-    title: "Acompanhamento de Safra",
-    desc: "Unimos os dados coletados em campo com nossa expertise agronômica. Realizamos o monitoramento contínuo do ciclo fenológico da sua cultura, orientando a tomada de decisão para maximizar a produtividade e reduzir perdas.",
-  },
-  {
-    lottieData: manageAnimation,
-    title: "Projetos de Pivô Central",
-    desc: "Engenharia completa e especializada em irrigação. Desenvolvemos o dimensionamento hidráulico e a adequação de pivôs centrais, focando em máxima eficiência hídrica e energética para a sua realidade topográfica.",
-  },
-  {
-    lottieData: maintenanceAnimation,
-    title: "Suporte e Manutenção",
-    desc: "Nossa equipe técnica acompanha a saúde dos seus equipamentos de perto. Garantimos que os pluviômetros e sondas operem com 100% de precisão durante toda a janela da safra.",
-  },
+const pillarA_items = [
+  "Estudo de viabilidade",
+  "Dimensionamento hidráulico e energético",
+  "Análise de captação, reservatórios, bombas e adutoras",
+  "Comparativo técnico de marcas e apoio na compra",
+  "Acompanhamento da implantação",
+  "Estratégia de operação e custo",
 ];
+
+const pillarB_items = [
+  "Sonda FDR instalada no solo",
+  "Umidade a cada 10 cm, temperatura e atividade radicular",
+  "Pluviômetro integrado e comunicação satelital",
+  "Plataforma online com histórico e alertas",
+  "Evapotranspiração e previsão climática",
+  "Acompanhamento técnico durante a safra",
+];
+
+// Componente customizado para replicar o "ponto verde com sombra" do CSS original
+const CustomCheckIcon = () => (
+  <Box
+    as="span"
+    display="inline-block"
+    minW="8px"
+    w="8px"
+    h="8px"
+    borderRadius="50%"
+    bg="#2ea764"
+    boxShadow="0 0 0 4px rgba(46, 167, 100, 0.15)"
+    mr={4}
+    mt={1.5}
+  />
+);
 
 export default function Services() {
   return (
     <Box
-      id="servicos"
+      id="consultoria"
       minH="100vh"
       display="flex"
       alignItems="center"
       py={{ base: 20, md: 32 }}
-      bg="#0A1226"
+      bg="#050B18"
       position="relative"
-      borderTop="1px"
-      borderColor="whiteAlpha.100"
     >
-      <Container maxW="container.xl">
-        <VStack spacing={4} mb={16} textAlign="center">
+      <Container maxW="container.xl" position="relative" zIndex={2}>
+        {/* Cabeçalho da Seção */}
+        <VStack spacing={6} textAlign="center" mb={16}>
           <Text
-            color="brand.500"
+            color="#3084c9"
             fontWeight="bold"
             textTransform="uppercase"
             letterSpacing="wider"
-            fontSize="sm"
           >
-            Nossas Soluções
+            O que a BR Sense faz
           </Text>
-          <Heading size="xl" color="white">
-            Muito além do Software
+          <Heading size="2xl" color="white" maxW="3xl" lineHeight="1.2">
+            Do projeto ao manejo: uma visão completa da irrigação.
           </Heading>
-          <Text color="text.secondary" fontSize="lg" maxW="2xl">
-            Combinamos inteligência de dados com engenharia e agronomia de ponta
-            para entregar resultados reais no campo.
+          <Text fontSize="xl" color="whiteAlpha.700" maxW="3xl">
+            A BR Sense atua em duas frentes que se complementam: engenharia para
+            projetar e implantar pivôs centrais com segurança, e tecnologia para
+            monitorar o solo durante a safra.
           </Text>
         </VStack>
 
-        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={8}>
-          {services.map((service, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.5, delay: index * 0.2 }}
-              whileHover={{ scale: 1.03, y: -8 }}
+        <SimpleGrid
+          columns={{ base: 1, lg: 2 }}
+          spacing={8}
+          maxW="5xl"
+          mx="auto"
+        >
+          {/* Pillar Card A (Claro) */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            style={{ height: "100%" }}
+          >
+            <Box
+              bg="#3084c9ff"
+              p={{ base: 8, md: 10 }}
+              rounded="2xl"
+              border="1px"
+              borderColor="#3084c9ff"
+              h="full"
+              shadow="xl"
             >
-              <Box
-                p={8}
-                bg="#050B18"
-                rounded="2xl"
-                border="1px"
-                borderColor="whiteAlpha.100"
-                h="full"
-                transition="all 0.3s"
-                _hover={{
-                  borderColor: "brand.500",
-                  transform: "translateY(-6px)",
-                }}
-              >
-                <VStack align="start" spacing={5}>
-                  <Flex
-                    w={14}
-                    h={14}
-                    bg="#0A1226"
-                    color="brand.500"
-                    rounded="xl"
-                    align="center"
-                    justify="center"
-                    border="1px"
-                    borderColor="brand.500"
-                  >
-                    {service.lottieData ? (
-                      <Lottie
-                        animationData={service.lottieData}
-                        loop={true}
-                        autoplay={true}
-                      />
-                    ) : (
-                      <Box bg="brand.500" w={8} h={8} rounded="full" /> // Placeholder temporário
-                    )}
-                  </Flex>
-                  <Heading size="md" color="white">
-                    {service.title}
-                  </Heading>
-                  <Text color="text.secondary" lineHeight="tall">
-                    {service.desc}
-                  </Text>
-                </VStack>
-              </Box>
-            </motion.div>
-          ))}
+              <VStack align="start" spacing={6}>
+                <Flex
+                  w="44px"
+                  h="44px"
+                  bg="#071321"
+                  color="#4ea6ce"
+                  rounded="full"
+                  align="center"
+                  justify="center"
+                  fontWeight="900"
+                  fontSize="lg"
+                >
+                  A
+                </Flex>
+                <Heading size="lg" color="#10202f" lineHeight="1.2">
+                  Consultoria para projetos de pivô central
+                </Heading>
+                <List spacing={4} pt={2}>
+                  {pillarA_items.map((item, idx) => (
+                    <ListItem
+                      key={idx}
+                      display="flex"
+                      alignItems="flex-start"
+                      color="#10202f"
+                      fontWeight="medium"
+                      lineHeight="1.4"
+                    >
+                      <CustomCheckIcon />
+                      <Text>{item}</Text>
+                    </ListItem>
+                  ))}
+                </List>
+              </VStack>
+            </Box>
+          </motion.div>
+
+          {/* Pillar Card B (Escuro) */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            style={{ height: "100%" }}
+          >
+            <Box
+              bg="#071321"
+              p={{ base: 8, md: 10 }}
+              rounded="2xl"
+              border="1px"
+              borderColor="#071321"
+              h="full"
+              shadow="2xl"
+            >
+              <VStack align="start" spacing={6}>
+                <Flex
+                  w="44px"
+                  h="44px"
+                  bg="rgba(8, 174, 234, 0.14)"
+                  color="#08aeea"
+                  rounded="full"
+                  align="center"
+                  justify="center"
+                  fontWeight="900"
+                  fontSize="lg"
+                >
+                  B
+                </Flex>
+                <Heading size="lg" color="white" lineHeight="1.2">
+                  Tecnologia para manejo de irrigação
+                </Heading>
+                <List spacing={4} pt={2}>
+                  {pillarB_items.map((item, idx) => (
+                    <ListItem
+                      key={idx}
+                      display="flex"
+                      alignItems="flex-start"
+                      color="whiteAlpha.800"
+                      fontWeight="medium"
+                      lineHeight="1.4"
+                    >
+                      <CustomCheckIcon />
+                      <Text>{item}</Text>
+                    </ListItem>
+                  ))}
+                </List>
+              </VStack>
+            </Box>
+          </motion.div>
         </SimpleGrid>
       </Container>
     </Box>

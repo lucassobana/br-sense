@@ -9,61 +9,69 @@ import {
 import { motion } from "framer-motion";
 import Lottie from "lottie-react";
 import rainAnimation from "../../assets/lotties/rain.json";
-import chartAnimation from '../../assets/lotties/chart.json';
-import waterAnimation from '../../assets/lotties/water.json';
-import mapAnimation from '../../assets/lotties/map.json';
-import statusAnimation from '../../assets/lotties/status.json';
+import chartAnimation from "../../assets/lotties/chart.json";
+import waterAnimation from "../../assets/lotties/water.json";
+import mapAnimation from "../../assets/lotties/map.json";
+import statusAnimation from "../../assets/lotties/status.json";
+import manageAnimation from "../../assets/lotties/manage.json"; // Usando animação extra
 
 const features = [
   {
     lottieData: waterAnimation,
-    title: "Pluviometria de Alta Precisão",
-    desc: "Nossos pluviômetros físicos medem cada milímetro de chuva que cai na sua propriedade. Os dados de acúmulo são enviados em tempo real, gerando um histórico confiável e essencial para o manejo da irrigação.",
-  },
-  {
-    lottieData: chartAnimation,
-    title: "Gráficos de Umidade do Solo",
-    desc: "Monitore a variação de umidade em diferentes níveis de profundidade (10cm a 60cm) com extrema exatidão, sabendo exatamente quando e quanto irrigar.",
-  },
-  {
-    lottieData: rainAnimation,
-    title: "Previsão Meteorológica",
-    desc: "Cruze os dados reais do seu pluviômetro com nossa linha do tempo de previsão do tempo avançada, planejando pulverizações e colheitas de forma segura.",
-  },
-  {
-    lottieData: mapAnimation,
-    title: "Mapeamento via Satélite",
-    desc: "Visualize os talhões das suas fazendas e a localização exata de cada sonda e pluviômetro com mapas interativos e atualizados.",
+    title: "Água",
+    desc: "Redução do desperdício de água e menor risco de excesso no perfil do solo.",
   },
   {
     lottieData: statusAnimation,
-    title: "Telemetria Integrada",
-    desc: "Acompanhe a saúde dos equipamentos no campo, verificando status de conexão, intensidade de sinal e nível de bateria em um painel unificado.",
+    title: "Energia",
+    desc: "Menor custo de energia com melhor uso do pivô central e lâmina ajustada.",
+  },
+  {
+    lottieData: mapAnimation,
+    title: "Raiz",
+    desc: "Melhor desenvolvimento radicular e menor risco de estresse hídrico.",
+  },
+  {
+    lottieData: chartAnimation,
+    title: "Decisão",
+    desc: "Mais segurança na tomada de decisão com acompanhamento técnico especializado.",
+  },
+  {
+    lottieData: rainAnimation,
+    title: "Produtividade",
+    desc: "Mais previsibilidade produtiva e melhor resposta da planta durante a safra.",
+  },
+  {
+    lottieData: manageAnimation,
+    title: "Manejo",
+    desc: "Controle de chuva, irrigação, percolação, histórico e alertas em uma rotina simples.",
   },
 ];
 
 export default function Features() {
   return (
     <Box
-      id="tecnologia"
+      id="plataforma"
       minH="100vh"
       display="flex"
       alignItems="center"
       py={{ base: 20, md: 32 }}
       bg="#050B18"
-      position="relative"
-      borderTop="1px"
-      borderColor="whiteAlpha.100"
     >
       <Container maxW="container.xl">
-        <VStack spacing={4} mb={16} textAlign="center">
-          <Heading size="xl" color="white">
-            Toda a tecnologia em um só lugar
-          </Heading>
-          <Text color="text.secondary" maxW="2xl">
-            Os hardwares e softwares necessários para ter controle total das
-            variáveis agronômicas da sua lavoura.
+        <VStack spacing={4} textAlign="center" mb={16}>
+          <Text
+            color="#3084c9"
+            fontWeight="bold"
+            textTransform="uppercase"
+            fontSize="sm"
+            letterSpacing="wider"
+          >
+            Benefícios
           </Text>
+          <Heading size="2xl" color="white" maxW="3xl">
+            Irrigue com mais eficiência, previsibilidade e segurança.
+          </Heading>
         </VStack>
 
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={8}>
@@ -72,13 +80,12 @@ export default function Features() {
               key={index}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.4, delay: index * 0.1 }}
-              whileHover={{ scale: 1.03, y: -8 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.5, delay: index * 0.1 }}
             >
               <Box
+                bg="brand.900"
                 p={8}
-                bg="#0A1226"
                 rounded="2xl"
                 border="1px"
                 borderColor="whiteAlpha.100"
@@ -90,10 +97,9 @@ export default function Features() {
                 }}
               >
                 <VStack align="start" spacing={5}>
-                  {/* CAIXA DE ANIMAÇÃO DO LOTTIE */}
                   <Box
                     w={16}
-                    h={16} // Ajuste o tamanho da animação aqui
+                    h={16}
                     display="flex"
                     alignItems="center"
                     bg="brand.900"
@@ -102,7 +108,6 @@ export default function Features() {
                     border="1px"
                     borderColor="whiteAlpha.50"
                   >
-                    {/* Caso não tenha os JSONs ainda, este condicional evita quebrar a tela */}
                     {feat.lottieData ? (
                       <Lottie
                         animationData={feat.lottieData}
@@ -110,7 +115,7 @@ export default function Features() {
                         autoplay={true}
                       />
                     ) : (
-                      <Box bg="brand.500" w={8} h={8} rounded="full" /> // Placeholder temporário
+                      <Box bg="brand.500" w={8} h={8} rounded="full" />
                     )}
                   </Box>
 
