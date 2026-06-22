@@ -12,6 +12,7 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 import HeroBg from "../../assets/hero-sonda-campo.jpeg";
 import { FiChevronDown } from "react-icons/fi";
+import { COLORS } from "../../colors/colors";
 
 const MotionBox = motion(Box);
 
@@ -142,14 +143,14 @@ export default function Hero() {
                 >
                   <Button
                     size="lg"
-                    bg="#2ea764"
+                    bg={COLORS.primary}
                     color="white"
-                    _hover={{ bg: "#23824e", transform: "translateY(-1px)" }}
-                    boxShadow="0 16px 38px rgba(46, 167, 100, 0.27)"
+                    _hover={{ bg: COLORS.primaryDark, transform: "translateY(-1px)" }}
+                    boxShadow="0 10px 20px rgba(41, 126, 179, 0.431)"
                     as="a"
                     href="#contato"
                   >
-                    Quero melhorar minha irrigação
+                    Quero iniciar o meu projeto
                   </Button>
                   <Button
                     size="lg"

@@ -11,6 +11,8 @@ import {
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
 import EquipeCampoImg from "../../assets/equipe-campo.jpeg"; // Utilizando o asset existente no projeto
+import { MdOutlineKeyboardArrowRight } from "react-icons/md";
+import { COLORS } from "../../colors/colors";
 
 const checklistItems = [
   "Interpretação dos gráficos",
@@ -22,22 +24,6 @@ const checklistItems = [
   "Treinamento da equipe da fazenda",
   "Relatórios e orientações durante o ciclo",
 ];
-
-// Marcador de ponto verde com sombra idêntico ao CSS original (.check-list li::before)
-const CustomCheckIcon = () => (
-  <Box
-    as="span"
-    display="inline-block"
-    minW="8px"
-    w="8px"
-    h="8px"
-    borderRadius="50%"
-    bg="#2ea764"
-    boxShadow="0 0 0 4px rgba(46, 167, 100, 0.15)"
-    mr={3}
-    mt={2}
-  />
-);
 
 export default function Acompanhamento() {
   return (
@@ -119,10 +105,10 @@ export default function Acompanhamento() {
               {/* Bloco de Destaque (.impact) */}
               <Box
                 p={5}
-                borderLeft="4px solid"
-                borderColor="#2ea764"
-                bg="rgba(46, 167, 100, 0.08)"
-                rounded="r-xl"
+                borderLeft="6px solid"
+                borderColor="#2e7fa7"
+                bg="rgba(54, 153, 228, 0.356)"
+                rounded="xl"
                 mb={6}
               >
                 <Text
@@ -152,7 +138,9 @@ export default function Acompanhamento() {
                     fontWeight="medium"
                     fontSize="md"
                   >
-                    <CustomCheckIcon />
+                    <Box mr="4px" bg={COLORS.primary} p="2px" borderRadius="full">
+                      <MdOutlineKeyboardArrowRight color={COLORS.textPrimary} size={20}/>
+                    </Box>
                     <Text lineHeight="1.4">{item}</Text>
                   </ListItem>
                 ))}

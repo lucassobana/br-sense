@@ -6,12 +6,14 @@ import {
   VStack,
   Flex,
   Image,
+  SimpleGrid,
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
 import SondaPivoImg from "../../assets/sonda-pivo.jpeg";
 import TecnicoSondaImg from "../../assets/tecnico-sonda.jpeg";
 import RaizesBatataImg from "../../assets/raizes-batata.png";
+import { COLORS } from "../../colors/colors";
 
 const diffs = [
   "Experiência em pivô",
@@ -26,13 +28,16 @@ const diffs = [
   "Experiência internacional",
 ];
 
+// Vetor com as imagens
+const images = [SondaPivoImg, TecnicoSondaImg, RaizesBatataImg];
+
 export default function Differentials() {
-  const imagesScrollRef = useAutoScroll(0.5);
+  // Mantemos o hook de scroll APENAS para as tags
   const tagsScrollRef = useAutoScroll(0.5);
 
   return (
     <Box
-      id="cases"
+      id="diferenciais"
       py={{ base: 16, md: 24, lg: 32 }}
       bg="#050B18"
       borderTop="1px"
@@ -65,91 +70,111 @@ export default function Differentials() {
           </motion.div>
         </VStack>
 
-        {/* Carrossel de Imagens */}
-        <Flex
-          ref={imagesScrollRef}
-          gap={{ base: 4, md: 6 }}
-          overflowX="auto"
-          flexWrap={{ base: "nowrap", md: "wrap" }}
-          mb={12}
-          pb={{ base: 4, md: 0 }}
-          css={{
-            "&::-webkit-scrollbar": { display: "none" },
-            scrollbarWidth: "none",
-          }}
-        >
-          {[SondaPivoImg, TecnicoSondaImg, RaizesBatataImg].map(
-            (imgSrc, idx) => (
+        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6} mb={12}>
+          {images.map((imgSrc, idx) => (
+            <motion.div
+              key={`img-${idx}`}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              whileInView={{ opacity: 1, scale: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: idx * 0.15 }}
+            >
               <Box
-                key={idx}
-                minW={{ base: "260px", md: "calc(33.333% - 16px)" }}
-                flexShrink={0}
+                bg="whiteAlpha.50"
+                p={2}
+                rounded="2xl"
+                shadow="xl"
+                border="1px"
+                borderColor="whiteAlpha.100"
               >
-                <Box
-                  bg="whiteAlpha.50"
-                  p={2}
-                  rounded="2xl"
-                  shadow="xl"
-                  border="1px"
-                  borderColor="whiteAlpha.100"
-                >
-                  <Image
-                    src={imgSrc}
-                    rounded="xl"
-                    w="full"
-                    h={{ base: "200px", md: "280px" }}
-                    objectFit="cover"
-                  />
-                </Box>
+                <Image
+                  src={imgSrc}
+                  rounded="xl"
+                  w="full"
+                  h={{ base: "200px", md: "280px" }}
+                  objectFit="cover"
+                  // A mágica acontece aqui:
+                  // Se for a primeira imagem (SondaPivoImg), foca no topo ("top") no mobile ("base")
+                  // e foca no centro ("center") no desktop ("md"). Para as outras, mantém o centro.
+                  objectPosition={
+                    idx === 0 ? { base: "center 35%", md: "center" } : "center"
+                  }
+                />
               </Box>
-            ),
-          )}
-        </Flex>
+            </motion.div>
+          ))}
+        </SimpleGrid>
 
-        {/* Carrossel de Tags */}
-        <Flex
-          ref={tagsScrollRef}
-          gap={4}
-          overflowX="auto"
-          flexWrap={{ base: "nowrap", md: "wrap" }}
-          pb={{ base: 4, md: 0 }}
-          css={{
-            "&::-webkit-scrollbar": { display: "none" },
-            scrollbarWidth: "none",
-          }}
-        >
-          {diffs.map((diff, idx) => (
-            <Box
-              key={idx}
-              flexShrink={0}
-              minW={{
-                base: "220px",
-                sm: "calc(50% - 8px)",
-                md: "calc(33.333% - 11px)",
-                lg: "calc(20% - 13px)",
+        <Box w="full">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <Flex
+              ref={tagsScrollRef}
+              overflowX="auto"
+              w="full"
+              css={{
+                "&::-webkit-scrollbar": { display: "none" },
+                scrollbarWidth: "none",
               }}
             >
-              <Flex
-                align="center"
-                justify="center"
-                textAlign="center"
-                p={4}
-                bg="#0A1226"
-                border="1px"
-                borderColor="whiteAlpha.200"
-                rounded="xl"
-                color="whiteAlpha.900"
-                fontWeight="medium"
-                fontSize="sm"
-                h="100%"
-                minH="80px"
-                shadow="sm"
-              >
-                {diff}
+              {/* GRUPO 1: TAGS */}
+              <Flex gap={4} pr={4} flexShrink={0}>
+                {diffs.map((diff, idx) => (
+                  <Flex
+                    key={`tag1-${idx}`}
+                    flexShrink={0}
+                    minW={{ base: "220px", sm: "240px", md: "260px" }}
+                    align="center"
+                    justify="center"
+                    textAlign="center"
+                    p={4}
+                    bg={COLORS.primaryDark}
+                    border="1px"
+                    borderColor="whiteAlpha.200"
+                    rounded="xl"
+                    color="whiteAlpha.900"
+                    fontWeight="medium"
+                    fontSize="sm"
+                    h="100%"
+                    minH="80px"
+                    shadow="sm"
+                  >
+                    {diff}
+                  </Flex>
+                ))}
               </Flex>
-            </Box>
-          ))}
-        </Flex>
+
+              <Flex gap={4} pr={4} flexShrink={0}>
+                {diffs.map((diff, idx) => (
+                  <Flex
+                    key={`tag2-${idx}`}
+                    flexShrink={0}
+                    minW={{ base: "220px", sm: "240px", md: "260px" }}
+                    align="center"
+                    justify="center"
+                    textAlign="center"
+                    p={4}
+                    bg={COLORS.primaryDark}
+                    border="1px"
+                    borderColor="whiteAlpha.200"
+                    rounded="xl"
+                    color="whiteAlpha.900"
+                    fontWeight="medium"
+                    fontSize="sm"
+                    h="100%"
+                    minH="80px"
+                    shadow="sm"
+                  >
+                    {diff}
+                  </Flex>
+                ))}
+              </Flex>
+            </Flex>
+          </motion.div>
+        </Box>
       </Container>
     </Box>
   );

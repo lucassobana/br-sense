@@ -14,6 +14,8 @@ import { motion } from "framer-motion";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
 import PluviometroImg from "../../assets/pluviometro-campo.jpeg";
 import InstalacaoSondaImg from "../../assets/instalacao.jpeg";
+import { FaArrowAltCircleRight } from "react-icons/fa";
+import { COLORS } from "../../colors/colors";
 
 const medidas = [
   "Umidade do solo",
@@ -34,21 +36,6 @@ const especificacoes = [
   "Acesso pelo telemóvel",
   "Gráficos e alertas",
 ];
-
-const CustomCheckIcon = () => (
-  <Box
-    as="span"
-    display="inline-block"
-    minW="8px"
-    w="8px"
-    h="8px"
-    borderRadius="50%"
-    bg="#2ea764"
-    boxShadow="0 0 0 4px rgba(46, 167, 100, 0.15)"
-    mr={2}
-    mt={1.5}
-  />
-);
 
 export default function SystemInField() {
   const scrollRef = useAutoScroll(0.6);
@@ -73,7 +60,6 @@ export default function SystemInField() {
             color="#3084c9"
             fontWeight="bold"
             textTransform="uppercase"
-            fontSize="sm"
           >
             Sonda BR Sense
           </Text>
@@ -161,17 +147,19 @@ export default function SystemInField() {
                   <ListItem
                     key={idx}
                     display="flex"
-                    alignItems="flex-start"
+                    alignItems="center"
                     color="whiteAlpha.900"
                     fontSize={{ base: "xs", md: "sm" }}
                     fontWeight="medium"
                   >
-                    <CustomCheckIcon />
+                    <Box mr={2}>
+                      <FaArrowAltCircleRight color={COLORS.primary} size={16}/>
+                    </Box>
                     <Text lineHeight="1.2">{item}</Text>
                   </ListItem>
                 ))}
               </List>
-
+                
               <Flex
                 rounded="lg"
                 overflow="hidden"
@@ -221,7 +209,7 @@ export default function SystemInField() {
                     flexShrink={0}
                     minW={{ base: "180px", sm: "calc(50% - 6px)" }}
                     p={3}
-                    bg="whiteAlpha.100"
+                    bg={COLORS.primaryDark}
                     border="1px"
                     borderColor="whiteAlpha.200"
                     rounded="md"

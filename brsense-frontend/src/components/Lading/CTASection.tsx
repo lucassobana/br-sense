@@ -14,22 +14,14 @@ import {
   Flex,
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
+import { COLORS } from "../../colors/colors";
+import { RiCheckboxCircleFill } from "react-icons/ri";
 
-// Marcador verde para o card "O que você recebe"
-const CustomCheckIcon = () => (
-  <Box
-    as="span"
-    display="inline-block"
-    minW="8px"
-    w="8px"
-    h="8px"
-    borderRadius="50%"
-    bg="#2ea764"
-    boxShadow="0 0 0 4px rgba(46, 167, 100, 0.15)"
-    mr={3}
-    mt={1.5}
-  />
-);
+const message = [
+  "Entendimento técnico da área",
+  "Próximo passo para diagnóstico",
+  "Direcionamento para projeto, sonda ou manejo",
+];
 
 export default function CTASection() {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -39,7 +31,7 @@ export default function CTASection() {
       nome: formData.get("nome"),
       fazenda: formData.get("fazenda"),
       cidade: formData.get("cidade"),
-      area: formData.get("area"),
+      email: formData.get("email"),
       cultura: formData.get("cultura"),
       telefone: formData.get("telefone"),
       interesse: formData.get("interesse"),
@@ -51,14 +43,14 @@ export default function CTASection() {
       `Nome: ${data.nome}`,
       `Fazenda: ${data.fazenda}`,
       `Cidade/Estado: ${data.cidade}`,
-      `Área irrigada: ${data.area}`,
+      `Email: ${data.email}`,
       `Cultura: ${data.cultura}`,
       `Telefone/WhatsApp: ${data.telefone}`,
       `Interesse principal: ${data.interesse}`,
     ].join("\n");
 
     // Lembre-se de alterar este número para o WhatsApp real da BR Sense
-    const WHATSAPP_NUMBER = "5500000000000";
+    const WHATSAPP_NUMBER = "+5567998627223";
     const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, "_blank");
   };
@@ -92,7 +84,6 @@ export default function CTASection() {
                 color="#3084c9"
                 fontWeight="bold"
                 textTransform="uppercase"
-                fontSize="sm"
                 letterSpacing="wider"
                 mb={2}
               >
@@ -128,36 +119,14 @@ export default function CTASection() {
                   O que você recebe na conversa
                 </Text>
                 <VStack align="start" spacing={4}>
-                  <Flex align="flex-start">
-                    <CustomCheckIcon />
-                    <Text
-                      color="whiteAlpha.900"
-                      fontWeight="medium"
-                      lineHeight="1.3"
-                    >
-                      Entendimento técnico da área
-                    </Text>
-                  </Flex>
-                  <Flex align="flex-start">
-                    <CustomCheckIcon />
-                    <Text
-                      color="whiteAlpha.900"
-                      fontWeight="medium"
-                      lineHeight="1.3"
-                    >
-                      Próximo passo para diagnóstico
-                    </Text>
-                  </Flex>
-                  <Flex align="flex-start">
-                    <CustomCheckIcon />
-                    <Text
-                      color="whiteAlpha.900"
-                      fontWeight="medium"
-                      lineHeight="1.3"
-                    >
-                      Direcionamento para projeto, sonda ou manejo
-                    </Text>
-                  </Flex>
+                  {message.map((item, index) => (
+                    <Flex key={index} align="center">
+                      <Box mr={2} color={COLORS.primary}>
+                        <RiCheckboxCircleFill size={20} />
+                      </Box>
+                      <Text color="whiteAlpha.700">{item}</Text>
+                    </Flex>
+                  ))}
                 </VStack>
               </Box>
             </motion.div>
@@ -197,7 +166,7 @@ export default function CTASection() {
                       />
                     </FormControl>
 
-                    <FormControl isRequired>
+                    <FormControl>
                       <FormLabel color="whiteAlpha.800" fontSize="sm">
                         Fazenda
                       </FormLabel>
@@ -213,7 +182,7 @@ export default function CTASection() {
                       />
                     </FormControl>
 
-                    <FormControl isRequired>
+                    <FormControl>
                       <FormLabel color="whiteAlpha.800" fontSize="sm">
                         Cidade/Estado
                       </FormLabel>
@@ -229,13 +198,13 @@ export default function CTASection() {
                       />
                     </FormControl>
 
-                    <FormControl>
+                    <FormControl isRequired>
                       <FormLabel color="whiteAlpha.800" fontSize="sm">
-                        Área irrigada
+                        Email
                       </FormLabel>
                       <Input
-                        name="area"
-                        placeholder="Ex.: 120 ha"
+                        name="email"
+                        placeholder="Ex.: email@dominio.com"
                         bg="#050B18"
                         border="1px"
                         borderColor="whiteAlpha.200"
@@ -335,12 +304,15 @@ export default function CTASection() {
                       gridColumn={{ sm: "span 2" }}
                       size="lg"
                       h="60px"
-                      bg="#2ea764"
+                      bg={COLORS.primary}
                       color="white"
+                      _hover={{
+                        bg: COLORS.primaryDark,
+                        transform: "translateY(-2px)",
+                      }}
                       fontSize="md"
                       fontWeight="bold"
-                      _hover={{ bg: "#23824e", transform: "translateY(-2px)" }}
-                      boxShadow="0 8px 20px rgba(46, 167, 100, 0.2)"
+                      boxShadow="0 8px 20px rgba(58, 132, 216, 0.551)"
                       mt={4}
                     >
                       Enviar pelo WhatsApp

@@ -4,16 +4,13 @@ import {
   Heading,
   Text,
   VStack,
-  Grid,
-  GridItem,
   Image,
   Flex,
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
-import PlataformaUmidade from "../../assets/plataforma-umidade.jpeg";
-import PlataformaClima from "../../assets/plataforma-clima.jpeg";
-import PlataformaMapa from "../../assets/plataforma-mapa.jpeg";
+import PlataformaUmidade from "../../assets/content.png";
+import { COLORS } from "../../colors/colors";
 
 const platformCards = [
   "Veja a água entrar no solo",
@@ -24,13 +21,13 @@ const platformCards = [
 ];
 
 export default function Plataforma() {
-  const scrollRef = useAutoScroll(0.5); // Velocidade do carrossel
+  const scrollRef = useAutoScroll(0.5);
 
   return (
     <Box
       id="plataforma"
       py={{ base: 16, md: 24, lg: 32 }}
-      bg="#081322"
+      bg="#050B18"
       borderTop="1px"
       borderColor="whiteAlpha.100"
     >
@@ -67,139 +64,98 @@ export default function Plataforma() {
           </motion.div>
         </VStack>
 
-        {/* Correção da Grelha: repeat(2, 1fr) no base para colocar as fotos menores lado a lado */}
-        <Grid
-          templateColumns={{
-            base: "repeat(2, 1fr)",
-            lg: "1.25fr 0.85fr 0.85fr",
-          }}
-          gap={4}
-        >
-          {/* Foto Alta (Ocupa as 2 colunas no telemóvel) */}
-          <GridItem colSpan={{ base: 2, lg: 1 }} rowSpan={{ base: 1, lg: 2 }}>
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
+        <VStack spacing={6} mb={12} w="full">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            style={{ width: "100%" }}
+          >
+            <Box
+              bg="#050B18"
+              rounded="2xl"
+              overflow="hidden"
+              shadow="2xl"
+              w="full"
             >
-              <Box
-                bg="#101a29"
-                rounded="2xl"
-                border="1px"
-                borderColor="whiteAlpha.200"
-                overflow="hidden"
-                shadow="2xl"
-                display="flex"
-                justifyContent="center"
-              >
-                <Image
-                  src={PlataformaUmidade}
-                  maxH={{ base: "320px", md: "500px", lg: "700px" }}
-                  w="full"
-                  objectFit="contain"
-                />
-              </Box>
-            </motion.div>
-          </GridItem>
+              <Image
+                src={PlataformaUmidade}
+                alt="Gráfico de perfil de umidade na plataforma BR Sense"
+                w="full"
+                h="auto"
+                objectFit="contain"
+              />
+            </Box>
+          </motion.div>
+        </VStack>
 
-          {/* Foto Menor 1 (Ocupa 1 coluna no telemóvel, ficando ao lado da Foto 2) */}
-          <GridItem colSpan={1}>
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
+        <Box w="full">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <Flex
+              ref={scrollRef}
+              overflowX="auto"
+              w="full"
+              css={{
+                "&::-webkit-scrollbar": { display: "none" },
+                scrollbarWidth: "none",
+              }}
             >
-              <Box
-                bg="#101a29"
-                rounded="2xl"
-                border="1px"
-                borderColor="whiteAlpha.200"
-                overflow="hidden"
-                shadow="2xl"
-                display="flex"
-                justifyContent="center"
-              >
-                <Image
-                  src={PlataformaMapa}
-                  maxH={{ base: "250px", md: "400px", lg: "100%" }}
-                  w="full"
-                  objectFit="contain"
-                />
-              </Box>
-            </motion.div>
-          </GridItem>
-
-          {/* Foto Menor 2 */}
-          <GridItem colSpan={1}>
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-            >
-              <Box
-                bg="#101a29"
-                rounded="2xl"
-                border="1px"
-                borderColor="whiteAlpha.200"
-                overflow="hidden"
-                shadow="2xl"
-                display="flex"
-                justifyContent="center"
-              >
-                <Image
-                  src={PlataformaClima}
-                  maxH={{ base: "250px", md: "400px", lg: "100%" }}
-                  w="full"
-                  objectFit="contain"
-                />
-              </Box>
-            </motion.div>
-          </GridItem>
-
-          {/* Carrossel de Tags */}
-          <GridItem colSpan={{ base: 2, lg: 2 }}>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-            >
-              <Flex
-                ref={scrollRef} // <- Hook aplicado aqui
-                gap={3}
-                overflowX="auto"
-                flexWrap={{ base: "nowrap", md: "wrap" }}
-                justify={{ base: "flex-start", md: "center" }}
-                pb={{ base: 4, md: 0 }}
-                css={{
-                  "&::-webkit-scrollbar": { display: "none" },
-                  scrollbarWidth: "none",
-                }}
-              >
+              <Flex gap={4} pr={4} flexShrink={0}>
                 {platformCards.map((card, idx) => (
                   <Flex
-                    key={idx}
+                    key={`g1-${idx}`}
                     flexShrink={0}
-                    minW={{ base: "150px", sm: "180px" }}
+                    minW={{ base: "180px", sm: "220px", md: "260px" }}
                     align="center"
                     justify="center"
                     textAlign="center"
-                    bg="whiteAlpha.100"
+                    bg={COLORS.primaryDark}
                     border="1px"
                     borderColor="whiteAlpha.300"
                     rounded="xl"
-                    p={4}
-                    minH="80px"
+                    p={5}
+                    minH="90px"
                     color="white"
                     fontWeight="semibold"
                     fontSize="sm"
+                    boxShadow="md"
                   >
                     {card}
                   </Flex>
                 ))}
               </Flex>
-            </motion.div>
-          </GridItem>
-        </Grid>
+
+              <Flex gap={4} pr={4} flexShrink={0}>
+                {platformCards.map((card, idx) => (
+                  <Flex
+                    key={`g2-${idx}`}
+                    flexShrink={0}
+                    minW={{ base: "180px", sm: "220px", md: "260px" }}
+                    align="center"
+                    justify="center"
+                    textAlign="center"
+                    bg={COLORS.primaryDark}
+                    border="1px"
+                    borderColor="whiteAlpha.300"
+                    rounded="xl"
+                    p={5}
+                    minH="90px"
+                    color="white"
+                    fontWeight="semibold"
+                    fontSize="sm"
+                    boxShadow="md"
+                  >
+                    {card}
+                  </Flex>
+                ))}
+              </Flex>
+            </Flex>
+          </motion.div>
+        </Box>
       </Container>
     </Box>
   );

@@ -9,6 +9,7 @@ import {
   List,
   ListItem,
 } from "@chakra-ui/react";
+import { RiCheckboxCircleLine } from "react-icons/ri";
 import { motion } from "framer-motion";
 
 const pillarA_items = [
@@ -29,26 +30,10 @@ const pillarB_items = [
   "Acompanhamento técnico durante a safra",
 ];
 
-// Componente customizado para replicar o "ponto verde com sombra" do CSS original
-const CustomCheckIcon = () => (
-  <Box
-    as="span"
-    display="inline-block"
-    minW="8px"
-    w="8px"
-    h="8px"
-    borderRadius="50%"
-    bg="#2ea764"
-    boxShadow="0 0 0 4px rgba(46, 167, 100, 0.15)"
-    mr={4}
-    mt={1.5}
-  />
-);
-
 export default function Services() {
   return (
     <Box
-      id="consultoria"
+      id="atuacao"
       minH="100vh"
       display="flex"
       alignItems="center"
@@ -122,12 +107,14 @@ export default function Services() {
                     <ListItem
                       key={idx}
                       display="flex"
-                      alignItems="flex-start"
+                      alignItems="center"
                       color="#10202f"
                       fontWeight="medium"
                       lineHeight="1.4"
                     >
-                      <CustomCheckIcon />
+                      <Box mr="4px">
+                        <RiCheckboxCircleLine color="#071321" size={20} />
+                      </Box>
                       <Text>{item}</Text>
                     </ListItem>
                   ))}
@@ -175,12 +162,14 @@ export default function Services() {
                     <ListItem
                       key={idx}
                       display="flex"
-                      alignItems="flex-start"
+                      alignItems="center"
                       color="whiteAlpha.800"
                       fontWeight="medium"
                       lineHeight="1.4"
                     >
-                      <CustomCheckIcon />
+                      <Box mr="4px">
+                        <RiCheckboxCircleLine color="#3084c9ff" size={20} />
+                      </Box>
                       <Text>{item}</Text>
                     </ListItem>
                   ))}

@@ -12,13 +12,18 @@ import { FiMenu, FiX } from "react-icons/fi";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Logo from "../../assets/BRSense_logo.png";
+import { COLORS } from "../../colors/colors";
+import { FaRegUser } from "react-icons/fa";
 
 const navItems = [
   { label: "Início", href: "#inicio" },
+  { label: "Atuação", href: "#atuacao" },
   { label: "Consultoria", href: "#consultoria" },
   { label: "Sonda", href: "#sonda" },
   { label: "Plataforma", href: "#plataforma" },
   { label: "Acompanhamento", href: "#acompanhamento" },
+  { label: "Benefícios", href: "#beneficios" },
+  { label: "Diferenciais", href: "#diferenciais" },
   { label: "Contato", href: "#contato" },
 ];
 
@@ -27,6 +32,29 @@ export default function Header() {
 
   const toggleMenu = () => setIsOpen(!isOpen);
   const closeMenu = () => setIsOpen(false);
+
+  const handleNavigate = (e: React.MouseEvent<HTMLElement>, href: string) => {
+    if (href.startsWith("#")) {
+      e.preventDefault();
+      closeMenu();
+      setTimeout(() => {
+        const element = document.querySelector(href);
+        if (element) {
+          const headerOffset = 100;
+          const elementPosition = element.getBoundingClientRect().top;
+          const offsetPosition =
+            elementPosition + window.scrollY - headerOffset;
+
+          window.scrollTo({
+            top: offsetPosition,
+            behavior: "smooth",
+          });
+        }
+      }, 150);
+    } else {
+      closeMenu();
+    }
+  };
 
   return (
     <Box
@@ -44,7 +72,7 @@ export default function Header() {
       boxShadow="0 4px 30px rgba(0, 0, 0, 0.1)"
     >
       <Flex h={16} alignItems="center" justify="space-between" px={6}>
-        <Link href="#inicio" onClick={closeMenu}>
+        <Link href="#inicio" onClick={(e) => handleNavigate(e, "#inicio")}>
           <Image src={Logo} alt="BR Sense" h={8} />
         </Link>
 
@@ -53,6 +81,7 @@ export default function Header() {
             <Link
               key={item.label}
               href={item.href}
+              onClick={(e) => handleNavigate(e, item.href)}
               fontSize="sm"
               fontWeight="bold"
               color="#FFFFFF"
@@ -64,14 +93,36 @@ export default function Header() {
           <Button
             as="a"
             href="#contato"
+            onClick={(e) => handleNavigate(e, "#contato")}
             size="sm"
-            bg="#2ea764"
+            bg={COLORS.primary}
             color="white"
-            _hover={{ bg: "#23824e" }}
+            _hover={{ bg: COLORS.primaryDark }}
             fontWeight="bold"
             borderRadius="md"
           >
             Solicitar diagnóstico
+          </Button>
+
+          <Button
+            as="a"
+            href="/login"
+            onClick={closeMenu}
+            size="sm"
+            leftIcon={<FaRegUser />}
+            bg="transparent"
+            color="white"
+            border="1px solid"
+            borderColor="whiteAlpha.600"
+            fontWeight="bold"
+            borderRadius="md"
+            px={4}
+            _hover={{
+              bg: COLORS.primary,
+              borderColor: "white",
+            }}
+          >
+            Login
           </Button>
         </HStack>
 
@@ -114,7 +165,7 @@ export default function Header() {
                   fontWeight="medium"
                   color="#FFFFFF"
                   _hover={{ color: "#3084c9", textDecoration: "none" }}
-                  onClick={closeMenu}
+                  onClick={(e) => handleNavigate(e, item.href)}
                 >
                   {item.label}
                 </Link>
@@ -122,13 +173,31 @@ export default function Header() {
               <Button
                 as="a"
                 href="#contato"
+                onClick={(e) => handleNavigate(e, "#contato")}
                 w="full"
-                bg="#2ea764"
+                bg={COLORS.primary}
                 color="white"
-                _hover={{ bg: "#23824e" }}
-                onClick={closeMenu}
+                _hover={{ bg: COLORS.primaryDark }}
               >
                 Solicitar diagnóstico
+              </Button>
+              <Button
+                as="a"
+                href="/login"
+                onClick={(e) => handleNavigate(e, "/login")}
+                w="full"
+                size="sm"
+                variant="outline"
+                color="white"
+                borderColor="whiteAlpha.600"
+                _hover={{
+                  bg: COLORS.primary,
+                  borderColor: "white",
+                }}
+                fontWeight="bold"
+                borderRadius="md"
+              >
+                Login
               </Button>
             </VStack>
           </motion.div>

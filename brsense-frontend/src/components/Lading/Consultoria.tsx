@@ -44,12 +44,7 @@ export default function Consultoria() {
           align="center"
         >
           <VStack flex={1} align="start" spacing={6}>
-            <Text
-              color="#3084c9"
-              fontWeight="bold"
-              textTransform="uppercase"
-              fontSize="sm"
-            >
+            <Text color="#3084c9" fontWeight="bold" textTransform="uppercase">
               Consultoria em pivô
             </Text>
             <Heading
@@ -60,8 +55,7 @@ export default function Consultoria() {
               Do estudo ao pivô a funcionar: projeto e operação.
             </Heading>
             <Text fontSize={{ base: "md", md: "lg" }} color="whiteAlpha.700">
-              A BR Sense auxilia o produtor desde a tomada de decisão até à
-              execução do projeto.
+              A BR Sense desenvolve projetos completos de irrigação por pivô central, atuando desde o diagnóstico inicial da área até o acompanhamento da implantação. Nossa engenharia contempla o dimensionamento dos pivôs, estudos topográficos, análise da disponibilidade hídrica, projetos de captação, reservatórios, adutoras e estações de bombeamento. Também realizamos o dimensionamento elétrico, definição de dispositivos de proteção, análise de custos operacionais e estudos de viabilidade econômica com indicadores como VPL, TIR e Payback. Além disso, padronizamos e comparamos propostas de diferentes fabricantes para garantir uma tomada de decisão técnica e imparcial. O resultado é um projeto seguro, eficiente e economicamente sustentável, que reduz riscos de implantação, otimiza o uso da água e da energia e proporciona maior retorno sobre o investimento ao produtor rural.
             </Text>
           </VStack>
 
@@ -91,37 +85,56 @@ export default function Consultoria() {
         </Stack>
 
         <Box mt={16}>
-          {/* Carrossel de Tags */}
           <Flex
             ref={scrollRef}
-            gap={3}
             overflowX="auto"
             pb={4}
-            flexWrap={{ base: "nowrap", md: "wrap" }}
-            justify={{ base: "flex-start", md: "center" }}
             css={{
               "&::-webkit-scrollbar": { display: "none" },
               scrollbarWidth: "none",
             }}
           >
-            {tags.map((tag, i) => (
-              <Box key={i} flexShrink={0}>
-                <Box
-                  px={5}
-                  py={3}
-                  bg="#3084c9"
-                  border="1px"
-                  borderColor="whiteAlpha.200"
-                  rounded="lg"
-                  color="white"
-                  fontWeight="medium"
-                  shadow="sm"
-                  fontSize="sm"
-                >
-                  {tag}
+            <Flex gap={3} pr={3} flexShrink={0}>
+              {tags.map((tag, i) => (
+                <Box key={`tag1-${i}`} flexShrink={0}>
+                  <Box
+                    px={5}
+                    py={3}
+                    bg="#3084c9"
+                    border="1px"
+                    borderColor="whiteAlpha.200"
+                    rounded="lg"
+                    color="white"
+                    fontWeight="medium"
+                    shadow="sm"
+                    fontSize="sm"
+                  >
+                    {tag}
+                  </Box>
                 </Box>
-              </Box>
-            ))}
+              ))}
+            </Flex>
+
+            <Flex gap={3} pr={3} flexShrink={0}>
+              {tags.map((tag, i) => (
+                <Box key={`tag2-${i}`} flexShrink={0}>
+                  <Box
+                    px={5}
+                    py={3}
+                    bg="#3084c9"
+                    border="1px"
+                    borderColor="whiteAlpha.200"
+                    rounded="lg"
+                    color="white"
+                    fontWeight="medium"
+                    shadow="sm"
+                    fontSize="sm"
+                  >
+                    {tag}
+                  </Box>
+                </Box>
+              ))}
+            </Flex>
           </Flex>
         </Box>
       </Container>

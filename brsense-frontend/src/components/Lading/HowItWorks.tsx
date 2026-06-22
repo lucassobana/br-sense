@@ -11,7 +11,7 @@ import {
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
 // IMAGEM: A imagem atual (instalacao.jpeg) funciona bem aqui, ou use equipe-campo.jpeg
-import InstallPhoto from "../../assets/equipe-campo.jpeg";
+import InstallPhoto from "../../assets/instalacao.jpeg";
 
 const steps = [
   {

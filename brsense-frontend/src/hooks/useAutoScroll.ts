@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 
-export function useAutoScroll(speed = 0.1) {
+export function useAutoScroll(speed = 0.5) {
   const ref = useRef<HTMLDivElement>(null);
+  const exactScroll = useRef(0);
 
   useEffect(() => {
     const el = ref.current;
@@ -10,12 +11,12 @@ export function useAutoScroll(speed = 0.1) {
     let animationId: number;
     let isPaused = false;
 
-    // Pausa a animação quando o utilizador interage
     const pause = () => {
       isPaused = true;
     };
     const play = () => {
       isPaused = false;
+      exactScroll.current = el.scrollLeft;
     };
 
     el.addEventListener("mouseenter", pause);
@@ -24,14 +25,24 @@ export function useAutoScroll(speed = 0.1) {
     el.addEventListener("touchend", play);
 
     const scroll = () => {
-      // Só desliza se não estiver em pausa e se houver espaço para scroll
       if (!isPaused && el.scrollWidth > el.clientWidth) {
-        el.scrollLeft += speed;
+        exactScroll.current += speed;
 
-        // Se chegar ao fim do scroll, volta ao início suavemente
-        if (el.scrollLeft >= el.scrollWidth - el.clientWidth - 1) {
-          el.scrollLeft = 0;
+        const firstChild = el.children[0] as HTMLElement;
+        const firstGroupWidth = firstChild
+          ? firstChild.getBoundingClientRect().width
+          : el.scrollWidth / 2;
+
+        if (exactScroll.current >= firstGroupWidth) {
+          exactScroll.current -= firstGroupWidth;
         }
+
+        const maxScroll = el.scrollWidth - el.clientWidth;
+        if (exactScroll.current > maxScroll) {
+          exactScroll.current = 0;
+        }
+
+        el.scrollLeft = exactScroll.current;
       }
       animationId = requestAnimationFrame(scroll);
     };
