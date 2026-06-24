@@ -304,15 +304,15 @@ export default function CTASection() {
                       gridColumn={{ sm: "span 2" }}
                       size="lg"
                       h="60px"
-                      bg={COLORS.primary}
+                      bg="#24973d"
                       color="white"
                       _hover={{
-                        bg: COLORS.primaryDark,
+                        bg: "#1a7a2d",
                         transform: "translateY(-2px)",
                       }}
                       fontSize="md"
                       fontWeight="bold"
-                      boxShadow="0 8px 20px rgba(58, 132, 216, 0.551)"
+                      boxShadow="0 8px 20px rgba(63, 216, 58, 0.551)"
                       mt={4}
                     >
                       Enviar pelo WhatsApp

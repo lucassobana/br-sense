@@ -93,9 +93,6 @@ export default function Differentials() {
                   w="full"
                   h={{ base: "200px", md: "280px" }}
                   objectFit="cover"
-                  // A mágica acontece aqui:
-                  // Se for a primeira imagem (SondaPivoImg), foca no topo ("top") no mobile ("base")
-                  // e foca no centro ("center") no desktop ("md"). Para as outras, mantém o centro.
                   objectPosition={
                     idx === 0 ? { base: "center 35%", md: "center" } : "center"
                   }

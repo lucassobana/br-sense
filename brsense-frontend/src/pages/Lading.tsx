@@ -13,45 +13,25 @@ import CTASection from "../components/Lading/CTASection";
 import Footer from "../components/Lading/Footer";
 import Plataforma from "../components/Lading/Plataforma";
 import ScrollProgress from "../components/Lading/ScrollProgress";
+import VideosSection from "../components/Lading/VideosSection";
 
 export function Lading() {
   return (
     <Box bg="#050B18">
-      {/* 1. Navegação */}
       <Header />
       <ScrollProgress />
-      {/* 2. Topo / Introdução */}
       <Hero />
-      
-      {/* 3. O que a BR Sense faz (Pilares Principais) */}
       <Services />
-      
-      {/* 4. Pilar A - Consultoria e Projetos Físicos */}
       <Consultoria />
-      
-      {/* 5. Pilar B - Sonda e Plataforma Tecnológica */}
       <SystemInField />
       <Plataforma />
-      
-      {/* 6. Acompanhamento e Suporte Prático */}
       <Acompanhamento />
-      
-      {/* 7. Vantagens Reais (Água, Energia, Raiz, Produtividade) */}
       <Features />
-      
-      {/* 9. Diferenciais da Tecnologia */}
       <Differentials />
-      
-      {/* 10. Processo de Implantação */}
       <HowItWorks />
-      
-      {/* 11. Sobre a Empresa e Expertise */}
       <About />
-      
-      {/* 12. Formulário de Contato Direto */}
       <CTASection />
-      
-      {/* 13. Rodapé */}
+      <VideosSection />
       <Footer />
     </Box>
   );

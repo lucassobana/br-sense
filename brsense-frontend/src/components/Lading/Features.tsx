@@ -85,7 +85,7 @@ export default function Features() {
           border="1px"
           borderColor="whiteAlpha.50"
         >
-          <Box as={feat.icon} color="black" boxSize={6} />
+          <Box as={feat.icon} color="white" boxSize={6} />
         </Box>
 
         <Heading size="md" color="white">
