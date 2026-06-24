@@ -18,7 +18,7 @@ import { FaRegUser } from "react-icons/fa";
 const navItems = [
   { label: "Início", href: "#inicio" },
   { label: "Atuação", href: "#atuacao" },
-  { label: "Consultoria", href: "#consultoria" },
+  { label: "Engenharia", href: "#consultoria" },
   { label: "Sonda", href: "#sonda" },
   { label: "Plataforma", href: "#plataforma" },
   { label: "Acompanhamento", href: "#acompanhamento" },

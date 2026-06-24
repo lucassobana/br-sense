@@ -45,7 +45,7 @@ export default function Consultoria() {
         >
           <VStack flex={1} align="start" spacing={6}>
             <Text color="#3084c9" fontWeight="bold" textTransform="uppercase">
-              Consultoria em pivô
+              Engenharia de Projetos em Pivô Central, Reservatório e Energia
             </Text>
             <Heading
               size={{ base: "xl", md: "2xl" }}
