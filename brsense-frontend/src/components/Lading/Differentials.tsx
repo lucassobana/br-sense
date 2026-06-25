@@ -10,9 +10,9 @@ import {
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
-import SondaPivoImg from "../../assets/sonda-pivo.jpeg";
+import SondaPivoImg from "../../assets/sonda-charles.jpeg";
 import TecnicoSondaImg from "../../assets/tecnico-sonda.jpeg";
-import RaizesBatataImg from "../../assets/raizes-batata.png";
+import RaizesBatataImg from "../../assets/sonda-instalacao.png";
 import { COLORS } from "../../colors/colors";
 
 const diffs = [
@@ -28,11 +28,15 @@ const diffs = [
   "Experiência internacional",
 ];
 
-// Vetor com as imagens
 const images = [SondaPivoImg, TecnicoSondaImg, RaizesBatataImg];
 
+const objectPositionByIndex: Record<number, string> = {
+  0: "center 35%",
+  1: "center 70%",
+  2: "center 60%",
+};
+
 export default function Differentials() {
-  // Mantemos o hook de scroll APENAS para as tags
   const tagsScrollRef = useAutoScroll(0.5);
 
   return (
@@ -93,9 +97,7 @@ export default function Differentials() {
                   w="full"
                   h={{ base: "200px", md: "280px" }}
                   objectFit="cover"
-                  objectPosition={
-                    idx === 0 ? { base: "center 35%", md: "center" } : "center"
-                  }
+                  objectPosition={objectPositionByIndex[idx] ?? "center"}
                 />
               </Box>
             </motion.div>

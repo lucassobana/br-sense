@@ -9,7 +9,7 @@ import {
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
-import PlataformaUmidade from "../../assets/content.png";
+import PlataformaUmidade from "../../assets/plataforma.png";
 import { COLORS } from "../../colors/colors";
 
 const platformCards = [

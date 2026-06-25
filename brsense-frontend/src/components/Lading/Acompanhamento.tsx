@@ -10,7 +10,7 @@ import {
   ListItem,
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
-import EquipeCampoImg from "../../assets/equipe-campo.jpeg"; // Utilizando o asset existente no projeto
+import EquipeCampoImg from "../../assets/equipe-campo.jpeg";
 import { MdOutlineKeyboardArrowRight } from "react-icons/md";
 import { COLORS } from "../../colors/colors";
 
@@ -40,7 +40,6 @@ export default function Acompanhamento() {
           spacing={{ base: 12, lg: 16 }}
           align="center"
         >
-          {/* Lado Esquerdo: Imagem da Equipe em Campo (.technical-image) */}
           <Box flex={1} w="full">
             <motion.div
               initial={{ opacity: 0, x: -30 }}
@@ -68,7 +67,6 @@ export default function Acompanhamento() {
             </motion.div>
           </Box>
 
-          {/* Lado Direito: Textos e Itens (.technical-copy) */}
           <VStack flex={1} align="start" spacing={6}>
             <motion.div
               initial={{ opacity: 0, x: 30 }}
@@ -102,7 +100,6 @@ export default function Acompanhamento() {
                 orientação prática para o campo.
               </Text>
 
-              {/* Bloco de Destaque (.impact) */}
               <Box
                 p={5}
                 borderLeft="6px solid"
@@ -122,7 +119,6 @@ export default function Acompanhamento() {
                 </Text>
               </Box>
 
-              {/* Lista de Itens Responsiva em Duas Colunas (.check-list.columns) */}
               <List
                 display="grid"
                 gridTemplateColumns={{ base: "1fr", md: "1fr 1fr" }}
@@ -138,8 +134,16 @@ export default function Acompanhamento() {
                     fontWeight="medium"
                     fontSize="md"
                   >
-                    <Box mr="4px" bg={COLORS.primary} p="2px" borderRadius="full">
-                      <MdOutlineKeyboardArrowRight color={COLORS.textPrimary} size={20}/>
+                    <Box
+                      mr="4px"
+                      bg={COLORS.primary}
+                      p="2px"
+                      borderRadius="full"
+                    >
+                      <MdOutlineKeyboardArrowRight
+                        color={COLORS.textPrimary}
+                        size={20}
+                      />
                     </Box>
                     <Text lineHeight="1.4">{item}</Text>
                   </ListItem>

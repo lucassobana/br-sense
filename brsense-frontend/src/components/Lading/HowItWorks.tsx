@@ -10,8 +10,7 @@ import {
   Stack,
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
-// IMAGEM: A imagem atual (instalacao.jpeg) funciona bem aqui, ou use equipe-campo.jpeg
-import InstallPhoto from "../../assets/instalacao.jpeg";
+import InstallPhoto from "../../assets/sonda-instalada.jpeg";
 
 const steps = [
   {

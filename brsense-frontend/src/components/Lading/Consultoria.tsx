@@ -10,7 +10,7 @@ import {
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
-import PivoEquipe from "../../assets/pivo-equipe.jpeg";
+import PivoEquipe from "../../assets/engenharia-pivo.jpeg";
 
 const tags = [
   "Análise da área irrigável",
