@@ -123,6 +123,7 @@ export default function Hero() {
                 color="#A0AEC0"
                 lineHeight="tall"
                 fontWeight="medium"
+                textAlign="justify"
               >
                 Unimos consultoria especializada em projetos de pivô central com
                 tecnologia de monitoramento em tempo real do solo, da água, da

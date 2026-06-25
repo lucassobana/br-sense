@@ -99,6 +99,7 @@ export default function CTASection() {
                 color="whiteAlpha.700"
                 lineHeight="tall"
                 mb={8}
+                textAlign="justify"
               >
                 Envie os dados da fazenda e fale com a BR Sense pelo WhatsApp
                 para avaliar projeto de pivô, sonda, acompanhamento técnico ou

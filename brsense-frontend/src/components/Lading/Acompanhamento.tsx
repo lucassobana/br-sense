@@ -94,6 +94,7 @@ export default function Acompanhamento() {
                 color="whiteAlpha.700"
                 lineHeight="tall"
                 mb={6}
+                textAlign="justify"
               >
                 A BR Sense acompanha o produtor durante a safra, interpreta os
                 gráficos, ajusta a lâmina e transforma dados do solo em
@@ -113,6 +114,7 @@ export default function Acompanhamento() {
                   fontWeight="extrabold"
                   fontSize="md"
                   lineHeight="1.5"
+                  textAlign="justify"
                 >
                   Tecnologia sem interpretação vira apenas número. A BR Sense
                   transforma dados do solo em decisão prática para o campo.

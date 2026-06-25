@@ -52,10 +52,10 @@ export default function Services() {
           >
             O que a BR Sense faz
           </Text>
-          <Heading size="2xl" color="white" maxW="3xl" lineHeight="1.2">
+          <Heading size="2xl" color="white" maxW="3xl" lineHeight="1.2" >
             Do projeto ao manejo: uma visão completa da irrigação.
           </Heading>
-          <Text fontSize="xl" color="whiteAlpha.700" maxW="3xl">
+          <Text fontSize="xl" color="whiteAlpha.700" maxW="3xl" textAlign="justify">
             A BR Sense atua em duas frentes que se complementam: engenharia para
             projetar e implantar pivôs centrais com segurança, e tecnologia para
             monitorar o solo durante a safra.
