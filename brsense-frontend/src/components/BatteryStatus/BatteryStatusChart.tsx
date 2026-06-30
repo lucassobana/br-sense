@@ -772,7 +772,6 @@ export function BatteryStatusChart({
               }}
             />
 
-            {/* LEGENDA CLICÁVEL */}
             <Legend
               verticalAlign="top"
               align="right"
