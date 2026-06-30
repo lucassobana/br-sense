@@ -104,7 +104,7 @@ export default function Features() {
       minH="100vh"
       display="flex"
       alignItems="center"
-      py={{ base: 20, md: 32 }}
+      py={{ base: 10, md: 20 }}
       bg="#050B18"
     >
       <Container maxW="container.xl">

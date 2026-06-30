@@ -7,12 +7,11 @@ import {
   Stack,
   Image,
 } from "@chakra-ui/react";
-// IMAGEM: O logo da sua empresa
 import LogoAzul from "../../assets/BRSense_logo.png";
 
 export default function About() {
   return (
-    <Box id="sobre" py={{ base: 20, md: 32 }} bg="#050B18">
+    <Box id="sobre" py={{ base: 10, md: 20 }} bg="#050B18">
       <Container maxW="container.xl">
         <Stack
           direction={{ base: "column", lg: "row" }}
@@ -43,7 +42,6 @@ export default function About() {
               color="#3084c9"
               fontWeight="bold"
               textTransform="uppercase"
-              fontSize="sm"
               letterSpacing="wider"
             >
               Sobre a BR Sense

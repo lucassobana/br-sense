@@ -58,7 +58,7 @@ export default function CTASection() {
   return (
     <Box
       id="contato"
-      py={{ base: 20, md: 32 }}
+      py={{ base: 10, md: 20 }}
       bg="#050B18" // Mantendo o fundo escuro do projeto
       borderTop="1px"
       borderColor="whiteAlpha.100"

@@ -26,7 +26,7 @@ export default function Plataforma() {
   return (
     <Box
       id="plataforma"
-      py={{ base: 16, md: 24, lg: 32 }}
+      py={{ base: 10, md: 14, lg: 20 }}
       bg="#050B18"
       borderTop="1px"
       borderColor="whiteAlpha.100"
@@ -50,7 +50,6 @@ export default function Plataforma() {
               textTransform="uppercase"
               letterSpacing="wider"
               mb={2}
-              fontSize="sm"
             >
               Plataforma online
             </Text>

@@ -42,7 +42,7 @@ export default function Differentials() {
   return (
     <Box
       id="diferenciais"
-      py={{ base: 16, md: 24, lg: 32 }}
+      py={{ base: 10, md: 14, lg: 20 }}
       bg="#050B18"
       borderTop="1px"
       borderColor="whiteAlpha.100"
@@ -58,7 +58,6 @@ export default function Differentials() {
               color="#3084c9"
               fontWeight="bold"
               textTransform="uppercase"
-              fontSize="sm"
               mb={2}
             >
               Diferenciais

@@ -13,7 +13,7 @@ export default function VideosSection() {
   return (
     <Box
       id="videos"
-      py={{ base: 16, md: 24 }}
+      py={{ base: 10, md: 20 }}
       bg="#050B18"
       borderTop="1px"
       borderColor="whiteAlpha.100"
@@ -30,7 +30,6 @@ export default function VideosSection() {
               color="#3084c9"
               fontWeight="bold"
               textTransform="uppercase"
-              fontSize="sm"
               mb={2}
             >
               Na Prática

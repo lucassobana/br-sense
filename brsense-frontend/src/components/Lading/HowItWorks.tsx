@@ -50,7 +50,7 @@ export default function HowItWorks() {
       minH="100vh"
       display="flex"
       alignItems="center"
-      py={{ base: 20, md: 32 }}
+      py={{ base: 10, md: 20 }}
       bg="brand.900"
     >
       <Container maxW="container.xl">
@@ -64,7 +64,6 @@ export default function HowItWorks() {
               color="#3084c9"
               fontWeight="bold"
               textTransform="uppercase"
-              fontSize="sm"
               letterSpacing="wider"
             >
               Como funciona

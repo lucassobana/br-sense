@@ -29,7 +29,7 @@ export default function Acompanhamento() {
   return (
     <Box
       id="acompanhamento"
-      py={{ base: 20, md: 32 }}
+      py={{ base: 10, md: 20 }}
       bg="#050B18"
       borderTop="1px"
       borderColor="whiteAlpha.100"
@@ -78,7 +78,6 @@ export default function Acompanhamento() {
                 color="#3084c9"
                 fontWeight="bold"
                 textTransform="uppercase"
-                fontSize="sm"
                 letterSpacing="wider"
                 mb={2}
               >
