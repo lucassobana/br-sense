@@ -5,13 +5,15 @@ import {
     Grid, GridItem, Icon, Divider, Badge, Flex
 } from '@chakra-ui/react';
 import {
-    MdShowChart, MdWaterDrop, MdAccessTime, MdCloud
+    MdShowChart, MdWaterDrop, MdAccessTime, MdCloud, MdAutoAwesome
 } from 'react-icons/md';
 import { GiGroundSprout } from "react-icons/gi";
 import type { MapPoint } from '../SatelliteMap/SatelliteMap';
 import { COLORS } from '../../colors/colors';
 import { useProbeStats } from '../../hooks/useProbeStats';
 import { ForecastTab } from '../ForecastTab/ForecastTab';
+// Importação do DecisionCard. Ajuste o caminho se necessário de acordo com o seu projeto.
+import { DecisionCard } from '../DecisionCard/DecisionCard'; 
 
 const getStatusLabel = (code: string) => {
     switch (code) {
@@ -52,15 +54,18 @@ interface ProbeCardProps {
     onSelectDepthRef?: (depth: number | null) => void;
 }
 
+// Tipo centralizado para gerenciar todas as views do Flip
+type TabType = 'grafico' | 'pluviometria' | 'previsao' | 'copiloto';
+
 export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSelectDepthRef }: ProbeCardProps) {
-    const [activeTab, setActiveTab] = useState<'grafico' | 'pluviometria' | 'previsao'>('grafico');
+    const [activeTab, setActiveTab] = useState<TabType>('grafico');
     const [rotation, setRotation] = useState(0);
-    const [frontContent, setFrontContent] = useState<'grafico' | 'pluviometria' | 'previsao'>('grafico');
-    const [backContent, setBackContent] = useState<'grafico' | 'pluviometria' | 'previsao'>('pluviometria');
+    const [frontContent, setFrontContent] = useState<TabType>('grafico');
+    const [backContent, setBackContent] = useState<TabType>('pluviometria');
 
     const { profileData, lastCommunicationDate, rainStats } = useProbeStats(point);
 
-    const handleTabChange = (tab: 'grafico' | 'pluviometria' | 'previsao') => {
+    const handleTabChange = (tab: TabType) => {
         if (tab === activeTab) return;
 
         const isFrontVisible = rotation % 360 === 0;
@@ -75,8 +80,22 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
         setActiveTab(tab);
     };
 
-    const renderTabContent = (tab: 'grafico' | 'pluviometria' | 'previsao') => {
+    const renderTabContent = (tab: TabType) => {
         if (!point) return null;
+
+        if (tab === 'copiloto') {
+            return (
+                <Box h="100%" w="100%" overflowY="auto" pb={2}
+                    sx={{
+                        '&::-webkit-scrollbar': { width: '4px' },
+                        '&::-webkit-scrollbar-track': { width: '6px' },
+                        '&::-webkit-scrollbar-thumb': { background: 'gray.600', borderRadius: '24px' },
+                    }}
+                >
+                    <DecisionCard esn={point.esn} />
+                </Box>
+            );
+        }
 
         if (tab === 'grafico') {
             return (
@@ -152,7 +171,6 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
 
         if (tab === 'previsao') {
             return <ForecastTab lat={point.lat} lng={point.lng} />
-            //return <Text color="gray.500" fontSize="sm">Sem previsão ainda</Text>;
         }
 
         return null;
@@ -181,6 +199,8 @@ export function ProbeCard({ point, onViewGraph, onClose, selectedDepthRef, onSel
                 statusLabel={getStatusLabel(point.statusCode)}
                 lastCommunication={lastCommunicationDate}
                 onClose={onClose}
+                onCopilotoClick={() => handleTabChange('copiloto')}
+                isCopilotoActive={activeTab === 'copiloto'}
             />
 
             <Divider borderColor="whiteAlpha.300" my={3} />
@@ -252,12 +272,33 @@ interface HeaderProps {
     statusLabel: string;
     lastCommunication?: string | null;
     onClose: () => void;
+    onCopilotoClick: () => void;
+    isCopilotoActive: boolean;
 }
 
-const Header = ({ title, statusColor, statusLabel, lastCommunication, onClose }: HeaderProps) => (
+const Header = ({ title, statusColor, statusLabel, lastCommunication, onClose, onCopilotoClick, isCopilotoActive }: HeaderProps) => (
     <HStack justify="space-between" align="start">
         <VStack align="start" spacing={1.5} mb={1}>
-            <Text fontWeight="bold" fontSize="md" color="white" lineHeight="1">{title}</Text>
+            <HStack spacing={3}>
+                <Text fontWeight="bold" fontSize="md" color="white" lineHeight="1">{title}</Text>
+                
+                {/* Botão do Copiloto integrado ao lado do título */}
+                <Button 
+                    size="xs" 
+                    colorScheme="purple" 
+                    bg={isCopilotoActive ? "purple.500" : "whiteAlpha.200"}
+                    color="white"
+                    variant={isCopilotoActive ? "solid" : "outline"}
+                    borderColor={isCopilotoActive ? "purple.500" : "whiteAlpha.400"}
+                    _hover={{ bg: "purple.600", borderColor: "purple.600" }}
+                    onClick={onCopilotoClick}
+                    leftIcon={<Icon as={MdAutoAwesome} />}
+                    borderRadius="full"
+                    px={3}
+                >
+                    Copiloto
+                </Button>
+            </HStack>
 
             <HStack spacing={2} align="center">
                 <Badge colorScheme={statusColor.split('.')[0]} fontSize="0.6em" variant="solid">

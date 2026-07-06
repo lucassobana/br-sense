@@ -9,7 +9,7 @@ def fetch_weather_data(lat: float, lon: float) -> Optional[Dict[str, Any]]:
     params = {
         "latitude": lat,
         "longitude": lon,
-        "daily": "et0_fao_evapotranspiration,precipitation_sum,temperature_2m_max,temperature_2m_min",
+        "daily": "et0_fao_evapotranspiration,precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min",
         "timezone": "auto" # <--- O SEGREDO ESTÁ AQUI
     }
     
