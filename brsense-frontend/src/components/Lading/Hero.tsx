@@ -14,7 +14,7 @@ import HeroBg from "../../assets/hero-sonda-campo.jpeg";
 import { FiChevronDown } from "react-icons/fi";
 import { COLORS } from "../../colors/colors";
 
-const MotionBox = motion(Box);
+const MotionBox = motion.create(Box);
 
 export default function Hero() {
   const ref = useRef(null);

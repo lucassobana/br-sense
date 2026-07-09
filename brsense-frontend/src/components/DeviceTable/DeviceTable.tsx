@@ -20,6 +20,7 @@ import {
   Button,
   VStack,
   Badge,
+  CloseButton,
 } from "@chakra-ui/react";
 import {
   MdArrowUpward,
@@ -27,10 +28,11 @@ import {
   MdSort,
   MdSensors,
   MdLocationOn,
-  MdBatteryFull,
+  MdAutoAwesome,
 } from "react-icons/md";
 import type { Probe } from "../../types";
 import { useEffect, useState } from "react";
+import { getDeviceAnalysis } from "../../services/api";
 
 export interface TableRowData extends Probe {
   farmName: string;
@@ -39,6 +41,8 @@ export interface TableRowData extends Probe {
   batteryDate: string;
   lastCommunicationFormatted: string;
   lastCommunicationTimestamp: number;
+  sugestao?: string;
+  copiloto_acao?: string;
 }
 
 export type SortKey =
@@ -55,7 +59,7 @@ interface DeviceTableProps {
   onRowClick: (id: number) => void;
   sortConfig: { key: SortKey; direction: "asc" | "desc" };
   onSort: (key: SortKey) => void;
-  isAdmin?: boolean; // <-- Nova propriedade adicionada aqui
+  isAdmin?: boolean;
 }
 
 const sortLabels: Record<SortKey, string> = {
@@ -68,6 +72,74 @@ const sortLabels: Record<SortKey, string> = {
   farmName: "Fazenda",
 };
 
+const CopilotoText = ({
+  esn,
+  preloadedData,
+  isDesktop,
+}: {
+  esn: string;
+  preloadedData?: string;
+  isDesktop?: boolean;
+}) => {
+  const [fetchedSugestao, setFetchedSugestao] = useState<string>("");
+  const [isFetching, setIsFetching] = useState<boolean>(!preloadedData);
+
+  useEffect(() => {
+    if (preloadedData) {
+      return;
+    }
+
+    let isMounted = true;
+
+    getDeviceAnalysis(esn)
+      .then((res) => {
+        if (isMounted) {
+          setFetchedSugestao(res.sugestao || "Monitoramento padrão.");
+          setIsFetching(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setFetchedSugestao("Condições em monitoramento padrão.");
+          setIsFetching(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [esn, preloadedData]);
+
+  const displaySugestao = preloadedData || fetchedSugestao;
+  const isLoading = !preloadedData && isFetching;
+
+  if (isLoading) {
+    return (
+      <Text
+        id={`decision-${isDesktop ? "desktop" : "mobile"}-${esn}`}
+        fontSize={isDesktop ? "xs" : "sm"}
+        color="gray.400"
+        fontStyle="italic"
+        whiteSpace="normal"
+      >
+        Buscando recomendação...
+      </Text>
+    );
+  }
+
+  // Removido o noOfLines para mostrar o texto inteiro
+  return (
+    <Text
+      fontSize={isDesktop ? "sm" : "lg"}
+      color={isDesktop ? "blue.300" : "blue.200"}
+      lineHeight="tall"
+      whiteSpace="normal"
+    >
+      {displaySugestao}
+    </Text>
+  );
+};
+
 export function DeviceTable({
   data,
   onRowClick,
@@ -76,6 +148,7 @@ export function DeviceTable({
   isAdmin,
 }: DeviceTableProps) {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const [flippedCards, setFlippedCards] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -83,6 +156,11 @@ export function DeviceTable({
     }, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  const toggleFlip = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFlippedCards((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   const checkIsOffline = (timestamp: number) => {
     const oneHourMs = 60 * 60 * 1000;
@@ -105,9 +183,7 @@ export function DeviceTable({
 
   const formatarPotencia = (cv?: number | null) => {
     if (cv === null || cv === undefined) return "-";
-
     const kw = Math.ceil(cv * 0.7355);
-
     return `${Math.ceil(cv)}cv/${kw}kw`;
   };
 
@@ -132,28 +208,6 @@ export function DeviceTable({
     if (status.includes("status_ok")) return "Ideal";
     if (status.includes("status_saturated")) return "Saturado";
     return "Offline";
-  };
-
-  const getBatteryStatus = (voltage: number | null | undefined) => {
-    if (voltage === null || voltage === undefined)
-      return { color: "gray.500", text: "--" };
-    const isPercentage = voltage > 10;
-    const isGood = isPercentage ? voltage > 40 : voltage >= 3.7;
-    const isWarn = isPercentage ? voltage > 15 : voltage >= 3.4;
-    if (isGood)
-      return {
-        color: "green.400",
-        text: isPercentage ? `${voltage.toFixed(0)}%` : `${voltage.toFixed(1)}`,
-      };
-    if (isWarn)
-      return {
-        color: "yellow.400",
-        text: isPercentage ? `${voltage.toFixed(0)}%` : `${voltage.toFixed(1)}`,
-      };
-    return {
-      color: "red.400",
-      text: isPercentage ? `${voltage.toFixed(0)}%` : `${voltage.toFixed(1)}`,
-    };
   };
 
   const renderSortIcon = (column: SortKey) => {
@@ -238,226 +292,323 @@ export function DeviceTable({
 
         <SimpleGrid gridTemplateColumns="1fr" gap={4} w="100%">
           {data.map((row) => {
-            const batteryData = getBatteryStatus(row.batteryLevel);
             const isOffline = checkIsOffline(row.lastCommunicationTimestamp);
 
             return (
               <Box
                 key={`mobile-card-${row.id}`}
-                position="relative"
-                bg="gray.800"
-                borderRadius="xl"
-                border="1px solid"
-                borderColor="gray.700"
-                p={4}
+                sx={{ perspective: "1000px" }}
                 cursor="pointer"
                 onClick={() => onRowClick(row.id)}
-                overflow="hidden"
-                transition="all 0.25s ease"
-                boxShadow="lg"
-                _hover={{ bg: "whiteAlpha.100", borderColor: "blue.500" }}
-                _before={{
-                  content: '""',
-                  position: "absolute",
-                  top: "8px",
-                  bottom: "8px",
-                  left: "0",
-                  width: "5px",
-                  borderRadius: "0 6px 6px 0",
-                  bg: getStatusColor(row.status, "mobile"),
-                }}
               >
-                <Flex
-                  justify="space-between"
-                  align="center"
-                  gap={2}
-                  mb={3}
-                  pl={2}
+                <Box
+                  display="grid"
+                  transition="transform 0.6s"
+                  sx={{ transformStyle: "preserve-3d" }}
+                  transform={
+                    flippedCards[row.id] ? "rotateY(180deg)" : "rotateY(0deg)"
+                  }
                 >
-                  <Box flex="1" minW={0}>
-                    <HStack>
-                      <Text
-                        fontSize="lg"
-                        fontWeight="bold"
-                        color="white"
-                        noOfLines={1}
-                      >
-                        {row.name || row.esn}
-                      </Text>
-                      {isAdmin && (
+                  {/* FACE DA FRENTE (DADOS DA SONDA) */}
+                  <Box
+                    gridArea="1 / 1 / 2 / 2"
+                    sx={{
+                      backfaceVisibility: "hidden",
+                      WebkitBackfaceVisibility: "hidden",
+                    }}
+                    bg="gray.800"
+                    borderRadius="xl"
+                    border="1px solid"
+                    borderColor="gray.700"
+                    p={4}
+                    overflow="hidden"
+                    boxShadow="lg"
+                    _hover={{ bg: "whiteAlpha.100", borderColor: "blue.500" }}
+                    _before={{
+                      content: '""',
+                      position: "absolute",
+                      top: "8px",
+                      bottom: "8px",
+                      left: "0",
+                      width: "5px",
+                      borderRadius: "0 6px 6px 0",
+                      bg: getStatusColor(row.status, "mobile"),
+                    }}
+                  >
+                    <Flex
+                      justify="space-between"
+                      align="center"
+                      gap={2}
+                      mb={3}
+                      pl={2}
+                    >
+                      <Box flex="1" minW={0}>
+                        <HStack>
+                          <Text
+                            fontSize="lg"
+                            fontWeight="bold"
+                            color="white"
+                            noOfLines={1}
+                          >
+                            {row.name || row.esn}
+                          </Text>
+                          {isAdmin && (
+                            <Badge
+                              bg={isOffline ? "gray" : "green"}
+                              variant="subtle"
+                              borderRadius="full"
+                              px={1.5}
+                              py={1.5}
+                              whiteSpace="nowrap"
+                            />
+                          )}
+                        </HStack>
+                        {row.name && (
+                          <Text fontSize="xs" color="gray.400" noOfLines={1}>
+                            ESN: {row.esn}
+                          </Text>
+                        )}
+                      </Box>
+
+                      <Flex align="center" gap={1}>
                         <Badge
-                          bg={isOffline ? "gray" : "green"}
+                          backgroundColor={getStatusColor(row.status, "mobile")}
                           variant="subtle"
                           borderRadius="full"
-                          px={1.5}
-                          py={1.5}
+                          px={2}
+                          py={1}
                           whiteSpace="nowrap"
-                        />
-                      )}
-                    </HStack>
-                    {row.name && (
-                      <Text fontSize="xs" color="gray.400" noOfLines={1}>
-                        ESN: {row.esn}
-                      </Text>
-                    )}
-                  </Box>
+                        >
+                          {getStatusLabel(row.status)}
+                        </Badge>
+                      </Flex>
+                    </Flex>
 
-                  <Flex align="center" gap={1}>
-                    <Badge
-                      backgroundColor={getStatusColor(row.status, "mobile")}
-                      variant="subtle"
-                      borderRadius="full"
-                      px={2}
-                      py={1}
-                      whiteSpace="nowrap"
+                    <SimpleGrid columns={3} gap={2} pl={2}>
+                      <Box
+                        bg="gray.900"
+                        borderRadius="md"
+                        p={2}
+                        textAlign="center"
+                        border="1px solid"
+                        borderColor="gray.700"
+                      >
+                        <Text fontSize="xs" color="gray.500" mb={1}>
+                          1h
+                        </Text>
+                        <Text fontSize="md" fontWeight="bold" color="blue.200">
+                          {formatRain(row.rain_1h)}
+                          <Text
+                            as="span"
+                            fontSize="10px"
+                            color="gray.500"
+                            ml={0.5}
+                          >
+                            mm
+                          </Text>
+                        </Text>
+                      </Box>
+                      <Box
+                        bg="gray.900"
+                        borderRadius="md"
+                        p={2}
+                        textAlign="center"
+                        border="1px solid"
+                        borderColor="gray.700"
+                      >
+                        <Text fontSize="xs" color="gray.500" mb={1}>
+                          24h
+                        </Text>
+                        <Text fontSize="md" fontWeight="bold" color="blue.300">
+                          {formatRain(row.rain_24h)}
+                          <Text
+                            as="span"
+                            fontSize="10px"
+                            color="gray.500"
+                            ml={0.5}
+                          >
+                            mm
+                          </Text>
+                        </Text>
+                      </Box>
+                      <Box
+                        bg="gray.900"
+                        borderRadius="md"
+                        p={2}
+                        textAlign="center"
+                        border="1px solid"
+                        borderColor="gray.700"
+                      >
+                        <Text fontSize="xs" color="gray.500" mb={1}>
+                          7d
+                        </Text>
+                        <Text fontSize="md" fontWeight="bold" color="blue.400">
+                          {formatRain(row.rain_7d)}
+                          <Text
+                            as="span"
+                            fontSize="10px"
+                            color="gray.500"
+                            ml={0.5}
+                          >
+                            mm
+                          </Text>
+                        </Text>
+                      </Box>
+                    </SimpleGrid>
+
+                    <Box
+                      pt={4}
+                      mt={4}
+                      borderTop="1px"
+                      borderColor="gray.600"
+                      pl={2}
                     >
-                      {getStatusLabel(row.status)}
-                    </Badge>
-                  </Flex>
-                </Flex>
+                      <SimpleGrid columns={3} gap={2} mb={4}>
+                        <Box textAlign="center">
+                          <Text fontSize="xs" color="gray.500" mb={0.5}>
+                            Cultura
+                          </Text>
+                          <Text
+                            fontSize="sm"
+                            fontWeight="medium"
+                            color="gray.200"
+                            noOfLines={1}
+                          >
+                            {row.cultura || "-"}
+                          </Text>
+                        </Box>
+                        <Box textAlign="center">
+                          <Text fontSize="xs" color="gray.500" mb={0.5}>
+                            DAP
+                          </Text>
+                          <Text
+                            fontSize="sm"
+                            fontWeight="medium"
+                            color="gray.200"
+                          >
+                            {row.data_plantio
+                              ? `${calcularDAP(row.data_plantio)} d`
+                              : "-"}
+                          </Text>
+                        </Box>
+                        <Box textAlign="center">
+                          <Text fontSize="xs" color="gray.500" mb={0.5}>
+                            Potência
+                          </Text>
+                          <Text
+                            fontSize="xs"
+                            fontWeight="medium"
+                            color="gray.200"
+                          >
+                            {formatarPotencia(row.potencia_cv)}
+                          </Text>
+                        </Box>
+                      </SimpleGrid>
 
-                <SimpleGrid columns={3} gap={2} pl={2}>
-                  <Box
-                    bg="gray.900"
-                    borderRadius="md"
-                    p={2}
-                    textAlign="center"
-                    border="1px solid"
-                    borderColor="gray.700"
-                  >
-                    <Text fontSize="xs" color="gray.500" mb={1}>
-                      1h
-                    </Text>
-                    <Text fontSize="md" fontWeight="bold" color="blue.200">
-                      {formatRain(row.rain_1h)}
-                      <Text as="span" fontSize="10px" color="gray.500" ml={0.5}>
-                        mm
-                      </Text>
-                    </Text>
-                  </Box>
-                  <Box
-                    bg="gray.900"
-                    borderRadius="md"
-                    p={2}
-                    textAlign="center"
-                    border="1px solid"
-                    borderColor="gray.700"
-                  >
-                    <Text fontSize="xs" color="gray.500" mb={1}>
-                      24h
-                    </Text>
-                    <Text fontSize="md" fontWeight="bold" color="blue.300">
-                      {formatRain(row.rain_24h)}
-                      <Text as="span" fontSize="10px" color="gray.500" ml={0.5}>
-                        mm
-                      </Text>
-                    </Text>
-                  </Box>
-                  <Box
-                    bg="gray.900"
-                    borderRadius="md"
-                    p={2}
-                    textAlign="center"
-                    border="1px solid"
-                    borderColor="gray.700"
-                  >
-                    <Text fontSize="xs" color="gray.500" mb={1}>
-                      7d
-                    </Text>
-                    <Text fontSize="md" fontWeight="bold" color="blue.400">
-                      {formatRain(row.rain_7d)}
-                      <Text as="span" fontSize="10px" color="gray.500" ml={0.5}>
-                        mm
-                      </Text>
-                    </Text>
-                  </Box>
-                </SimpleGrid>
-
-                <Box
-                  pt={4}
-                  mt={4}
-                  borderTop="1px"
-                  borderColor="gray.600"
-                  pl={2}
-                >
-                  <SimpleGrid columns={3} gap={2} mb={4}>
-                    <Box textAlign="center">
-                      <Text fontSize="xs" color="gray.500" mb={0.5}>
-                        Cultura
-                      </Text>
-                      <Text
-                        fontSize="sm"
-                        fontWeight="medium"
-                        color="gray.200"
-                        noOfLines={1}
+                      <Flex
+                        justify="space-between"
+                        align="center"
+                        bg="blackAlpha.400"
+                        p={3}
+                        borderRadius="md"
+                        border="1px solid"
+                        borderColor="gray.700"
                       >
-                        {row.cultura || "-"}
-                      </Text>
+                        <Box minW={0}>
+                          <Text
+                            color="gray.400"
+                            fontSize="xs"
+                            noOfLines={1}
+                            mb={1}
+                          >
+                            Fazenda:{" "}
+                            <Text as="span" color="white" fontWeight="medium">
+                              {row.farmName}
+                            </Text>
+                          </Text>
+                          <Text color="gray.400" fontSize="xs" noOfLines={1}>
+                            Envio:{" "}
+                            <Text as="span" color="white" fontWeight="medium">
+                              {row.lastCommunicationFormatted}
+                            </Text>
+                          </Text>
+                        </Box>
+                        <Box textAlign="right" pl={2}>
+                          <Button
+                            size="sm"
+                            colorScheme="blue"
+                            bg="blue.500"
+                            color="white"
+                            variant="solid"
+                            _hover={{ bg: "blue.600" }}
+                            onClick={(e) => toggleFlip(row.id, e)}
+                            leftIcon={<Icon as={MdAutoAwesome} />}
+                            borderRadius="full"
+                            px={3}
+                          >
+                            Copiloto
+                          </Button>
+                        </Box>
+                      </Flex>
                     </Box>
-                    <Box textAlign="center">
-                      <Text fontSize="xs" color="gray.500" mb={0.5}>
-                        DAP
-                      </Text>
-                      <Text fontSize="sm" fontWeight="medium" color="gray.200">
-                        {row.data_plantio
-                          ? `${calcularDAP(row.data_plantio)} d`
-                          : "-"}
-                      </Text>
-                    </Box>
-                    <Box textAlign="center">
-                      <Text fontSize="xs" color="gray.500" mb={0.5}>
-                        Potência
-                      </Text>
-                      <Text fontSize="xs" fontWeight="medium" color="gray.200">
-                        {formatarPotencia(row.potencia_cv)}
-                      </Text>
-                    </Box>
-                  </SimpleGrid>
+                  </Box>
 
-                  <Flex
-                    justify="space-between"
-                    align="center"
-                    bg="blackAlpha.400"
-                    p={3}
-                    borderRadius="md"
+                  {/* FACE DE TRÁS (COPILOTO AÇÃO RECOMENDADA) */}
+                  <Box
+                    gridArea="1 / 1 / 2 / 2"
+                    sx={{
+                      backfaceVisibility: "hidden",
+                      WebkitBackfaceVisibility: "hidden",
+                      transform: "rotateY(180deg)",
+                    }}
+                    bg="gray.800"
+                    borderRadius="xl"
                     border="1px solid"
-                    borderColor="gray.700"
+                    borderColor="blue.500"
+                    p={5}
+                    display="flex"
+                    flexDirection="column"
+                    boxShadow="lg"
                   >
-                    <Box minW={0}>
-                      <Text color="gray.400" fontSize="xs" noOfLines={1} mb={1}>
-                        Fazenda:{" "}
-                        <Text as="span" color="white" fontWeight="medium">
-                          {row.farmName}
+                    <Flex justify="space-between" align="center" mb={4}>
+                      <HStack>
+                        <Icon as={MdAutoAwesome} color="blue.400" boxSize={5} />
+                        <Text fontWeight="bold" color="white" fontSize="md">
+                          Ação Recomendada
                         </Text>
-                      </Text>
-                      <Text color="gray.400" fontSize="xs" noOfLines={1}>
-                        Envio:{" "}
-                        <Text as="span" color="white" fontWeight="medium">
-                          {row.lastCommunicationFormatted}
-                        </Text>
-                      </Text>
+                      </HStack>
+                      <CloseButton
+                        size="sm"
+                        color="gray.400"
+                        onClick={(e) => toggleFlip(row.id, e)}
+                      />
+                    </Flex>
+
+                    <Box
+                      flex="1"
+                      bg="blackAlpha.400"
+                      p={4}
+                      borderRadius="md"
+                      overflowY="auto"
+                    >
+                      <CopilotoText
+                        esn={row.esn}
+                        preloadedData={row.sugestao || row.copiloto_acao}
+                        isDesktop={false}
+                      />
                     </Box>
-                    <Box textAlign="right" pl={2}>
-                      <Text
-                        fontSize="10px"
-                        color="gray.500"
-                        textTransform="uppercase"
-                        mb={0.5}
-                      >
-                        Bateria
-                      </Text>
-                      <Text
-                        fontSize="lg"
-                        fontWeight="bold"
-                        color={batteryData.color}
-                        whiteSpace="nowrap"
-                        fontFamily="mono"
-                        lineHeight={1}
-                      >
-                        {batteryData.text}
-                      </Text>
-                    </Box>
-                  </Flex>
+
+                    <Button
+                      mt={6}
+                      size="sm"
+                      variant="outline"
+                      colorScheme="blue"
+                      onClick={(e) => toggleFlip(row.id, e)}
+                      w="full"
+                    >
+                      Voltar para Detalhes
+                    </Button>
+                  </Box>
                 </Box>
               </Box>
             );
@@ -509,7 +660,7 @@ export function DeviceTable({
                   color="gray.400"
                   textTransform="none"
                 >
-                  PRECIPITAÇÃO (mm){" "}
+                  PRECIPITAÇÃO (mm)
                   <Text
                     as="span"
                     display="block"
@@ -530,10 +681,12 @@ export function DeviceTable({
                   color="gray.400"
                 >
                   <HStack spacing={1}>
-                    <Text>Dados Agronômicos</Text>
+                    <Text>Dados</Text>
                     {renderSortIcon("cultura")}
                   </HStack>
                 </Th>
+
+                {/* Nova coluna "Decisão" adicionada */}
                 <Th
                   py={4}
                   px={4}
@@ -541,8 +694,9 @@ export function DeviceTable({
                   borderColor="whiteAlpha.100"
                   color="gray.400"
                 >
-                  Dados Operacionais
+                  <Text>Decisão</Text>
                 </Th>
+
                 <Th
                   py={4}
                   px={4}
@@ -569,7 +723,6 @@ export function DeviceTable({
               }}
             >
               {data.map((row) => {
-                const batteryData = getBatteryStatus(row.batteryLevel);
                 const isOffline = checkIsOffline(
                   row.lastCommunicationTimestamp,
                 );
@@ -667,7 +820,6 @@ export function DeviceTable({
                                   bg={isOffline ? "gray.400" : "green.400"}
                                   mr={{ base: 0, md: 0, lg: 1 }}
                                 />
-
                                 <Box
                                   display={{
                                     base: "none",
@@ -750,18 +902,60 @@ export function DeviceTable({
                       borderColor="whiteAlpha.100"
                       borderBottom="none"
                     >
-                      <Flex direction="column" gap={0.5} fontSize="xs">
-                        <HStack spacing={1}>
-                          <Text color="gray.400">Cultura:</Text>
-                          <Text fontWeight="semibold" color="white">
-                            {row.cultura || "-"}
+                      <Flex gap={4} align="center">
+                        <Flex
+                          direction="column"
+                          gap={0.5}
+                          fontSize="xs"
+                          minW="80px"
+                        >
+                          <HStack spacing={1}>
+                            <Text color="gray.400">Cultura:</Text>
+                            <Text fontWeight="semibold" color="white">
+                              {row.cultura || "-"}
+                            </Text>
+                          </HStack>
+                          <HStack spacing={1}>
+                            <Text color="gray.400">DAP:</Text>
+                            <Text fontWeight="semibold" color="white">
+                              {row.data_plantio
+                                ? calcularDAP(row.data_plantio)
+                                : "-"}
+                              <Text
+                                as="span"
+                                fontSize="10px"
+                                fontWeight="normal"
+                                color="whiteAlpha.600"
+                              >
+                                {" "}
+                                dias
+                              </Text>
+                            </Text>
+                          </HStack>
+                        </Flex>
+
+                        <Box w="1px" h="35px" bg="whiteAlpha.200" />
+
+                        <VStack
+                          align="start"
+                          spacing={0}
+                          fontSize="sm"
+                          minW="50px"
+                        >
+                          <Text fontWeight="bold" color="white">
+                            {row.potencia_cv ? Math.ceil(row.potencia_cv) : "-"}{" "}
+                            <Text
+                              as="span"
+                              fontSize="10px"
+                              fontWeight="normal"
+                              color="whiteAlpha.600"
+                            >
+                              cv
+                            </Text>
                           </Text>
-                        </HStack>
-                        <HStack spacing={1}>
-                          <Text color="gray.400">DAP:</Text>
-                          <Text fontWeight="semibold" color="white">
-                            {row.data_plantio
-                              ? calcularDAP(row.data_plantio)
+                          <Text fontWeight="bold" color="white">
+                            {row.potencia_cv
+                              ? Math.ceil(row.potencia_cv * 0.7355)
                               : "-"}{" "}
                             <Text
                               as="span"
@@ -769,46 +963,27 @@ export function DeviceTable({
                               fontWeight="normal"
                               color="whiteAlpha.600"
                             >
-                              dias
+                              kW
                             </Text>
                           </Text>
-                        </HStack>
+                        </VStack>
                       </Flex>
                     </Td>
 
+                    {/* Coluna "Decisão" (Mostrando todo o texto do Copiloto) */}
                     <Td
                       py={4}
                       px={4}
                       borderLeft="1px solid"
                       borderColor="whiteAlpha.100"
                       borderBottom="none"
+                      maxW="300px"
                     >
-                      <VStack align="start" spacing={0} fontSize="sm">
-                        <Text fontWeight="bold" color="white">
-                          {row.potencia_cv ? Math.ceil(row.potencia_cv) : "-"}{" "}
-                          <Text
-                            as="span"
-                            fontSize="10px"
-                            fontWeight="normal"
-                            color="whiteAlpha.600"
-                          >
-                            cv
-                          </Text>
-                        </Text>
-                        <Text fontWeight="bold" color="white">
-                          {row.potencia_cv
-                            ? Math.ceil(row.potencia_cv * 0.7355)
-                            : "-"}{" "}
-                          <Text
-                            as="span"
-                            fontSize="10px"
-                            fontWeight="normal"
-                            color="whiteAlpha.600"
-                          >
-                            kW
-                          </Text>
-                        </Text>
-                      </VStack>
+                      <CopilotoText
+                        esn={row.esn}
+                        preloadedData={row.sugestao || row.copiloto_acao}
+                        isDesktop={true}
+                      />
                     </Td>
 
                     <Td
@@ -833,7 +1008,7 @@ export function DeviceTable({
                             textTransform="uppercase"
                             mb={0.5}
                           >
-                            Último Envio
+                            Último Envio:
                           </Text>
                           <Text color="white" whiteSpace="nowrap">
                             {row.lastCommunicationFormatted}
@@ -847,26 +1022,10 @@ export function DeviceTable({
                             textTransform="uppercase"
                             mb={0.5}
                           >
-                            Bateria
+                            ESN:
                           </Text>
-                          <HStack
-                            justify="flex-end"
-                            spacing={1}
-                            color={batteryData.color}
-                          >
-                            <Text>{batteryData.text}</Text>
-                            <Icon as={MdBatteryFull} fontSize="xs" />
-                          </HStack>
-                        </Box>
-                        <Box
-                          gridColumn="span 2"
-                          mt={0.5}
-                          pt={0.5}
-                          borderTop="1px solid"
-                          borderColor="whiteAlpha.200"
-                        >
-                          <Text fontSize="12px" color="whiteAlpha.600">
-                            ESN: {row.esn}
+                          <Text color="white" whiteSpace="nowrap">
+                            {row.esn}
                           </Text>
                         </Box>
                       </SimpleGrid>
