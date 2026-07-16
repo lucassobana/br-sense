@@ -22,8 +22,9 @@ import {
   MenuButton,
   MenuList,
   MenuItem,
+  useBreakpointValue,
 } from "@chakra-ui/react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { MdArrowBack, MdArrowDropDown } from "react-icons/md";
 import { motion, AnimatePresence } from "framer-motion";
 import { getProbes, getFarms, getDeviceHistory } from "../services/api";
@@ -124,6 +125,9 @@ export function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const probeIdParam = searchParams.get("probeId");
 
+  const navigate = useNavigate();
+  const isMobile = useBreakpointValue({ base: true, md: false });
+
   const [probes, setProbes] = useState<Probe[]>([]);
   const [farms, setFarms] = useState<Farm[]>([]);
   const [selectedFarm] = useState<Farm | null>(null);
@@ -153,7 +157,6 @@ export function Dashboard() {
     end?: string;
   }>({});
 
-  // ESTADOS DESACOPLADOS: Um para Umidade/Temperatura e outro Exclusivo para Bateria
   const [chartData, setChartData] = useState<RawApiData[]>([]);
   const [batteryData, setBatteryData] = useState<RawApiData[]>([]);
 
@@ -397,14 +400,13 @@ export function Dashboard() {
     loadData();
   }, [loadData]);
 
-  // EFEITO INDEPENDENTE PARA A BATERIA (Traz um range fixo e amplo, blindado dos filtros)
   useEffect(() => {
     if (viewMode !== "chart" || !selectedProbe || !userIsAdmin) return;
 
     const fetchBatteryData = async () => {
       const now = new Date();
       const target = new Date(now);
-      target.setDate(now.getDate() - 30); // Busca últimos 30 dias fixos para o gráfico de status
+      target.setDate(now.getDate() - 30);
 
       try {
         const history = await getDeviceHistory(selectedProbe.esn, {
@@ -436,7 +438,6 @@ export function Dashboard() {
     fetchBatteryData();
   }, [selectedProbe, viewMode, userIsAdmin]);
 
-  // FUNÇÃO DE BUSCA DO HISTÓRICO DE UMIDADE/TEMPERATURA
   const fetchHistory = useCallback(
     async (period: TimeRange, startDateStr?: string, endDateStr?: string) => {
       if (!selectedProbe) return;
@@ -593,16 +594,23 @@ export function Dashboard() {
             bg={COLORS.background}
             minH="100vh"
           >
+            {/* CONTAINER DO MAPA:
+                - Mobile: Ocupa toda a tela descontando os headers nativos (130px de tolerância) e remove borderRadius.
+                - Desktop: Ocupa 75vh, para que o começo da tabela de monitoramento detalhado apareça e induza ao scroll. */}
             <Box
               w="100%"
-              mt={6}
-              pr={6}
-              pl={6}
-              borderRadius="xl"
+              mt={{ base: 0, md: 6 }}
+              px={{ base: 0, md: 6 }}
+              borderRadius={{ base: "none", md: "xl" }}
               overflow="hidden"
-              boxShadow="2xl"
+              boxShadow={{ base: "none", md: "2xl" }}
             >
-              <Box w="100%" h="90vh" position="relative" bg="black">
+              <Box
+                w="100%"
+                h={{ base: "calc(100vh - 100px)", md: "75vh" }}
+                position="relative"
+                bg="black"
+              >
                 <Suspense
                   fallback={
                     <Flex justify="center" align="center" h="100%">
@@ -623,7 +631,16 @@ export function Dashboard() {
               </Box>
             </Box>
 
-            <Container maxW="full" mt={8} mb={10} px={{ base: 4, lg: 12 }}>
+            {/* CONTAINER DA TABELA: 
+                - Oculta completamente na versão mobile (pois estará no applet "Sondas")
+                - Exibe em bloco na versão Desktop (md e acima) */}
+            <Container
+              maxW="full"
+              mt={8}
+              mb={10}
+              px={{ base: 4, lg: 12 }}
+              display={{ base: "none", md: "block" }}
+            >
               <Flex
                 justify="space-between"
                 align="center"
@@ -674,10 +691,16 @@ export function Dashboard() {
               variant="ghost"
               color="white"
               mb={4}
-              onClick={handleBackToMap}
+              onClick={() => {
+                if (isMobile) {
+                  navigate("/probes");
+                } else {
+                  handleBackToMap();
+                }
+              }}
               _hover={{ bg: "whiteAlpha.200" }}
             >
-              Voltar ao Mapa
+              {isMobile ? "Voltar ao monitoramento" : "Voltar ao Mapa"}
             </Button>
 
             <MotionBox mb={6}>

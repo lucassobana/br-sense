@@ -13,12 +13,6 @@ import {
   MenuButton,
   MenuList,
   MenuItem,
-  IconButton,
-  Drawer,
-  DrawerOverlay,
-  DrawerContent,
-  DrawerBody,
-  useDisclosure,
 } from "@chakra-ui/react";
 import { useState, useMemo } from "react";
 import { useNavigate, Link as RouterLink, useLocation } from "react-router-dom";
@@ -27,8 +21,6 @@ import {
   MdAgriculture,
   MdSensors,
   MdLogout,
-  MdMenu,
-  MdClose,
   MdSettings,
 } from "react-icons/md";
 
@@ -97,6 +89,7 @@ const isUserAdmin = () => {
   }
 };
 
+// COMPONENTE DESKTOP: Lógica original preservada 100%
 const SidebarContent = ({
   isExpanded,
   onItemClick,
@@ -276,74 +269,79 @@ const SidebarContent = ({
   );
 };
 
+// NOVO COMPONENTE MOBILE: Barra inferior estilo Spotify
+const BottomNav = () => {
+  const location = useLocation();
+
+  // Apenas as duas rotas solicitadas
+  const mobileItems = [
+    { label: "Mapa", icon: MdMap, path: "/dashboard" },
+    { label: "Sondas", icon: MdSensors, path: "/probes" },
+  ];
+
+  return (
+    <Flex
+      as="nav"
+      display={{ base: "flex", md: "none" }} // Exibe apenas em telas mobile
+      position="fixed"
+      bottom="0"
+      left="0"
+      w="100%"
+      h="65px"
+      bg={COLORS.surface}
+      borderTop="1px solid"
+      borderColor="#2D2D2D"
+      zIndex={1000}
+      justify="space-around"
+      align="center"
+      pb="env(safe-area-inset-bottom)" // Adaptação nativa para iPhones
+      boxShadow="0 -4px 15px rgba(0, 0, 0, 0.4)"
+    >
+      {mobileItems.map((item) => {
+        const isActive = location.pathname === item.path;
+        return (
+          <VStack
+            key={item.path}
+            as={RouterLink}
+            to={item.path}
+            spacing={1}
+            flex={1}
+            justify="center"
+            align="center"
+            h="100%"
+            color={isActive ? "white" : "gray.500"}
+            _hover={{ textDecoration: "none" }}
+          >
+            <Icon
+              as={item.icon}
+              boxSize={6}
+              color={isActive ? "blue.400" : "gray.500"}
+              transition="color 0.2s ease-in-out"
+            />
+            <Text
+              fontSize="10px"
+              fontWeight={isActive ? "bold" : "medium"}
+              transition="all 0.2s ease-in-out"
+            >
+              {item.label}
+            </Text>
+          </VStack>
+        );
+      })}
+    </Flex>
+  );
+};
+
 export function Sidebar({ organization = true }) {
   const [isHovered, setIsHovered] = useState(false);
-  const { isOpen, onOpen, onClose } = useDisclosure();
-
-  const currentOrg = useMemo(() => getUserOrganization(), []);
   const isAdmin = useMemo(() => isUserAdmin(), []);
-
-  const MOBILE_HEADER_HEIGHT = "64px";
 
   return (
     <>
-      <Flex
-        as="header"
-        display={{ base: "flex", md: "none" }}
-        align="center"
-        justify="space-between"
-        w="100%"
-        h={MOBILE_HEADER_HEIGHT}
-        px={4}
-        bg={COLORS.surface}
-        borderBottom="1px solid"
-        borderColor="#2D2D2D"
-        position="fixed"
-        top="0"
-        left="0"
-        zIndex={1000}
-        boxShadow="md"
-      >
-        <HStack spacing={3}>
-          <IconButton
-            aria-label="Abrir menu"
-            icon={<MdMenu size={24} />}
-            onClick={onOpen}
-            variant="ghost"
-            color="white"
-            _hover={{ bg: "whiteAlpha.200" }}
-          />
-
-          <HStack spacing={2}>
-            <Box
-              w="32px"
-              h="32px"
-              bg="white"
-              borderRadius="md"
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-            >
-              {organization && (
-                <Image
-                  src={currentOrg.logo}
-                  alt={currentOrg.name}
-                  w="24px"
-                  h="24px"
-                  objectFit="contain"
-                />
-              )}
-            </Box>
-            <Text color="white" fontWeight="bold" fontSize="md">
-              {currentOrg.name}
-            </Text>
-          </HStack>
-        </HStack>
-      </Flex>
-
+      {/* 1. VISÃO DESKTOP (Inalterada) */}
       <Box
         as="nav"
-        display={{ base: "none", md: "flex" }}
+        display={{ base: "none", md: "flex" }} // Escondida no Mobile
         pos="fixed"
         left="0"
         h="100vh"
@@ -365,32 +363,8 @@ export function Sidebar({ organization = true }) {
         />
       </Box>
 
-      <Drawer isOpen={isOpen} placement="left" onClose={onClose} size="xs">
-        <DrawerOverlay />
-        <DrawerContent
-          bg={COLORS.surface}
-          borderRight="1px solid"
-          borderColor="#2D2D2D"
-        >
-          <DrawerBody p={0}>
-            <Flex justify="flex-end" p={2}>
-              <IconButton
-                aria-label="Fechar menu"
-                icon={<MdClose />}
-                onClick={onClose}
-                variant="ghost"
-                color="white"
-              />
-            </Flex>
-            <SidebarContent
-              isExpanded={true}
-              onItemClick={onClose}
-              organization={organization}
-              isAdmin={isAdmin}
-            />
-          </DrawerBody>
-        </DrawerContent>
-      </Drawer>
+      {/* 2. VISÃO MOBILE (Navegação Inferior) */}
+      <BottomNav />
     </>
   );
 }

@@ -46,7 +46,7 @@ export function Layout({ children }: LayoutProps) {
 
         // Mobile: Margem superior de 64px para "limpar" o Header Fixo
         // Desktop: Sem margem superior
-        mt={{ base: '64px', md: 0 }}
+        mt={{ base: '18px', md: 0 }}
 
         // Desktop: Altura fixa da tela (100vh) com scroll interno
         // Mobile: Altura automática para usar o scroll nativo do navegador
