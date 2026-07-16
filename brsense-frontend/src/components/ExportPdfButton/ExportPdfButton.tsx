@@ -137,7 +137,7 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
           valign: "middle",
         },
         headStyles: {
-          fillColor: [128, 90, 213],
+          fillColor: [11, 95, 165],
           textColor: [255, 255, 255],
           fontStyle: "bold",
         },
@@ -213,7 +213,7 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
 
   return (
     <Button
-      colorScheme={exportStatus === "ready" ? "green" : "purple"}
+      colorScheme={exportStatus === "ready" ? "green" : "blue"}
       variant="solid"
       size="sm"
       isLoading={exportStatus === "loading"}

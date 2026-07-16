@@ -184,7 +184,7 @@ export const DecisionCard: React.FC<DecisionCardProps> = ({ esn }) => {
       bg="gray.800"
       borderRadius="xl"
       borderWidth="1px"
-      borderColor="purple.500"
+      borderColor="blue.500"
       overflow="hidden"
       boxShadow="0 4px 14px 0 rgba(128, 90, 213, 0.2)"
     >
@@ -293,7 +293,7 @@ export const DecisionCard: React.FC<DecisionCardProps> = ({ esn }) => {
           <Text
             fontSize="xs"
             fontWeight="bold"
-            color="purple.300"
+            color="blue.300"
             textTransform="uppercase"
             letterSpacing="wider"
             mb={2}
@@ -301,13 +301,13 @@ export const DecisionCard: React.FC<DecisionCardProps> = ({ esn }) => {
             Ação Recomendada
           </Text>
           <Box
-            bg="purple.900"
+            bg="blue.900"
             borderWidth="1px"
-            borderColor="purple.700"
+            borderColor="blue.700"
             borderRadius="md"
             p={3}
           >
-            <Text fontSize="sm" fontWeight="medium" color="purple.100">
+            <Text fontSize="sm" fontWeight="medium" color="blue.100">
               {data.sugestao}
             </Text>
           </Box>
