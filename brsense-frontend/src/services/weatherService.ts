@@ -8,9 +8,6 @@ export const fetchWeatherData = async (lat: number, lng: number): Promise<DailyF
     if (!res.ok) throw new Error('Falha ao buscar dados meteorológicos');
     
     const data = await res.json();
-    
-    // 👇 ADICIONE ESTA LINHA PARA VERIFICAR
-    console.log("DADOS DA API:", data.daily);
 
     return data.daily.time.map((timeStr: string, index: number) => {
         const dateObj = new Date(timeStr + 'T12:00:00Z');
