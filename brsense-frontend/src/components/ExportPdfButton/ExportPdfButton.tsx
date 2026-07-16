@@ -17,11 +17,28 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
   const [generatedFile, setGeneratedFile] = useState<File | null>(null);
   const toast = useToast();
 
-  const canShareFiles = () => {
+  // NOVA LÓGICA: Verifica o SO antes de liberar o Web Share API
+  const shouldUseNativeShare = () => {
+    const userAgent = navigator.userAgent.toLowerCase();
+
+    // Detecta Windows
+    const isWindows = userAgent.includes("win");
+
+    // Detecta Linux Desktop (excluindo dispositivos Android)
+    const isLinux =
+      userAgent.includes("linux") && !userAgent.includes("android");
+
+    // Se for Windows ou Linux Desktop, força o download direto retornando false
+    if (isWindows || isLinux) {
+      return false;
+    }
+
+    // Para macOS, iOS e Android, valida se o navegador suporta compartilhamento de arquivos
     if (typeof navigator.canShare === "function") {
       const testFile = new File(["test"], "test.txt", { type: "text/plain" });
       return navigator.canShare({ files: [testFile] });
     }
+
     return false;
   };
 
@@ -92,7 +109,6 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
               const res = await getDeviceAnalysis(row.esn);
               decisionText = res.sugestao || "Monitoramento padrão.";
             } catch {
-              // removido o erro daqui, usando catch vazio já que a variável não era utilizada
               decisionText = "Condições em monitoramento padrão.";
             }
           }
@@ -143,12 +159,11 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
       const pdfBlob = doc.output("blob");
       const file = new File([pdfBlob], fileName, { type: "application/pdf" });
 
-      if (canShareFiles()) {
+      if (shouldUseNativeShare()) {
         try {
           await navigator.share({ files: [file] });
           setExportStatus("idle");
         } catch (shareError) {
-          // Tipagem segura sem uso de 'any'
           if ((shareError as Error).name === "AbortError") {
             setExportStatus("idle");
             return;
@@ -158,17 +173,17 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
           setExportStatus("ready");
           toast({
             title: "PDF pronto para envio!",
-            description: "Toque em 'Enviar PDF' para abrir o WhatsApp.",
+            description: "Toque em 'Enviar PDF' para tentar novamente.",
             status: "success",
             duration: 5000,
           });
         }
       } else {
+        // Fluxo acionado para Windows, Linux e navegadores sem suporte
         downloadPdf(file);
         setExportStatus("idle");
       }
     } catch (error) {
-      // Retirado o 'any'
       console.error("Erro ao gerar PDF:", error);
       toast({
         title: "Erro ao gerar arquivo.",
@@ -186,7 +201,6 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
       setExportStatus("idle");
       setGeneratedFile(null);
     } catch (shareError) {
-      // Tipagem segura sem uso de 'any'
       if ((shareError as Error).name !== "AbortError") {
         downloadPdf(generatedFile);
         setExportStatus("idle");
@@ -195,7 +209,7 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
     }
   };
 
-  const isShareSupported = canShareFiles();
+  const isShareSupported = shouldUseNativeShare();
 
   return (
     <Button
