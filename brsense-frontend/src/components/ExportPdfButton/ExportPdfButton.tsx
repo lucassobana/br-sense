@@ -5,6 +5,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { TableRowData } from "../DeviceTable/DeviceTable";
 import { getDeviceAnalysis } from "../../services/api";
+import { fetchWeatherData } from "../../services/weatherService";
 
 interface ExportPdfButtonProps {
   data: TableRowData[];
@@ -17,23 +18,16 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
   const [generatedFile, setGeneratedFile] = useState<File | null>(null);
   const toast = useToast();
 
-  // NOVA LÓGICA: Verifica o SO antes de liberar o Web Share API
   const shouldUseNativeShare = () => {
     const userAgent = navigator.userAgent.toLowerCase();
-
-    // Detecta Windows
     const isWindows = userAgent.includes("win");
-
-    // Detecta Linux Desktop (excluindo dispositivos Android)
     const isLinux =
       userAgent.includes("linux") && !userAgent.includes("android");
 
-    // Se for Windows ou Linux Desktop, força o download direto retornando false
     if (isWindows || isLinux) {
       return false;
     }
 
-    // Para macOS, iOS e Android, valida se o navegador suporta compartilhamento de arquivos
     if (typeof navigator.canShare === "function") {
       const testFile = new File(["test"], "test.txt", { type: "text/plain" });
       return navigator.canShare({ files: [testFile] });
@@ -91,19 +85,19 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
       doc.setTextColor(113, 128, 150);
       doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, 14, 22);
 
+      // Colunas reordenadas e renomeadas conforme solicitação[cite: 5]
       const tableColumn = [
-        "Dispositivo",
-        "Local / Status",
-        "Precipitação (1h|24h|7d)",
-        "Agronômico",
-        "Decisão (Copiloto)",
-        "Último Envio",
+        "Dispositivos",
+        "Dados",
+        "Decisão",
+        "Pluviômetro",
+        "Previsão",
       ];
 
       const tableRows = await Promise.all(
         data.map(async (row) => {
+          // Busca de Decisão/Copiloto[cite: 5]
           let decisionText = row.sugestao || row.copiloto_acao;
-
           if (!decisionText) {
             try {
               const res = await getDeviceAnalysis(row.esn);
@@ -113,13 +107,75 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
             }
           }
 
+          // Busca da Previsão Climática (com Cache para evitar estourar o limite de API)
+          let forecastText = "-";
+          if (row.latitude !== undefined && row.longitude !== undefined) {
+            try {
+              const roundedLat = Number(row.latitude).toFixed(2);
+              const roundedLng = Number(row.longitude).toFixed(2);
+              const cacheKey = `weather_${roundedLat}_${roundedLng}`;
+              const cachedDataStr = sessionStorage.getItem(cacheKey);
+
+              let forecastData = null;
+              if (cachedDataStr) {
+                const cachedData = JSON.parse(cachedDataStr);
+                // Verifica se o cache ainda é válido (1 hora)
+                if (Date.now() - cachedData.timestamp < 60 * 60 * 1000) {
+                  forecastData = cachedData.data;
+                }
+              }
+
+              if (!forecastData) {
+                forecastData = await fetchWeatherData(
+                  Number(roundedLat),
+                  Number(roundedLng),
+                );
+                sessionStorage.setItem(
+                  cacheKey,
+                  JSON.stringify({
+                    timestamp: Date.now(),
+                    data: forecastData,
+                  }),
+                );
+              }
+
+              if (forecastData && forecastData.length > 0) {
+                type ForecastItem = {
+                  dayNumber: number;
+                  dayName?: string;
+                  rain?: number;
+                  precipitation?: number;
+                  precipitation_sum?: number;
+                  et0?: number;
+                };
+
+                forecastText = forecastData
+                  .slice(0, 4)
+                  .map((d: ForecastItem, index: number) => {
+                    const label =
+                      index === 0
+                        ? `Hoje, ${d.dayNumber}`
+                        : `${d.dayName?.substring(0, 3) || ""}, ${d.dayNumber}`;
+                    const rain =
+                      d.rain ?? d.precipitation ?? d.precipitation_sum ?? 0;
+                    const et0 = d.et0 != null ? d.et0.toFixed(1) : "-";
+                    return `${label}: ETo ${et0} | Chuva ${Number(rain).toFixed(1)}mm`;
+                  })
+                  .join("\n");
+              }
+            } catch (err) {
+              console.error("Erro ao buscar previsão pro PDF:", err);
+              forecastText = "Dados indisponíveis";
+            }
+          }
+
           return [
-            `${row.name || "-"}\nESN: ${row.esn}`,
-            `Fazenda: ${row.farmName}\nStatus: ${getStatusLabel(row.status)}`,
-            `${formatRain(row.rain_1h)} | ${formatRain(row.rain_24h)} | ${formatRain(row.rain_7d)} mm`,
+            // Aglutinação dos dados do dispositivo em uma única coluna[cite: 5]
+            `${row.name || "-"}\nESN: ${row.esn}\nFazenda: ${row.farmName}\nStatus: ${getStatusLabel(row.status)}\nÚltimo Envio: ${row.lastCommunicationFormatted}`,
             `Cultura: ${row.cultura || "-"}\nDAP: ${calcularDAP(row.data_plantio)} dias\nPotência: ${formatarPotencia(row.potencia_cv)}`,
             decisionText,
-            row.lastCommunicationFormatted,
+            `1h: ${formatRain(row.rain_1h)} mm\n24h: ${formatRain(row.rain_24h)} mm\n7d: ${formatRain(row.rain_7d)} mm`,
+            forecastText,
           ];
         }),
       );
@@ -145,12 +201,12 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
           fillColor: [247, 250, 252],
         },
         columnStyles: {
-          0: { cellWidth: 35 },
-          1: { cellWidth: 40 },
-          2: { cellWidth: 35 },
+          // Ajuste fino nas larguras das colunas para caber na folha A4 (paisagem = 297mm)[cite: 5]
+          0: { cellWidth: 55 },
+          1: { cellWidth: 35 },
+          2: { cellWidth: 80 },
           3: { cellWidth: 35 },
-          4: { cellWidth: 80 },
-          5: { cellWidth: 35 },
+          4: { cellWidth: 55 },
         },
       });
 
@@ -179,7 +235,6 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
           });
         }
       } else {
-        // Fluxo acionado para Windows, Linux e navegadores sem suporte
         downloadPdf(file);
         setExportStatus("idle");
       }
