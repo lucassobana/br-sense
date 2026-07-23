@@ -24,7 +24,7 @@ import {
   MenuItem,
   useBreakpointValue,
 } from "@chakra-ui/react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { MdArrowBack, MdArrowDropDown } from "react-icons/md";
 import { motion, AnimatePresence } from "framer-motion";
 import { getProbes, getFarms, getDeviceHistory } from "../services/api";
@@ -578,7 +578,12 @@ export function Dashboard() {
   };
 
   return (
-    <Box minH="100vh" bg={COLORS.background} pb={10}>
+    <Box
+      w="100%"
+      bg={COLORS.background}
+      // Apenas adiciona padding no rodapé se NÃO estiver no modo mapa no mobile
+      pb={{ base: viewMode === "map" ? 0 : 20, md: 10 }}
+    >
       <AnimatePresence mode="wait" custom={direction}>
         {viewMode === "map" && (
           <MotionBox
@@ -592,11 +597,11 @@ export function Dashboard() {
             position="relative"
             w="100%"
             bg={COLORS.background}
-            minH="100vh"
+            h={{ base: "calc(100dvh - 65px - env(safe-area-inset-bottom))", md: "100vh" }}
           >
             {/* CONTAINER DO MAPA:
-                - Mobile: Ocupa toda a tela descontando os headers nativos (130px de tolerância) e remove borderRadius.
-                - Desktop: Ocupa 75vh, para que o começo da tabela de monitoramento detalhado apareça e induza ao scroll. */}
+                - Mobile: Espaçamentos (px, mt) zerados, bordas zeradas, e altura preenche exatamente a tela.
+                - Desktop: Margens e bordas restauradas, com o mapa ocupando agora 85vh (aumentado). */}
             <Box
               w="100%"
               mt={{ base: 0, md: 6 }}
@@ -607,7 +612,7 @@ export function Dashboard() {
             >
               <Box
                 w="100%"
-                h={{ base: "calc(100vh - 100px)", md: "75vh" }}
+                h={{ base: "calc(100dvh - 65px - env(safe-area-inset-bottom))", md: "90vh" }}
                 position="relative"
                 bg="black"
               >
@@ -631,9 +636,7 @@ export function Dashboard() {
               </Box>
             </Box>
 
-            {/* CONTAINER DA TABELA: 
-                - Oculta completamente na versão mobile (pois estará no applet "Sondas")
-                - Exibe em bloco na versão Desktop (md e acima) */}
+            {/* CONTAINER DA TABELA (Exibida somente no Desktop) */}
             <Container
               maxW="full"
               mt={8}

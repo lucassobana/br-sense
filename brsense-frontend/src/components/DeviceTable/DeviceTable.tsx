@@ -29,6 +29,7 @@ import {
   MdSensors,
   MdLocationOn,
   MdAutoAwesome,
+  MdVerified,
 } from "react-icons/md";
 import type { Probe } from "../../types";
 import { useEffect, useState } from "react";
@@ -36,6 +37,8 @@ import { getDeviceAnalysis } from "../../services/api";
 import { useWeatherForecast } from "../../hooks/useWeatherForecast";
 import { WiHot } from "react-icons/wi";
 import { FaTint } from "react-icons/fa";
+import { LuRadioTower, LuChartColumn } from "react-icons/lu";
+import { HiOutlineCloud } from "react-icons/hi2";
 
 export interface TableRowData extends Probe {
   farmName: string;
@@ -142,13 +145,7 @@ const CopilotoText = ({
   );
 };
 
-const EvapotranspirationCell = ({
-  lat,
-  lng,
-}: {
-  lat?: number;
-  lng?: number;
-}) => {
+const ForecastCell = ({ lat, lng }: { lat?: number; lng?: number }) => {
   const { forecast, loading } = useWeatherForecast(lat, lng);
 
   if (loading) {
@@ -176,29 +173,48 @@ const EvapotranspirationCell = ({
 
   return (
     <HStack spacing={4} justify="center" whiteSpace="nowrap">
-      {next4Days.map((day, index) => (
-        <VStack key={day.date} spacing={0}>
-          <Text fontSize="10px" color="gray.500" textTransform="uppercase">
-            {index === 0
-              ? `Hoje, ${day.dayNumber}`
-              : `${day.dayName.substring(0, 3)}, ${day.dayNumber}`}
-          </Text>
-          <Text fontSize="sm" fontWeight="bold" color="orange.400">
-            {day.et0 != null ? day.et0.toFixed(1) : "-"}
-          </Text>
-        </VStack>
-      ))}
+      {next4Days.map((day) => {
+        const rainValue = day.precipSum;
+
+        return (
+          <VStack key={day.date} spacing={1} align="center">
+            {/* Apenas a data, sem o dia da semana */}
+            <Text fontSize="10px" color="gray.500" textTransform="uppercase">
+              {day.dayNumber}
+            </Text>
+
+            <VStack spacing={0} align="start">
+              {/* ETo */}
+              <HStack spacing={1}>
+                {/* Container com largura fixa para alinhar o ícone */}
+                <Flex w="16px" justify="center" align="center">
+                  <Icon as={WiHot} boxSize={4} color="orange.400" />
+                </Flex>
+                <Text fontSize="sm" fontWeight="bold" color="orange.400">
+                  {day.et0 != null ? day.et0.toFixed(1) : "-"}
+                </Text>
+              </HStack>
+
+              {/* Chuva em mm */}
+              <HStack spacing={1}>
+                {/* Container com a mesma largura fixa para alinhar o ícone */}
+                <Flex w="16px" justify="center" align="center">
+                  <Icon as={FaTint} boxSize={3} color="blue.400" />
+                </Flex>
+                <Text fontSize="sm" fontWeight="bold" color="blue.400">
+                  {rainValue != null ? Number(rainValue).toFixed(1) : "0.0"}
+                </Text>
+              </HStack>
+            </VStack>
+          </VStack>
+        );
+      })}
     </HStack>
   );
 };
 
-const MobileEvapotranspirationCard = ({
-  lat,
-  lng,
-}: {
-  lat?: number;
-  lng?: number;
-}) => {
+// COMPONENTE MOBILE: Previsão com ETo e Chuva
+const MobileForecastCard = ({ lat, lng }: { lat?: number; lng?: number }) => {
   const { forecast, loading } = useWeatherForecast(lat, lng);
 
   return (
@@ -211,15 +227,16 @@ const MobileEvapotranspirationCard = ({
       display="flex"
       flexDirection="column"
     >
-      <HStack spacing={1} mb={1} align="center" justify="center">
-        <Icon as={WiHot} boxSize={4} color="orange.400" />
+      <HStack spacing={1} mb={2} align="center" justify="center">
+        {/* Ícones combinados iguais aos do header no desktop */}
+        <Icon as={HiOutlineCloud} boxSize={4} color="orange.400" />
         <Text
           fontSize="10px"
           fontWeight="bold"
           color="gray.500"
           textTransform="uppercase"
         >
-          Evapotranspiração
+          Previsão
         </Text>
       </HStack>
       {loading ? (
@@ -235,29 +252,32 @@ const MobileEvapotranspirationCard = ({
           </Text>
         </Flex>
       ) : (
-        <VStack align="stretch" spacing={1} justify="center" flex="1">
-          {forecast.slice(0, 3).map((day, index) => {
-            const label =
-              index === 0
-                ? `Hoje, ${day.dayNumber}`
-                : `${day.dayName.substring(0, 3)}, ${day.dayNumber}`;
+        <VStack align="stretch" spacing={2} justify="center" flex="1">
+          {forecast.slice(0, 3).map((day) => {
+            const rainValue = day.precipSum;
 
             return (
               <Flex key={day.date} justify="space-between" align="center">
+                {/* Apenas a data, sem o dia da semana */}
                 <Text fontSize="xs" color="gray.500">
-                  {label}
+                  {day.dayNumber}
                 </Text>
-                <Text fontSize="sm" fontWeight="bold" color="orange.400">
-                  {day.et0 != null ? day.et0.toFixed(1) : "-"}{" "}
-                  <Text
-                    as="span"
-                    fontSize="10px"
-                    color="gray.500"
-                    fontWeight="normal"
-                  >
-                    mm
-                  </Text>
-                </Text>
+
+                {/* ETo e Chuva lado a lado no mobile */}
+                <HStack spacing={3}>
+                  <HStack spacing={1}>
+                    <Icon as={WiHot} boxSize={5} color="orange.400" />
+                    <Text fontSize="sm" fontWeight="bold" color="orange.400">
+                      {day.et0 != null ? day.et0.toFixed(1) : "-"}
+                    </Text>
+                  </HStack>
+                  <HStack spacing={1}>
+                    <Icon as={FaTint} boxSize={3} color="blue.400" />
+                    <Text fontSize="sm" fontWeight="bold" color="blue.400">
+                      {rainValue != null ? Number(rainValue).toFixed(1) : "0.0"}
+                    </Text>
+                  </HStack>
+                </HStack>
               </Flex>
             );
           })}
@@ -512,6 +532,7 @@ export function DeviceTable({
                     </Flex>
 
                     <SimpleGrid columns={2} gap={2} pl={2} pr={2}>
+                      {/* CARD: PLUVIÔMETRO */}
                       <Box
                         bg="gray.900"
                         borderRadius="md"
@@ -523,7 +544,7 @@ export function DeviceTable({
                       >
                         <HStack
                           spacing={1.5}
-                          mb={1}
+                          mb={2}
                           align="center"
                           justify="center"
                         >
@@ -534,7 +555,7 @@ export function DeviceTable({
                             color="gray.500"
                             textTransform="uppercase"
                           >
-                            Precipitação
+                            Pluviômetro
                           </Text>
                         </HStack>
                         <VStack
@@ -606,7 +627,8 @@ export function DeviceTable({
                         </VStack>
                       </Box>
 
-                      <MobileEvapotranspirationCard
+                      {/* CARD: PREVISÃO (ETo e Chuva) */}
+                      <MobileForecastCard
                         lat={row.latitude}
                         lng={row.longitude}
                       />
@@ -803,8 +825,9 @@ export function DeviceTable({
                   onClick={() => onSort("status")}
                   color="gray.400"
                 >
-                  <HStack spacing={1}>
-                    <Text>Nome do Dispositivo</Text>
+                  <HStack spacing={2}>
+                    <Icon as={LuRadioTower} boxSize={4} color="blue.400" />
+                    <Text color="gray.400">Nome do Dispositivo</Text>
                     {renderSortIcon("status")}
                   </HStack>
                 </Th>
@@ -819,8 +842,9 @@ export function DeviceTable({
                   onClick={() => onSort("cultura")}
                   color="gray.400"
                 >
-                  <HStack spacing={1}>
-                    <Text>Dados</Text>
+                  <HStack spacing={2}>
+                    <Icon as={LuChartColumn} boxSize={4} color="blue.400" />
+                    <Text color="gray.400">Dados</Text>
                     {renderSortIcon("cultura")}
                   </HStack>
                 </Th>
@@ -833,7 +857,10 @@ export function DeviceTable({
                   borderColor="whiteAlpha.100"
                   color="gray.400"
                 >
-                  <Text>Decisão</Text>
+                  <HStack spacing={2}>
+                    <Icon as={MdVerified} boxSize={4} color="blue.400" />
+                    <Text color="gray.400">Decisão</Text>
+                  </HStack>
                 </Th>
 
                 {/* 4. Precipitação */}
@@ -850,13 +877,13 @@ export function DeviceTable({
 
                     <Box>
                       <Text as="span" color="gray.400">
-                        PRECIPITAÇÃO (mm)
+                        PLUVIÔMETRO (mm)
                       </Text>
                     </Box>
                   </HStack>
                 </Th>
 
-                {/* 5. Evapotranspiração */}
+                {/* 5. Previsão */}
                 <Th
                   py={4}
                   px={4}
@@ -866,9 +893,9 @@ export function DeviceTable({
                   textTransform="none"
                 >
                   <HStack justify="center" spacing={2}>
-                    <Icon as={WiHot} boxSize={6} color="orange.400" />
+                    <Icon as={HiOutlineCloud} boxSize={6} color="orange.400" />
                     <Text as="span" color="gray.400">
-                      EVAPOTRANSPIRAÇÃO (mm)
+                      PREVISÃO (mm)
                     </Text>
                   </HStack>
                 </Th>
@@ -1203,7 +1230,7 @@ export function DeviceTable({
                       </HStack>
                     </Td>
 
-                    {/* 5. Evapotranspiração */}
+                    {/* 5. Previsão */}
                     <Td
                       py={4}
                       px={4}
@@ -1212,10 +1239,7 @@ export function DeviceTable({
                       borderBottom="none"
                       minW="200px"
                     >
-                      <EvapotranspirationCell
-                        lat={row.latitude}
-                        lng={row.longitude}
-                      />
+                      <ForecastCell lat={row.latitude} lng={row.longitude} />
                     </Td>
                   </Tr>
                 );
