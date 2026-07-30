@@ -1,135 +1,122 @@
-import concurrent.futures
 import logging
 from datetime import datetime, timedelta
+from typing import List, Optional
+
 from sqlalchemy.orm import Session
 from app.models.device import Device
 from app.models.reading import Reading
+from app.schemas.analysis import AgronomicDecisionCard
 
-from app.services.agronomic_engine.engine import generate_agronomic_decision
+# Importando do serviço de clima fornecido
 from app.services.weather_service import fetch_weather_data
 
-def analyze_device_data(db: Session, esn: str) -> dict:
-    try:
-        device = db.query(Device).filter(Device.esn == esn).first()
-        if not device: return None
+# Importando os modelos e a função central do motor do Copiloto
+from app.services.agronomic_engine.engine import generate_agronomic_decision
+from app.services.agronomic_engine.models import LayerReading, MoistureBandLimits, WeatherDay
 
-        now = datetime.utcnow()
-        three_days_ago = now - timedelta(days=3)
+logger = logging.getLogger(__name__)
 
-        raw_readings = db.query(Reading).filter(
-            Reading.device_id == device.id, 
-            Reading.timestamp >= three_days_ago,
-            Reading.depth_cm.isnot(None),
-            Reading.moisture_pct.isnot(None)
-        ).order_by(Reading.timestamp.desc()).limit(1000).all()
+def parse_weather_days(payload: Optional[dict]) -> List[WeatherDay]:
+    """Converte o payload bruto da API Open-Meteo para a estrutura do Copiloto."""
+    if not payload or "daily" not in payload:
+        return []
+    
+    daily = payload["daily"]
+    dates = daily.get("time", [])
+    et0 = daily.get("et0_fao_evapotranspiration", [])
+    rain = daily.get("precipitation_sum", [])
+    probability = daily.get("precipitation_probability_max", [])
+    
+    result = []
+    for i, date_str in enumerate(dates):
+        result.append(WeatherDay(
+            date=date_str,
+            et0_mm=float(et0[i] or 0.0) if i < len(et0) else 0.0,
+            precipitation_mm=float(rain[i] or 0.0) if i < len(rain) else 0.0,
+            precipitation_probability_pct=float(probability[i] or 0.0) if i < len(probability) else 0.0,
+        ))
+    return result
 
-        grouped_readings = {}
-        latest_avg_moisture = 0.0
-        
-        # Pega as leituras mais recentes para definir se o status é "Atenção" ou "Crítico"
-        if raw_readings:
-            latest_ts = raw_readings[0].timestamp
-            latest_vals = [r.moisture_pct for r in raw_readings if r.timestamp == latest_ts]
-            if latest_vals:
-                latest_avg_moisture = sum(latest_vals) / len(latest_vals)
+def analyze_device_data(db: Session, esn: str) -> Optional[AgronomicDecisionCard]:
+    """
+    Busca os dados do banco, executa o motor agronômico e retorna o Card de Decisão formatado.
+    """
+    # 1. Buscar a Sonda
+    device = db.query(Device).filter(Device.esn == esn).first()
+    if not device:
+        return None
 
-        for r in raw_readings:
-            time_key = r.timestamp.replace(minute=0, second=0, microsecond=0)
-            if time_key not in grouped_readings:
-                class MockReading: pass
-                mock = MockReading()
-                mock.time = r.timestamp
-                mock.moisture_1 = mock.moisture_2 = mock.moisture_3 = mock.moisture_4 = None
-                grouped_readings[time_key] = mock
-            
-            if r.depth_cm == 10: grouped_readings[time_key].moisture_1 = r.moisture_pct
-            elif r.depth_cm == 20: grouped_readings[time_key].moisture_2 = r.moisture_pct
-            elif r.depth_cm == 30: grouped_readings[time_key].moisture_3 = r.moisture_pct
-            elif r.depth_cm == 40: grouped_readings[time_key].moisture_4 = r.moisture_pct
+    now = datetime.utcnow()
+    start = now - timedelta(days=3) # O motor exige histórico de até 72h
 
-        readings_for_engine = sorted(list(grouped_readings.values()), key=lambda x: x.time, reverse=True)
+    # 2. Buscar as Leituras e mapear para a estrutura do Motor
+    rows = db.query(Reading).filter(
+        Reading.device_id == device.id,
+        Reading.timestamp >= start,
+        Reading.depth_cm.isnot(None),
+        Reading.moisture_pct.isnot(None),
+    ).order_by(Reading.timestamp.asc()).all()
 
-        thirty_days_ago = now - timedelta(days=30)
-        last_rain_reading = db.query(Reading).filter(
-            Reading.device_id == device.id,
-            Reading.rain_cm > 0,
-            Reading.timestamp >= thirty_days_ago
-        ).order_by(Reading.timestamp.desc()).first()
-
-        if last_rain_reading and last_rain_reading.rain_cm:
-            ultima_chuva_mm = float(last_rain_reading.rain_cm)
-            dias_sem_chuva = (now - last_rain_reading.timestamp).days
-        else:
-            ultima_chuva_mm = 0.0
-            dias_sem_chuva = 30
-
-        # INTEGRAÇÃO METEOROLÓGICA FORMATADA (Regras de Negócio de Clima)
-        et_atual = 4.2          
-        previsao_chuva_str = "Sem previsão de chuva relevante nos próximos dias"
-        rain_class = "nenhuma"
-        
-        lat = getattr(device, 'lat', None) or getattr(device, 'latitude', None)
-        lon = getattr(device, 'long', None) or getattr(device, 'longitude', None)
-        
-        if lat is not None and lon is not None:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(fetch_weather_data, lat, lon)
-                try:
-                    weather_info = future.result(timeout=4.0)
-                    if weather_info and "daily" in weather_info:
-                        daily = weather_info["daily"]
-                        times = daily.get("time", [])
-                        precips = daily.get("precipitation_sum", [])
-                        probs = daily.get("precipitation_probability_max", [])
-                        ets = daily.get("et0_fao_evapotranspiration", [])
-
-                        if ets and len(ets) > 0 and ets[0] is not None:
-                            et_atual = float(ets[0])
-
-                        # Loop para encontrar a chuva mais próxima
-                        for i in range(len(times)):
-                            p_mm = precips[i] if precips[i] is not None else 0.0
-                            p_prob = probs[i] if probs[i] is not None else 0
-                            
-                            if p_mm >= 1.0: # Chuvas maiores ou iguais a 1.0 mm (relevante)
-                                date_obj = datetime.strptime(times[i], "%Y-%m-%d")
-                                dias_semana = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]
-                                dia_str = dias_semana[date_obj.weekday()]
-                                
-                                if i == 0: dia_str = "hoje"
-                                elif i == 1: dia_str = "amanhã"
-                                
-                                previsao_chuva_str = f"Chuva prevista para {dia_str} ({p_prob}% – {p_mm:.1f} mm)"
-                                rain_class = "relevante"
-                                break
-                except Exception as weather_err:
-                    logging.warning(f"Erro na API de clima para ESN {esn}: {weather_err}")
-
-        # Identificação e Cadastro
-        device_name = getattr(device, 'name', None) or f"Sonda {device.esn}"
-        cultura = getattr(device, 'cultura', None) or "Não informada"
-        
-        data_plantio = getattr(device, 'data_plantio', None)
-        estadio = f"{(now.date() - data_plantio).days} DAP" if data_plantio else "Não informado"
-        
-        talhao_info = f"{device_name} — {cultura} / {estadio}"
-
-        config_v1 = getattr(device, 'config_moisture_v1', None) or 30.0
-        config_v2 = getattr(device, 'config_moisture_v2', None) or 45.0
-
-        return generate_agronomic_decision(
-            talhao_info=talhao_info,
-            avg_moisture=latest_avg_moisture,
-            config_v1=config_v1,
-            config_v2=config_v2,
-            readings=readings_for_engine,
-            et_atual=et_atual,
-            rain_class=rain_class,
-            previsao_chuva_str=previsao_chuva_str,
-            ultima_chuva_mm=ultima_chuva_mm,
-            dias_sem_chuva=dias_sem_chuva
+    readings = [
+        LayerReading(
+            timestamp=row.timestamp,
+            depth_cm=int(row.depth_cm),
+            moisture_pct=float(row.moisture_pct),
         )
+        for row in rows
+        if 0.0 <= float(row.moisture_pct) <= 100.0
+    ]
 
-    except Exception as e:
-        logging.error(f"Erro no motor agronômico para ESN {esn}: {str(e)}")
-        raise e
+    # 3. Configurar os Limites de Umidade (V1, V2, V3)
+    # Como o Device possui limites globais, aplicamos os mesmos para todas as profundidades padrão
+    global_limits = MoistureBandLimits(
+        red_max=device.config_moisture_v1 or 30.0,
+        yellow_max=device.config_moisture_v2 or 45.0,
+        green_max=device.config_moisture_v3 or 60.0,
+        blue_max=100.0
+    )
+    limits_by_depth = {depth: global_limits for depth in [10, 20, 30, 40, 50, 60, 70, 80, 90]}
+
+    # 4. Buscar e processar o Clima
+    weather_days = []
+    if device.latitude is not None and device.longitude is not None:
+        raw_weather = fetch_weather_data(device.latitude, device.longitude)
+        weather_days = parse_weather_days(raw_weather)
+
+    # Pegamos a ET0 observada do dia anterior se disponível (índice 0 é hoje, vamos usar a média ou a atual)
+    observed_et_mm = weather_days[0].et0_mm if weather_days else 0.0
+
+    # 5. Executar o Motor do Copiloto
+    decision_dict = generate_agronomic_decision(
+        readings=readings,
+        limits_by_depth=limits_by_depth,
+        weather_days=weather_days,
+        observed_et_mm=float(observed_et_mm),
+        now=now,
+    )
+
+    # 6. Extrair Risco de Estresse das justificativas geradas pelo motor
+    risco = "Indeterminado"
+    for reason in decision_dict.get("reasons", []):
+        if "Risco hídrico consolidado" in reason:
+            risco = reason.split(":")[1].strip().replace(".", "").title()
+
+    # 7. Mapear o Dicionário do Motor para o Schema Pydantic AgronomicDecisionCard
+    cultura_info = device.cultura if device.cultura else "Cultura não informada"
+    nome_sonda = device.name if device.name else f"Sonda {device.esn}"
+    
+    zona_ativa = ", ".join([f"{d} cm" for d in decision_dict.get("root_active_layers", [])])
+    if not zona_ativa:
+        zona_ativa = "Não identificada"
+
+    return AgronomicDecisionCard(
+        talhao_info=f"{nome_sonda} - {cultura_info}",
+        status=decision_dict["status"],
+        zona_ativa_raiz=zona_ativa,
+        tendencia_umidade=decision_dict["current_trend"].replace("_", " ").title(),
+        ultima_irrigacao_chuva="Evento hídrico recente detectado" if decision_dict["recent_water_event"] else "Sem entrada de água recente",
+        previsao_chuva=decision_dict["rain_outlook"].replace("_", " ").title(),
+        risco_estresse=risco,
+        sugestao=decision_dict["decision"].replace("_", " "),
+        observacao=f"{decision_dict['headline']}. {decision_dict['recommendation']} {decision_dict['technical_observation']}"
+    )

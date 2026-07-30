@@ -1,44 +1,36 @@
-from datetime import datetime
 from collections import defaultdict
+from statistics import mean
+from typing import Dict, List, Tuple
+from .config import CopilotConfig, DEFAULT_CONFIG
+from .models import LayerReading
 
-def determine_active_root_zone(readings: list, delta_threshold: float = 0.5) -> str:
-    if not readings:
-        return "10 cm"
-
-    days_data = defaultdict(list)
-    for r in readings:
-        date_str = r.time.strftime('%Y-%m-%d')
-        days_data[date_str].append(r)
-
-    active_layers = set()
-    layer_mapping = {1: 'moisture_1', 2: 'moisture_2', 3: 'moisture_3', 4: 'moisture_4'}
-    depths = {1: 10, 2: 20, 3: 30, 4: 40}
-
-    for day_readings in days_data.items():
-        morning = [r for r in day_readings if 5 <= r.time.hour <= 8]
-        evening = [r for r in day_readings if 16 <= r.time.hour <= 19]
-
-        if not morning or not evening:
+def calculate_root_activity(readings: List[LayerReading], config: CopilotConfig = DEFAULT_CONFIG) -> Dict[int, Tuple[str, float]]:
+    by_depth_day = defaultdict(lambda: defaultdict(list))
+    for r in readings: by_depth_day[r.depth_cm][r.timestamp.date()].append(r)
+    
+    result = {}
+    for depth, days in by_depth_day.items():
+        daily_scores = []
+        for _, values in sorted(days.items()):
+            morning = [r.moisture_pct for r in values if 9 <= r.timestamp.hour <= 12]
+            evening = [r.moisture_pct for r in values if 19 <= r.timestamp.hour <= 22]
+            if morning and evening:
+                drop = mean(morning) - mean(evening)
+                normalized = max(0.0, min(1.0, drop / max(config.root_daily_drop_threshold_pct * 3, 0.01)))
+                daily_scores.append(normalized)
+                
+        if len(daily_scores) < config.minimum_root_days:
+            result[depth] = ("nao_identificada", 0.0)
             continue
-
-        m_read = morning[-1]
-        e_read = evening[0]
-
-        for level, attr in layer_mapping.items():
-            m_val = getattr(m_read, attr, None)
-            e_val = getattr(e_read, attr, None)
             
-            if m_val is not None and e_val is not None:
-                if (m_val - e_val) >= delta_threshold:
-                    active_layers.add(depths[level])
+        score = round(mean(daily_scores[-3:]), 3)
+        activity = "alta" if score >= 0.70 else "moderada" if score >= 0.40 else "baixa" if score >= 0.15 else "nao_identificada"
+        result[depth] = (activity, score)
+    return result
 
-    if not active_layers:
-        return "10 cm"
-        
-    layers = sorted(list(active_layers))
-    if len(layers) == 1:
-        return f"{layers[0]} cm"
-    elif len(layers) == 2:
-        return f"{layers[0]} e {layers[1]} cm"
-    else:
-        return ", ".join(str(x) for x in layers[:-1]) + f" e {layers[-1]} cm"
+def active_depths(activity: Dict[int, Tuple[str, float]]) -> List[int]:
+    return sorted(d for d, (lvl, _) in activity.items() if lvl in {"alta", "moderada"})
+
+def main_active_depth(activity: Dict[int, Tuple[str, float]]) -> int | None:
+    candidates = [(d, s) for d, (lvl, s) in activity.items() if lvl in {"alta", "moderada"}]
+    return max(candidates, key=lambda item: item[1])[0] if candidates else None
