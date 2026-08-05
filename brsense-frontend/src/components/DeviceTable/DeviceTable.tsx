@@ -49,6 +49,7 @@ export interface TableRowData extends Probe {
   lastCommunicationTimestamp: number;
   sugestao?: string;
   copiloto_acao?: string;
+  observacao?: string; // Novo campo adicionado
 }
 
 export type SortKey =
@@ -78,20 +79,26 @@ const sortLabels: Record<SortKey, string> = {
   farmName: "Fazenda",
 };
 
+// COMPONENTE REFATORADO: Trata a Ação Recomendada e a Observação Técnica
 const CopilotoText = ({
   esn,
-  preloadedData,
+  preloadedSugestao,
+  preloadedObservacao,
   isDesktop,
 }: {
   esn: string;
-  preloadedData?: string;
+  preloadedSugestao?: string;
+  preloadedObservacao?: string;
   isDesktop?: boolean;
 }) => {
-  const [fetchedSugestao, setFetchedSugestao] = useState<string>("");
-  const [isFetching, setIsFetching] = useState<boolean>(!preloadedData);
+  const [fetchedData, setFetchedData] = useState<{
+    sugestao: string;
+    observacao: string;
+  } | null>(null);
+  const [isFetching, setIsFetching] = useState<boolean>(!preloadedSugestao);
 
   useEffect(() => {
-    if (preloadedData) {
+    if (preloadedSugestao && preloadedObservacao) {
       return;
     }
 
@@ -100,13 +107,20 @@ const CopilotoText = ({
     getDeviceAnalysis(esn)
       .then((res) => {
         if (isMounted) {
-          setFetchedSugestao(res.sugestao || "Monitoramento padrão.");
+          setFetchedData({
+            sugestao: res.sugestao || "Monitoramento padrão.",
+            observacao:
+              res.observacao || "Sem observações detalhadas disponíveis.",
+          });
           setIsFetching(false);
         }
       })
       .catch(() => {
         if (isMounted) {
-          setFetchedSugestao("Condições em monitoramento padrão.");
+          setFetchedData({
+            sugestao: "Condições em monitoramento.",
+            observacao: "Não foi possível carregar os detalhes técnicos.",
+          });
           setIsFetching(false);
         }
       });
@@ -114,10 +128,12 @@ const CopilotoText = ({
     return () => {
       isMounted = false;
     };
-  }, [esn, preloadedData]);
+  }, [esn, preloadedSugestao, preloadedObservacao]);
 
-  const displaySugestao = preloadedData || fetchedSugestao;
-  const isLoading = !preloadedData && isFetching;
+  const displaySugestao = preloadedSugestao || fetchedData?.sugestao || "";
+  const displayObservacao =
+    preloadedObservacao || fetchedData?.observacao || "";
+  const isLoading = (!preloadedSugestao || !preloadedObservacao) && isFetching;
 
   if (isLoading) {
     return (
@@ -128,20 +144,89 @@ const CopilotoText = ({
         fontStyle="italic"
         whiteSpace="normal"
       >
-        Buscando recomendação...
+        Analisando dados da sonda...
       </Text>
     );
   }
 
+  // --- RENDERIZAÇÃO DESKTOP ---
+  if (isDesktop) {
+    return (
+      <VStack align="start" spacing={1} w="full">
+        <Text
+          fontSize="sm"
+          fontWeight="bold"
+          color="blue.300"
+          lineHeight="short"
+          whiteSpace="normal"
+        >
+          {displaySugestao}
+        </Text>
+
+        <Box position="relative" w="full" role="group" cursor="default">
+          {/* Texto Truncado (Visível por padrão) */}
+          <Text
+            noOfLines={2}
+            fontSize="xs"
+            color="gray.400"
+            whiteSpace="normal"
+            transition="opacity 0.2s ease-in-out"
+            _groupHover={{ opacity: 0 }}
+          >
+            {displayObservacao}
+          </Text>
+
+          {/* Painel Expandido (Visível apenas no Hover) */}
+          <Box
+            position="absolute"
+            top="-8px"
+            left="-8px"
+            w="calc(100% + 16px)"
+            bg="gray.700"
+            p={2}
+            borderRadius="md"
+            boxShadow="dark-lg"
+            zIndex={10}
+            opacity={0}
+            visibility="hidden"
+            transform="translateY(-4px)"
+            transition="all 0.2s ease-in-out"
+            _groupHover={{
+              opacity: 1,
+              visibility: "visible",
+              transform: "translateY(0)",
+            }}
+          >
+            <Text fontSize="xs" color="gray.200" whiteSpace="normal">
+              {displayObservacao}
+            </Text>
+          </Box>
+        </Box>
+      </VStack>
+    );
+  }
+
+  // --- RENDERIZAÇÃO MOBILE ---
   return (
-    <Text
-      fontSize={isDesktop ? "sm" : "lg"}
-      color={isDesktop ? "blue.300" : "blue.200"}
-      lineHeight="tall"
-      whiteSpace="normal"
-    >
-      {displaySugestao}
-    </Text>
+    <VStack align="start" spacing={2} w="full">
+      <Text
+        fontSize="md"
+        fontWeight="bold"
+        color="blue.300"
+        lineHeight="short"
+        whiteSpace="normal"
+      >
+        {displaySugestao}
+      </Text>
+      <Text
+        fontSize="sm"
+        color="gray.300"
+        whiteSpace="normal"
+        lineHeight="tall"
+      >
+        {displayObservacao}
+      </Text>
+    </VStack>
   );
 };
 
@@ -178,15 +263,11 @@ const ForecastCell = ({ lat, lng }: { lat?: number; lng?: number }) => {
 
         return (
           <VStack key={day.date} spacing={1} align="center">
-            {/* Apenas a data, sem o dia da semana */}
             <Text fontSize="10px" color="gray.500" textTransform="uppercase">
               {day.dayNumber}
             </Text>
-
             <VStack spacing={0} align="start">
-              {/* ETo */}
               <HStack spacing={1}>
-                {/* Container com largura fixa para alinhar o ícone */}
                 <Flex w="16px" justify="center" align="center">
                   <Icon as={WiHot} boxSize={4} color="orange.400" />
                 </Flex>
@@ -194,10 +275,7 @@ const ForecastCell = ({ lat, lng }: { lat?: number; lng?: number }) => {
                   {day.et0 != null ? day.et0.toFixed(1) : "-"}
                 </Text>
               </HStack>
-
-              {/* Chuva em mm */}
               <HStack spacing={1}>
-                {/* Container com a mesma largura fixa para alinhar o ícone */}
                 <Flex w="16px" justify="center" align="center">
                   <Icon as={FaTint} boxSize={3} color="blue.400" />
                 </Flex>
@@ -213,7 +291,6 @@ const ForecastCell = ({ lat, lng }: { lat?: number; lng?: number }) => {
   );
 };
 
-// COMPONENTE MOBILE: Previsão com ETo e Chuva
 const MobileForecastCard = ({ lat, lng }: { lat?: number; lng?: number }) => {
   const { forecast, loading } = useWeatherForecast(lat, lng);
 
@@ -228,7 +305,6 @@ const MobileForecastCard = ({ lat, lng }: { lat?: number; lng?: number }) => {
       flexDirection="column"
     >
       <HStack spacing={1} mb={2} align="center" justify="center">
-        {/* Ícones combinados iguais aos do header no desktop */}
         <Icon as={HiOutlineCloud} boxSize={4} color="orange.400" />
         <Text
           fontSize="10px"
@@ -258,12 +334,9 @@ const MobileForecastCard = ({ lat, lng }: { lat?: number; lng?: number }) => {
 
             return (
               <Flex key={day.date} justify="space-between" align="center">
-                {/* Apenas a data, sem o dia da semana */}
                 <Text fontSize="xs" color="gray.500">
                   {day.dayNumber}
                 </Text>
-
-                {/* ETo e Chuva lado a lado no mobile */}
                 <HStack spacing={3}>
                   <HStack spacing={1}>
                     <Icon as={WiHot} boxSize={5} color="orange.400" />
@@ -377,7 +450,6 @@ export function DeviceTable({
 
   return (
     <>
-      {/* VISÃO MOBILE */}
       <Hide above="md">
         <Flex justify="space-between" align="center" mb={4} px={1}>
           <Menu>
@@ -456,7 +528,7 @@ export function DeviceTable({
                     flippedCards[row.id] ? "rotateY(180deg)" : "rotateY(0deg)"
                   }
                 >
-                  {/* FACE DA FRENTE (DADOS DA SONDA) */}
+                  {/* FACE DA FRENTE */}
                   <Box
                     gridArea="1 / 1 / 2 / 2"
                     sx={{
@@ -532,7 +604,6 @@ export function DeviceTable({
                     </Flex>
 
                     <SimpleGrid columns={2} gap={2} pl={2} pr={2}>
-                      {/* CARD: PLUVIÔMETRO */}
                       <Box
                         bg="gray.900"
                         borderRadius="md"
@@ -626,8 +697,6 @@ export function DeviceTable({
                           </Flex>
                         </VStack>
                       </Box>
-
-                      {/* CARD: PREVISÃO (ETo e Chuva) */}
                       <MobileForecastCard
                         lat={row.latitude}
                         lng={row.longitude}
@@ -731,7 +800,7 @@ export function DeviceTable({
                     </Box>
                   </Box>
 
-                  {/* FACE DE TRÁS (COPILOTO AÇÃO RECOMENDADA) */}
+                  {/* FACE DE TRÁS (COPILOTO AÇÃO + OBSERVAÇÃO) */}
                   <Box
                     gridArea="1 / 1 / 2 / 2"
                     sx={{
@@ -752,7 +821,7 @@ export function DeviceTable({
                       <HStack>
                         <Icon as={MdAutoAwesome} color="blue.400" boxSize={5} />
                         <Text fontWeight="bold" color="white" fontSize="md">
-                          Ação Recomendada
+                          Decisão do Copiloto
                         </Text>
                       </HStack>
                       <CloseButton
@@ -769,9 +838,11 @@ export function DeviceTable({
                       borderRadius="md"
                       overflowY="auto"
                     >
+                      {/* Prop preloadedObservacao injetada aqui */}
                       <CopilotoText
                         esn={row.esn}
-                        preloadedData={row.sugestao || row.copiloto_acao}
+                        preloadedSugestao={row.sugestao || row.copiloto_acao}
+                        preloadedObservacao={row.observacao}
                         isDesktop={false}
                       />
                     </Box>
@@ -794,7 +865,6 @@ export function DeviceTable({
         </SimpleGrid>
       </Hide>
 
-      {/* VISÃO DESKTOP */}
       <Show above="md">
         <Box
           bg="gray.800"
@@ -816,7 +886,6 @@ export function DeviceTable({
                 letterSpacing="0.2em"
                 fontWeight="bold"
               >
-                {/* 1. Nome do Dispositivo */}
                 <Th
                   py={4}
                   px={4}
@@ -831,8 +900,6 @@ export function DeviceTable({
                     {renderSortIcon("status")}
                   </HStack>
                 </Th>
-
-                {/* 2. Dados */}
                 <Th
                   py={4}
                   px={4}
@@ -848,8 +915,6 @@ export function DeviceTable({
                     {renderSortIcon("cultura")}
                   </HStack>
                 </Th>
-
-                {/* 3. Decisão */}
                 <Th
                   py={4}
                   px={4}
@@ -862,8 +927,6 @@ export function DeviceTable({
                     <Text color="gray.400">Decisão</Text>
                   </HStack>
                 </Th>
-
-                {/* 4. Precipitação */}
                 <Th
                   py={4}
                   px={4}
@@ -874,7 +937,6 @@ export function DeviceTable({
                 >
                   <HStack justify="center" align="center" spacing={2}>
                     <Icon as={FaTint} boxSize={4} color="blue.400" />
-
                     <Box>
                       <Text as="span" color="gray.400">
                         PLUVIÔMETRO (mm)
@@ -882,8 +944,6 @@ export function DeviceTable({
                     </Box>
                   </HStack>
                 </Th>
-
-                {/* 5. Previsão */}
                 <Th
                   py={4}
                   px={4}
@@ -901,7 +961,6 @@ export function DeviceTable({
                 </Th>
               </Tr>
             </Thead>
-
             <Tbody
               sx={{
                 "& tr": {
@@ -953,7 +1012,6 @@ export function DeviceTable({
                     transition="colors 0.2s"
                     position="relative"
                   >
-                    {/* 1. Nome do Dispositivo, ESN, Fazenda, Último Envio, Status e Online/Offline */}
                     <Td py={4} px={4} position="relative" borderBottom="none">
                       <Box
                         position="absolute"
@@ -963,7 +1021,6 @@ export function DeviceTable({
                         w="4px"
                         bg={accentColor}
                       />
-
                       <Flex align="center" gap={3} ml={2}>
                         <Flex
                           h={8}
@@ -978,7 +1035,6 @@ export function DeviceTable({
                           <Icon as={MdSensors} boxSize={4} />
                         </Flex>
                         <VStack align="start" spacing={1.5}>
-                          {/* Nome */}
                           <Text
                             fontFamily="heading"
                             fontWeight="bold"
@@ -989,16 +1045,12 @@ export function DeviceTable({
                           >
                             {row.name || row.esn}
                           </Text>
-
-                          {/* ESN e Último Envio Integrados */}
                           <HStack spacing={3} fontSize="11px" color="gray.400">
                             <Text>ESN: {row.esn}</Text>
                             <Text>
                               Último Envio: {row.lastCommunicationFormatted}
                             </Text>
                           </HStack>
-
-                          {/* Fazenda e Badges (Online e Status) */}
                           <HStack spacing={3} mt={1}>
                             <HStack
                               spacing={1}
@@ -1010,7 +1062,6 @@ export function DeviceTable({
                                 {row.farmName || "Sem fazenda"}
                               </Text>
                             </HStack>
-
                             <HStack spacing={2} ml={2}>
                               {isAdmin && (
                                 <Flex
@@ -1037,14 +1088,11 @@ export function DeviceTable({
                                   {isOffline ? "Offline" : "Online"}
                                 </Flex>
                               )}
-
-                              {/* Divisor Visual */}
                               {isAdmin && (
                                 <Text color="whiteAlpha.400" fontSize="xs">
                                   |
                                 </Text>
                               )}
-
                               <Flex
                                 align="center"
                                 px={2}
@@ -1072,7 +1120,6 @@ export function DeviceTable({
                       </Flex>
                     </Td>
 
-                    {/* 2. Dados */}
                     <Td
                       py={4}
                       px={4}
@@ -1111,9 +1158,7 @@ export function DeviceTable({
                             </Text>
                           </HStack>
                         </Flex>
-
                         <Box w="1px" h="35px" bg="whiteAlpha.200" />
-
                         <VStack
                           align="start"
                           spacing={0}
@@ -1148,7 +1193,6 @@ export function DeviceTable({
                       </Flex>
                     </Td>
 
-                    {/* 3. Decisão (Copiloto) */}
                     <Td
                       py={4}
                       px={4}
@@ -1157,9 +1201,11 @@ export function DeviceTable({
                       borderBottom="none"
                       maxW="300px"
                     >
+                      {/* Prop preloadedObservacao injetada aqui */}
                       <CopilotoText
                         esn={row.esn}
-                        preloadedData={row.sugestao || row.copiloto_acao}
+                        preloadedSugestao={row.sugestao || row.copiloto_acao}
+                        preloadedObservacao={row.observacao}
                         isDesktop={true}
                       />
                     </Td>
@@ -1189,9 +1235,7 @@ export function DeviceTable({
                             {formatRain(row.rain_1h)}
                           </Text>
                         </VStack>
-
                         <Box w="1px" h="20px" bg="whiteAlpha.200" />
-
                         <VStack spacing={0}>
                           <Text
                             fontSize="10px"
@@ -1208,9 +1252,7 @@ export function DeviceTable({
                             {formatRain(row.rain_24h)}
                           </Text>
                         </VStack>
-
                         <Box w="1px" h="20px" bg="whiteAlpha.200" />
-
                         <VStack spacing={0}>
                           <Text
                             fontSize="10px"
@@ -1230,7 +1272,6 @@ export function DeviceTable({
                       </HStack>
                     </Td>
 
-                    {/* 5. Previsão */}
                     <Td
                       py={4}
                       px={4}

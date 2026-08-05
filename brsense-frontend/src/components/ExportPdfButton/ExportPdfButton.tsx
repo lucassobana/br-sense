@@ -85,7 +85,6 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
       doc.setTextColor(113, 128, 150);
       doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, 14, 22);
 
-      // Colunas reordenadas e renomeadas conforme solicitação[cite: 5]
       const tableColumn = [
         "Dispositivos",
         "Dados",
@@ -96,7 +95,6 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
 
       const tableRows = await Promise.all(
         data.map(async (row) => {
-          // Busca de Decisão/Copiloto[cite: 5]
           let decisionText = row.sugestao || row.copiloto_acao;
           if (!decisionText) {
             try {
@@ -107,7 +105,6 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
             }
           }
 
-          // Busca da Previsão Climática (com Cache para evitar estourar o limite de API)
           let forecastText = "-";
           if (row.latitude !== undefined && row.longitude !== undefined) {
             try {
@@ -119,7 +116,6 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
               let forecastData = null;
               if (cachedDataStr) {
                 const cachedData = JSON.parse(cachedDataStr);
-                // Verifica se o cache ainda é válido (1 hora)
                 if (Date.now() - cachedData.timestamp < 60 * 60 * 1000) {
                   forecastData = cachedData.data;
                 }
@@ -170,7 +166,6 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
           }
 
           return [
-            // Aglutinação dos dados do dispositivo em uma única coluna[cite: 5]
             `${row.name || "-"}\nESN: ${row.esn}\nFazenda: ${row.farmName}\nStatus: ${getStatusLabel(row.status)}\nÚltimo Envio: ${row.lastCommunicationFormatted}`,
             `Cultura: ${row.cultura || "-"}\nDAP: ${calcularDAP(row.data_plantio)} dias\nPotência: ${formatarPotencia(row.potencia_cv)}`,
             decisionText,
@@ -184,6 +179,8 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
         head: [tableColumn],
         body: tableRows,
         startY: 28,
+        // Define explicitamente uma margem menor à direita
+        margin: { left: 14, right: 8 },
         styles: {
           fontSize: 9,
           cellPadding: 4,
@@ -201,12 +198,12 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
           fillColor: [247, 250, 252],
         },
         columnStyles: {
-          // Ajuste fino nas larguras das colunas para caber na folha A4 (paisagem = 297mm)[cite: 5]
-          0: { cellWidth: 55 },
-          1: { cellWidth: 35 },
-          2: { cellWidth: 80 },
-          3: { cellWidth: 35 },
-          4: { cellWidth: 55 },
+          // Total distribuído: 275mm (A4 297mm - 14mm esq - 8mm dir)
+          0: { cellWidth: 50 }, // Dispositivos (reduzido levemente)
+          1: { cellWidth: 45 }, // Dados (Aumentado em +10mm)
+          2: { cellWidth: 75 }, // Decisão (Reduzido em -5mm)
+          3: { cellWidth: 30 }, // Pluviômetro (Reduzido em -5mm)
+          4: { cellWidth: 75 }, // Previsão (Aumentado em +20mm para não quebrar linha)
         },
       });
 

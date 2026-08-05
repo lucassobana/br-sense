@@ -93,9 +93,9 @@ def generate_agronomic_decision(readings: List[LayerReading], limits_by_depth: D
     if warnings and "desatualizada" in " ".join(warnings).lower():
         decision, headline, recommendation = "DADOS_INSUFICIENTES", "Dados desatualizados", "Aguardar o restabelecimento das leituras."
     elif recent_event:
-        decision, headline, recommendation = "AGUARDAR_ESTABILIZACAO", "Entrada recente de água", "Não realizar nova irrigação antes de observar a estabilização."
+        decision, headline, recommendation = "AGUARDAR_ESTABILIZAÇÃO", "Entrada recente de água", "Não realizar nova irrigação antes de observar a estabilização."
     elif percolation:
-        decision, headline, recommendation = "NAO_IRRIGAR", "Água em camadas profundas", "Não há indicação de nova irrigação neste momento."
+        decision, headline, recommendation = "NÃO_IRRIGAR", "Água em camadas profundas", "Não há indicação de nova irrigação neste momento."
     elif critical_active:
         decision, headline, recommendation = "IRRIGAR", "Indicação de irrigação", "Umidade atingiu a faixa crítica em camada ativa."
     elif u07_deep_reserve:
@@ -113,7 +113,7 @@ def generate_agronomic_decision(readings: List[LayerReading], limits_by_depth: D
     elif vertical_drying:
         decision, headline, recommendation = "IRRIGAR", "Secamento avançando", "A condição de atenção está avançando em profundidade."
     elif all_active_ok:
-        decision, headline, recommendation = "NAO_IRRIGAR", "Umidade adequada", "Manter o monitoramento; não há indicação de irrigação."
+        decision, headline, recommendation = "NÃO_IRRIGAR", "Umidade adequada", "Manter o monitoramento; não há indicação de irrigação."
     else:
         decision, headline, recommendation = "MONITORAR", "Continuar monitorando", "As camadas apresentam comportamento intermediário."
 

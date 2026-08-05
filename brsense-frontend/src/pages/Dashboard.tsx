@@ -581,7 +581,6 @@ export function Dashboard() {
     <Box
       w="100%"
       bg={COLORS.background}
-      // Apenas adiciona padding no rodapé se NÃO estiver no modo mapa no mobile
       pb={{ base: viewMode === "map" ? 0 : 20, md: 10 }}
     >
       <AnimatePresence mode="wait" custom={direction}>
@@ -597,11 +596,12 @@ export function Dashboard() {
             position="relative"
             w="100%"
             bg={COLORS.background}
-            h={{ base: "calc(100dvh - 65px - env(safe-area-inset-bottom))", md: "100vh" }}
+            // CORREÇÃO 1: Alterado "h" para "minH" para evitar a dupla rolagem vertical
+            minH={{
+              base: "calc(100dvh - 65px - env(safe-area-inset-bottom))",
+              md: "100vh",
+            }}
           >
-            {/* CONTAINER DO MAPA:
-                - Mobile: Espaçamentos (px, mt) zerados, bordas zeradas, e altura preenche exatamente a tela.
-                - Desktop: Margens e bordas restauradas, com o mapa ocupando agora 85vh (aumentado). */}
             <Box
               w="100%"
               mt={{ base: 0, md: 6 }}
@@ -612,7 +612,10 @@ export function Dashboard() {
             >
               <Box
                 w="100%"
-                h={{ base: "calc(100dvh - 65px - env(safe-area-inset-bottom))", md: "90vh" }}
+                h={{
+                  base: "calc(100dvh - 65px - env(safe-area-inset-bottom))",
+                  md: "90vh",
+                }}
                 position="relative"
                 bg="black"
               >
@@ -636,14 +639,9 @@ export function Dashboard() {
               </Box>
             </Box>
 
-            {/* CONTAINER DA TABELA (Exibida somente no Desktop) */}
-            <Container
-              maxW="full"
-              mt={8}
-              mb={10}
-              px={{ base: 4, lg: 12 }}
-              display={{ base: "none", md: "block" }}
-            >
+            {/* CORREÇÃO 2: Removido o display="none" para dispositivos móveis 
+                Assim os cards mobile do DeviceTable renderizam na tela normalmente */}
+            <Container maxW="full" mt={8} mb={10} px={{ base: 4, lg: 12 }} display={{base: "none", md: "block"}}>
               <Flex
                 justify="space-between"
                 align="center"
