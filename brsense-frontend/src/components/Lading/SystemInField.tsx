@@ -43,7 +43,7 @@ export default function SystemInField() {
   return (
     <Box
       id="sonda"
-      py={{ base: 10, md: 14, lg: 20 }}
+      py={{ base: 10, md: 12 }}
       bg="#050B18"
       borderTop="1px"
       borderColor="whiteAlpha.100"

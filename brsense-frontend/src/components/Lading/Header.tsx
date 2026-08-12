@@ -25,6 +25,7 @@ const navItems = [
   { label: "Benefícios", href: "#beneficios" },
   { label: "Diferenciais", href: "#diferenciais" },
   { label: "Contato", href: "#contato" },
+  { label: "Videos", href: "#videos" },
 ];
 
 export default function Header() {

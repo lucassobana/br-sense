@@ -6,6 +6,7 @@ import {
   VStack,
   Image,
   Flex,
+  AspectRatio,
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
 import { useAutoScroll } from "../../hooks/useAutoScroll";
@@ -26,7 +27,7 @@ export default function Plataforma() {
   return (
     <Box
       id="plataforma"
-      py={{ base: 10, md: 14, lg: 20 }}
+      py={{ base: 10, md: 12 }}
       bg="#050B18"
       borderTop="1px"
       borderColor="whiteAlpha.100"
@@ -88,7 +89,7 @@ export default function Plataforma() {
           </motion.div>
         </VStack>
 
-        <Box w="full">
+        <Box w="full" mb={12}>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -154,6 +155,29 @@ export default function Plataforma() {
               </Flex>
             </Flex>
           </motion.div>
+        </Box>
+        <Box
+          p={2}
+          rounded="2xl"
+          overflow="hidden"
+          shadow="2xl"
+          border="1px"
+          borderColor="whiteAlpha.200"
+          bg="whiteAlpha.50"
+          transition="transform 0.3s"
+          _hover={{
+            transform: "translateY(-4px)",
+            borderColor: "brand.500",
+          }}
+        >
+          <AspectRatio ratio={16 / 9}>
+            <iframe
+              title="PLATAFORMA BR SENSE"
+              src="https://www.youtube.com/embed/zYu6MgJK1YE"
+              allowFullScreen
+              style={{ border: 0 }}
+            />
+          </AspectRatio>
         </Box>
       </Container>
     </Box>

@@ -527,15 +527,6 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     useEffect(() => {
         const fetchRadar = async () => {
             try {
-                // const res = await fetch("https://api.rainviewer.com/public/weather-maps.json");
-                // const data = await res.json();
-
-                // // Pega todos os frames das últimas 2 horas (normalmente 13 frames)
-                // const pastFrames = data.radar?.past ?? [];
-
-                // // FILTRO: Mantém apenas 4 frames (pega os índices 0, 4, 8 e 12)
-                // // Se a API paga for usada no futuro e trouxer 12h, essa mesma lógica dividirá o tempo.
-                // const filteredFrames = pastFrames.filter((_: RadarFrame, index: number) => index % 4 === 0);
                 const filteredFrames = await fetchRainViewerFrames();
                 setRadarFrames(filteredFrames);
 
@@ -753,7 +744,6 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                         : mapDepthFilter;
 
                     const markerColor = getMarkerColorForDepth(point, activeDepth);
-                    // const rainVal = rainStatsByPoint[point.id]?.[rainPeriod] ?? 0;1
 
                     let rainVal = 0;
                     if (rainPeriod === '1h') rainVal = point.rain_1h ?? 0;

@@ -37,7 +37,7 @@ export default function Services() {
       minH="100vh"
       display="flex"
       alignItems="center"
-      py={{ base: 10, md: 20 }}
+      py={10}
       bg="#050B18"
       position="relative"
     >

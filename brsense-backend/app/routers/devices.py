@@ -11,6 +11,8 @@ from app.models.reading import Reading
 from app.models.user import User
 from app.schemas.device import DeviceRead, DeviceUpdate, DeviceCreate
 from app.core.security import get_current_user_token, get_user_and_roles
+from app.services.agronomic_analysis import analyze_device_data
+from app.schemas.analysis import AgronomicDecisionCard
 
 router = APIRouter()
 
@@ -268,3 +270,10 @@ def delete_device(esn: str, db: Session = Depends(get_db)):
     db.delete(device)
     db.commit()
     return
+
+@router.get("/devices/{esn}/analysis", response_model=AgronomicDecisionCard)
+def get_device_analysis(esn: str, db: Session = Depends(get_db)):
+    analysis = analyze_device_data(db, esn)
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Dispositivo não encontrado ou sem dados")
+    return analysis

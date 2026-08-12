@@ -11,7 +11,7 @@ import LogoAzul from "../../assets/BRSense_logo.png";
 
 export default function About() {
   return (
-    <Box id="sobre" py={{ base: 10, md: 20 }} bg="#050B18">
+    <Box id="sobre" py={{ base: 10, md: 12 }} bg="#050B18">
       <Container maxW="container.xl">
         <Stack
           direction={{ base: "column", lg: "row" }}
@@ -46,17 +46,28 @@ export default function About() {
             >
               Sobre a BR Sense
             </Text>
-            <Heading size="2xl" color="white" lineHeight="1.2" >
-              Engenharia, tecnologia e manejo de irrigação em uma solução completa.
+            <Heading size="2xl" color="white" lineHeight="1.2">
+              Engenharia, tecnologia e manejo de irrigação em uma solução
+              completa.
             </Heading>
-            <Text fontSize="lg" color="text.secondary" lineHeight="tall" textAlign="justify">
+            <Text
+              fontSize="lg"
+              color="text.secondary"
+              lineHeight="tall"
+              textAlign="justify"
+            >
               A BR Sense nasceu para unir engenharia, tecnologia e manejo de
               irrigação em uma solução completa para o produtor rural. A empresa
               atua desde o planejamento de projetos de pivô central até o
               monitoramento em tempo real do solo, da água e da atividade
               radicular.
             </Text>
-            <Text fontSize="lg" color="text.secondary" lineHeight="tall" textAlign="justify">
+            <Text
+              fontSize="lg"
+              color="text.secondary"
+              lineHeight="tall"
+              textAlign="justify"
+            >
               Nosso objetivo é simples: ajudar o produtor a irrigar melhor, com
               mais segurança, eficiência e rentabilidade. A equipe soma
               experiência nacional e internacional em irrigação, projetos
