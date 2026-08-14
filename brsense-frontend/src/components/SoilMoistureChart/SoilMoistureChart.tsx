@@ -404,7 +404,7 @@ export function SoilMoistureChart({
                     } else {
                         const diff = currentVal - lastValid;
                         
-                        const isQuedaInvalida = diff < 0 && diff < -10;
+                        const isQuedaInvalida = diff < 0 && diff < -15;
                         const isSubidaInvalida = diff > 0 && diff > 20;
 
                         if (currentVal === 0 || isQuedaInvalida || isSubidaInvalida) {
