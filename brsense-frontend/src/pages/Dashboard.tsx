@@ -821,8 +821,9 @@ export function Dashboard() {
                       readings={chartData}
                       isLoading={loadingChart}
                       cardTitle={`Pluviometria`}
+                      esn={selectedProbe.esn}
                     />
-                    <WeatherChart data={forecast} isLoading={loadingForecast} />
+                    <WeatherChart data={forecast} isLoading={loadingForecast} lat={selectedProbe?.latitude} lng={selectedProbe?.longitude} />
                     <Suspense
                       fallback={
                         <Flex h="300px" justify="center" align="center">

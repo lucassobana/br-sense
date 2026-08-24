@@ -169,7 +169,9 @@ export function SoilMoistureChart({
 }: ChartProps) {
 
     const toast = useToast();
-    const { isOpen, onOpen, onClose } = useDisclosure();
+    const { isOpen, onOpen, onClose } = useDisclosure(); // Usado para ConfigZonas
+    const { isOpen: isPopoverOpen, onOpen: onPopoverOpen, onClose: onPopoverClose } = useDisclosure();
+    const endDateRef = useRef<HTMLInputElement>(null);
     const chartContainerRef = useRef<HTMLDivElement>(null);
 
     const displayTitle = useMemo(() => {
@@ -200,6 +202,7 @@ export function SoilMoistureChart({
         if (tempStartDate && tempEndDate && onPeriodChange) {
             onPeriodChange('Personalizado', tempStartDate, tempEndDate);
         }
+        onPopoverClose();
     };
 
     // Função auxiliar para limpar datas de forma uniforme
@@ -896,7 +899,7 @@ export function SoilMoistureChart({
                         </Menu>
                     )}
 
-                    <Popover placement="bottom-end" isLazy>
+                    <Popover placement="bottom-end" isLazy isOpen={isPopoverOpen} onOpen={onPopoverOpen} onClose={onPopoverClose} closeOnBlur={false}>
                         <PopoverTrigger>
                             <Button size="xs" variant="outline" colorScheme="blue" leftIcon={<Icon as={MdDateRange} />} />
                         </PopoverTrigger>
@@ -906,11 +909,38 @@ export function SoilMoistureChart({
                                 <VStack spacing={3} align="stretch">
                                     <FormControl>
                                         <FormLabel fontSize="xs" color="gray.400" mb={1}>Data Inicial</FormLabel>
-                                        <Input size="xs" type="date" value={tempStartDate} onChange={(e) => setTempStartDate(e.target.value)} />
+                                        <Input size="xs" type="date" value={tempStartDate} onClick={(e) => {
+                                            try {
+                                                if ('showPicker' in HTMLInputElement.prototype) {
+                                                    e.currentTarget.showPicker();
+                                                }
+                                            } catch (e) { console.debug(e); }
+                                        }} onChange={(e) => {
+                                            setTempStartDate(e.target.value);
+                                            if (e.target.value && endDateRef.current) {
+                                                setTimeout(() => {
+                                                    try {
+                                                        if ('showPicker' in HTMLInputElement.prototype) {
+                                                            endDateRef.current?.showPicker();
+                                                        } else {
+                                                            endDateRef.current?.focus();
+                                                        }
+                                                    } catch {
+                                                        endDateRef.current?.focus();
+                                                    }
+                                                }, 50);
+                                            }
+                                        }} />
                                     </FormControl>
                                     <FormControl>
                                         <FormLabel fontSize="xs" color="gray.400" mb={1}>Data Final</FormLabel>
-                                        <Input size="xs" type="date" value={tempEndDate} onChange={(e) => setTempEndDate(e.target.value)} />
+                                        <Input ref={endDateRef} size="xs" type="date" value={tempEndDate} onClick={(e) => {
+                                            try {
+                                                if ('showPicker' in HTMLInputElement.prototype) {
+                                                    e.currentTarget.showPicker();
+                                                }
+                                            } catch (e) { console.debug(e); }
+                                        }} onChange={(e) => setTempEndDate(e.target.value)} />
                                     </FormControl>
                                     <Button 
                                         size="xs" 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import {
   Box,
   Flex,
@@ -19,6 +19,7 @@ import {
   Input,
   ButtonGroup,
   VStack,
+  useDisclosure,
 } from "@chakra-ui/react";
 import {
   CartesianGrid,
@@ -107,6 +108,9 @@ export function BatteryStatusChart({
   selectedPeriod = "24h",
   onPeriodChange,
 }: BatteryStatusChartProps) {
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const endDateRef = useRef<HTMLInputElement>(null);
+
   const isMobileViewport = useMemo(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia("(max-width: 48em)").matches;
@@ -135,6 +139,7 @@ export function BatteryStatusChart({
     if (tempStartDate && tempEndDate && onPeriodChange) {
       onPeriodChange("Personalizado", tempStartDate, tempEndDate);
     }
+    onClose();
   };
 
   const clearDates = () => {
@@ -560,7 +565,7 @@ export function BatteryStatusChart({
             </Menu>
           )}
 
-          <Popover placement="bottom-end" isLazy>
+          <Popover placement="bottom-end" isLazy isOpen={isOpen} onOpen={onOpen} onClose={onClose} closeOnBlur={false}>
             <PopoverTrigger>
               <Button
                 size="xs"
@@ -589,7 +594,29 @@ export function BatteryStatusChart({
                       color="white"
                       type="date"
                       value={tempStartDate}
-                      onChange={(e) => setTempStartDate(e.target.value)}
+                      onClick={(e) => {
+                        try {
+                          if ('showPicker' in HTMLInputElement.prototype) {
+                            e.currentTarget.showPicker();
+                          }
+                        } catch (e) { console.debug(e); }
+                      }}
+                      onChange={(e) => {
+                        setTempStartDate(e.target.value);
+                        if (e.target.value && endDateRef.current) {
+                          setTimeout(() => {
+                            try {
+                              if ('showPicker' in HTMLInputElement.prototype) {
+                                endDateRef.current?.showPicker();
+                              } else {
+                                endDateRef.current?.focus();
+                              }
+                            } catch {
+                              endDateRef.current?.focus();
+                            }
+                          }, 50);
+                        }
+                      }}
                     />
                   </FormControl>
                   <FormControl>
@@ -597,10 +624,18 @@ export function BatteryStatusChart({
                       Data Final
                     </FormLabel>
                     <Input
+                      ref={endDateRef}
                       size="xs"
                       color="white"
                       type="date"
                       value={tempEndDate}
+                      onClick={(e) => {
+                        try {
+                          if ('showPicker' in HTMLInputElement.prototype) {
+                            e.currentTarget.showPicker();
+                          }
+                        } catch (e) { console.debug(e); }
+                      }}
                       onChange={(e) => setTempEndDate(e.target.value)}
                     />
                   </FormControl>
