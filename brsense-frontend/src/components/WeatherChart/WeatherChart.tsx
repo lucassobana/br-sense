@@ -17,17 +17,20 @@ import {
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
 import {
+  ComposedChart,
   BarChart,
   Bar,
+  Line,
   XAxis,
   YAxis,
   ResponsiveContainer,
   LabelList,
   ReferenceLine,
   CartesianGrid,
+  Legend,
 } from "recharts";
 import { BsCloudRainFill } from "react-icons/bs";
-import { MdWaterDrop, MdHistory, MdArrowBack } from "react-icons/md";
+import { MdHistory, MdArrowBack, MdWaterDrop } from "react-icons/md";
 import { WiHot } from "react-icons/wi";
 import { FaThermometerFull, FaThermometerQuarter } from "react-icons/fa";
 import type { DailyForecast } from "../../types";
@@ -60,6 +63,18 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
   const [tempStartDate, setTempStartDate] = useState("");
   const [tempEndDate, setTempEndDate] = useState("");
   const endDateRef = useRef<HTMLInputElement>(null);
+  const [hiddenSeries, setHiddenSeries] = useState<Record<string, boolean>>({});
+
+  const handleLegendClick = (e: unknown) => {
+    const payload = e as { dataKey?: string | number };
+    const dataKey = payload.dataKey;
+    if (typeof dataKey === 'string') {
+      setHiddenSeries((prev) => ({
+        ...prev,
+        [dataKey]: !prev[dataKey]
+      }));
+    }
+  };
   
   const { history, loading: historyLoading, error: historyError, loadHistory, clearHistory } = useWeatherHistory();
   const toast = useToast();
@@ -110,11 +125,9 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
   }
 
   // --- Rendering functions for the chart ---
-  const renderChart = (dataToRender: DailyForecast[], maxRainVol: number, isHistory: boolean) => {
-    // 80px per day minimum ensures the bars don't get squeezed on long periods
-    const minWidthValue = Math.max(1100, dataToRender.length * 80);
+  const renderForecastChart = (dataToRender: DailyForecast[], maxRainVol: number, isHistory: boolean) => {
     return (
-    <Box minW={`${minWidthValue}px`} h="100%">
+    <Box minW={`max(100%, ${dataToRender.length * 80}px)`} h="100%">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={dataToRender} margin={{ top: 10, right: 15, left: 0, bottom: 145 }}>
           <defs>
@@ -171,6 +184,150 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
         </BarChart>
       </ResponsiveContainer>
     </Box>
+    );
+  };
+
+  const renderHistoryChart = (dataToRender: DailyForecast[], maxRainVol: number, isHistory: boolean) => {
+    return (
+    <Box minW={`max(100%, ${dataToRender.length * 80}px)`} h="100%">
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart 
+          data={dataToRender} 
+          margin={{ top: 25, right: 15, left: 0, bottom: 40 }}
+        >
+          <defs>
+            <linearGradient id="historyRainBarGradient" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0%" stopColor="#003764de" />
+              <stop offset="50%" stopColor="#0064b6e3" />
+              <stop offset="100%" stopColor="#0093fc" />
+            </linearGradient>
+          </defs>
+
+          <XAxis
+            dataKey="dayName"
+            axisLine={false}
+            tickLine={false}
+            tick={(props) => renderCustomXAxisTick(props, dataToRender, isHistory)}
+            interval={0}
+          />
+
+          <YAxis
+            yAxisId="left"
+            domain={["auto", "auto"]}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: "#A0AEC0", fontSize: 12, fontWeight: "bold" }}
+            width={40}
+            tickFormatter={(val) => `${Math.round(val)}`}
+          />
+
+          <YAxis
+            yAxisId="right"
+            orientation="right"
+            domain={[0, maxRainVol]}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: "#A0AEC0", fontSize: 12, fontWeight: "bold" }}
+            width={40}
+            tickFormatter={(val) => `${Math.round(val)}`}
+          />
+
+          <CartesianGrid strokeDasharray="3 3" stroke="#4A5568" vertical={false} />
+
+          <ReferenceLine yAxisId="left" y={0} stroke="#4A5568" strokeDasharray="3 3" />
+
+          <Legend 
+            align="left"
+            verticalAlign="top" 
+            iconType="circle"
+            iconSize={8}
+            wrapperStyle={{ paddingBottom: '15px', cursor: 'pointer', userSelect: 'none', fontSize: '12px', fontWeight: '500' }}
+            formatter={(value: string, entry: unknown) => {
+              const payload = entry as { dataKey?: string | number };
+              return (
+                <span style={{ color: typeof payload.dataKey === 'string' && hiddenSeries[payload.dataKey] ? '#718096' : '#E2E8F0', marginLeft: '2px', transition: 'color 0.2s' }}>
+                  {value}
+                </span>
+              );
+            }}
+            onClick={handleLegendClick}
+          />
+
+          <Bar
+            name="Chuva"
+            dataKey="precipSum"
+            yAxisId="right"
+            hide={hiddenSeries['precipSum']}
+            fill="url(#historyRainBarGradient)"
+            radius={[6, 6, 0, 0]}
+            maxBarSize={70}
+            isAnimationActive={true}
+            animationDuration={1500}
+            animationEasing="ease-out"
+          >
+            <LabelList
+              dataKey="precipSum"
+              position="top"
+              dx={-8}
+              fill="white"
+              fontSize={10}
+              fontWeight="bold"
+              stroke="#1E293B"
+              strokeWidth={3}
+              style={{ paintOrder: 'stroke' }}
+              formatter={(val: unknown) =>
+                (typeof val === "number" || typeof val === "string") && Number(val) > 0
+                  ? `${Math.round(Number(val))}mm`
+                  : ""
+              }
+            />
+          </Bar>
+
+          <Line
+            name="Temp. Máx"
+            hide={hiddenSeries['tempMax']}
+            type="monotone"
+            dataKey="tempMax"
+            yAxisId="left"
+            stroke="#E53E3E"
+            strokeWidth={2.5}
+            dot={{ r: 3, fill: "#E53E3E" }}
+            activeDot={{ r: 5, fill: "#E53E3E", stroke: "#fff", strokeWidth: 1 }}
+            isAnimationActive={true}
+          >
+            <LabelList dataKey="tempMax" position="top" dx={8} fill="#E53E3E" fontSize={10} fontWeight="bold" stroke="#1E293B" strokeWidth={3} style={{ paintOrder: 'stroke' }} formatter={(val: unknown) => (typeof val === 'number' ? `${Math.round(val)}°` : '')} />
+          </Line>
+          <Line
+            name="Temp. Mín"
+            hide={hiddenSeries['tempMin']}
+            type="monotone"
+            dataKey="tempMin"
+            yAxisId="left"
+            stroke="#3182CE"
+            strokeWidth={2.5}
+            dot={{ r: 3, fill: "#3182CE" }}
+            activeDot={{ r: 5, fill: "#3182CE", stroke: "#fff", strokeWidth: 1 }}
+            isAnimationActive={true}
+          >
+            <LabelList dataKey="tempMin" position="bottom" dx={8} fill="#3182CE" fontSize={10} fontWeight="bold" stroke="#1E293B" strokeWidth={3} style={{ paintOrder: 'stroke' }} formatter={(val: unknown) => (typeof val === 'number' ? `${Math.round(val)}°` : '')} />
+          </Line>
+          <Line
+            name="ETo"
+            hide={hiddenSeries['et0']}
+            type="monotone"
+            dataKey="et0"
+            yAxisId="left"
+            stroke="#DD6B20"
+            strokeWidth={2.5}
+            dot={{ r: 3, fill: "#DD6B20" }}
+            activeDot={{ r: 5, fill: "#DD6B20", stroke: "#fff", strokeWidth: 1 }}
+            isAnimationActive={true}
+          >
+            <LabelList dataKey="et0" position="bottom" dx={8} fill="#DD6B20" fontSize={10} fontWeight="bold" stroke="#1E293B" strokeWidth={3} style={{ paintOrder: 'stroke' }} formatter={(val: unknown) => (typeof val === 'number' ? `${val.toFixed(1)}mm` : '')} />
+          </Line>
+        </ComposedChart>
+      </ResponsiveContainer>
+    </Box>
   );
   };
 
@@ -181,11 +338,11 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
 
     return (
       <g transform={`translate(${x},${y})`}>
-        {(currentDay.precipProb > 0 || (isHistory && currentDay.precipSum > 0)) && (
+        {!isHistory && (currentDay.precipProb > 0 || currentDay.precipSum > 0) && (
           <foreignObject x={-30} y={0} width={60} height={40}>
             <Flex align="center" justify="center" h="100%">
               <VStack spacing={1} align="center">
-                {!isHistory && currentDay.precipProb > 0 && (
+                {currentDay.precipProb > 0 && (
                   <HStack spacing={1}>
                     <Icon as={MdWaterDrop} boxSize={3.5} color={COLORS.primaryDark} />
                     <Text fontSize={{ base: "10px", md: "12px" }} fontWeight="bold" color={COLORS.primaryDark}>
@@ -203,15 +360,26 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
           </foreignObject>
         )}
 
-        <text x={0} y={52} textAnchor="middle" fill="#A0AEC0" fontSize={12} fontWeight="bold">
-          {currentDay.dayName.charAt(0).toUpperCase() + currentDay.dayName.slice(1)}
+        {!isHistory && (
+          <text x={0} y={52} textAnchor="middle" fill="#A0AEC0" fontSize={12} fontWeight="bold">
+            {currentDay.dayName.charAt(0).toUpperCase() + currentDay.dayName.slice(1)}
+          </text>
+        )}
+
+        <text 
+          x={0} 
+          y={isHistory ? 25 : 70} 
+          textAnchor="middle" 
+          fill={isHistory ? "#A0AEC0" : "#718096"} 
+          fontSize={isHistory ? 11 : 10} 
+          fontWeight={isHistory ? "bold" : "normal"}
+        >
+          {isHistory 
+            ? (currentDay.date ? currentDay.date.split("-").reverse().slice(0, 2).join("/") : currentDay.dayNumber)
+            : currentDay.dayNumber}
         </text>
 
-        <text x={0} y={70} textAnchor="middle" fill="#718096" fontSize={10}>
-          {currentDay.dayNumber}
-        </text>
-
-        {currentDay.tempMin !== undefined && currentDay.tempMax !== undefined && (
+        {!isHistory && currentDay.tempMin !== undefined && currentDay.tempMax !== undefined && (
           <foreignObject x={-47} y={76} width={90} height={65}>
             <Flex align="center" justify="center" h="100%" direction="column" gap="4px">
               <Flex align="center">
@@ -322,7 +490,7 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
                 "&::-webkit-scrollbar-thumb": { background: "whiteAlpha.300", borderRadius: "4px" },
               }}
             >
-              {renderChart(chartData, frontMaxRainVol, false)}
+              {renderForecastChart(chartData, frontMaxRainVol, false)}
             </Box>
           </Flex>
 
@@ -437,7 +605,7 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
               ) : historyError ? (
                 <Text color="red.400">{historyError}</Text>
               ) : history.length > 0 ? (
-                renderChart(history, backMaxRainVol, true)
+                renderHistoryChart(history, backMaxRainVol, true)
               ) : (
                 <Text color="gray.500">Selecione um período para ver o histórico.</Text>
               )}
