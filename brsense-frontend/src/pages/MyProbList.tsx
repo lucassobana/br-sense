@@ -15,7 +15,7 @@ import { FaTint } from "react-icons/fa";
 import { BatchManualIrrigationModal } from "../components/BatchManualIrrigationModal/BatchManualIrrigationModal";
 import { getProbes, getFarms, getManualProbes } from '../services/api'; 
 import { COLORS } from '../colors/colors';
-import type { Probe, Farm, ManualProbe } from '../types';
+import type { Probe, Farm, ManualProbe, ManualIrrigationRecord } from '../types';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { DeviceTable, type TableRowData, type SortKey } from '../components/DeviceTable/DeviceTable';
 import { isUserAdmin } from '../services/auth';
