@@ -6,7 +6,7 @@ from app.db.session import SessionLocal
 from app.models.request_log import RequestLog
 
 # Importando as rotas
-from app.routers import uplink, auth, devices, readings, farms # <--- Adicionado readings
+from app.routers import uplink, auth, devices, readings, farms, manual_probes # <--- Adicionado manual_probes
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -88,6 +88,7 @@ app.include_router(auth.router, prefix="/api", tags=["Auth"]) # Autenticação
 app.include_router(devices.router, prefix="/api", tags=["Devices"]) # Gestão de Devices
 app.include_router(readings.router, prefix="/api", tags=["Readings"]) # <--- Nova rota do gráfico
 app.include_router(farms.router, prefix="/api", tags=["Farms"]) # <--- Nova rota do gráfico
+app.include_router(manual_probes.router, prefix="/api/manual-probes", tags=["Manual Probes"])
 
 # Rota de teste simples
 @app.get("/")

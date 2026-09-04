@@ -31,7 +31,7 @@ import {
   MdAutoAwesome,
   MdVerified,
 } from "react-icons/md";
-import type { Probe } from "../../types";
+import type { Probe, ManualIrrigationRecord } from "../../types";
 import { useEffect, useState } from "react";
 import { getDeviceAnalysis } from "../../services/api";
 import { useWeatherForecast } from "../../hooks/useWeatherForecast";
@@ -50,6 +50,9 @@ export interface TableRowData extends Probe {
   sugestao?: string;
   copiloto_acao?: string;
   observacao?: string; // Novo campo adicionado
+  isManualProbe?: boolean;
+  irrigation_value_mm?: number;
+  irrigation_records?: ManualIrrigationRecord[];
 }
 
 export type SortKey =
@@ -63,7 +66,7 @@ export type SortKey =
 
 interface DeviceTableProps {
   data: TableRowData[];
-  onRowClick: (id: number) => void;
+  onRowClick: (id: number | string) => void;
   sortConfig: { key: SortKey; direction: "asc" | "desc" };
   onSort: (key: SortKey) => void;
   isAdmin?: boolean;
@@ -95,10 +98,14 @@ const CopilotoText = ({
     sugestao: string;
     observacao: string;
   } | null>(null);
-  const [isFetching, setIsFetching] = useState<boolean>(!preloadedSugestao);
+  const [isFetching, setIsFetching] = useState<boolean>(!preloadedSugestao && !esn.startsWith("manual_"));
 
   useEffect(() => {
     if (preloadedSugestao && preloadedObservacao) {
+      return;
+    }
+    // ESNs de sondas manuais não têm endpoint de análise — ignora chamada
+    if (esn.startsWith("manual_")) {
       return;
     }
 
@@ -368,7 +375,7 @@ export function DeviceTable({
   isAdmin,
 }: DeviceTableProps) {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
-  const [flippedCards, setFlippedCards] = useState<Record<number, boolean>>({});
+  const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -377,9 +384,10 @@ export function DeviceTable({
     return () => clearInterval(interval);
   }, []);
 
-  const toggleFlip = (id: number, e: React.MouseEvent) => {
+  const toggleFlip = (idOrEsn: string | number, e: React.MouseEvent) => {
     e.stopPropagation();
-    setFlippedCards((prev) => ({ ...prev, [id]: !prev[id] }));
+    const key = String(idOrEsn);
+    setFlippedCards((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const checkIsOffline = (timestamp: number) => {
@@ -515,17 +523,17 @@ export function DeviceTable({
 
             return (
               <Box
-                key={`mobile-card-${row.id}`}
+                key={`mobile-card-${row.isManualProbe ? row.esn : row.id}`}
                 sx={{ perspective: "1000px" }}
                 cursor="pointer"
-                onClick={() => onRowClick(row.id)}
+                onClick={() => onRowClick(row.isManualProbe ? row.esn : row.id)}
               >
                 <Box
                   display="grid"
                   transition="transform 0.6s"
                   sx={{ transformStyle: "preserve-3d" }}
                   transform={
-                    flippedCards[row.id] ? "rotateY(180deg)" : "rotateY(0deg)"
+                    flippedCards[row.isManualProbe ? row.esn : String(row.id)] ? "rotateY(180deg)" : "rotateY(0deg)"
                   }
                 >
                   {/* FACE DA FRENTE */}
@@ -571,7 +579,7 @@ export function DeviceTable({
                           >
                             {row.name || row.esn}
                           </Text>
-                          {isAdmin && (
+                          {isAdmin && !row.isManualProbe && (
                             <Badge
                               bg={isOffline ? "gray" : "green"}
                               variant="subtle"
@@ -582,7 +590,7 @@ export function DeviceTable({
                             />
                           )}
                         </HStack>
-                        {row.name && (
+                        {!row.isManualProbe && row.name && (
                           <Text fontSize="xs" color="gray.400" noOfLines={1}>
                             ESN: {row.esn}
                           </Text>
@@ -590,20 +598,22 @@ export function DeviceTable({
                       </Box>
 
                       <Flex align="center" gap={1}>
-                        <Badge
-                          backgroundColor={getStatusColor(row.status, "mobile")}
-                          variant="subtle"
-                          borderRadius="full"
-                          px={2}
-                          py={1}
-                          whiteSpace="nowrap"
-                        >
-                          {getStatusLabel(row.status)}
-                        </Badge>
+                        {!row.isManualProbe && (
+                          <Badge
+                            backgroundColor={getStatusColor(row.status, "mobile")}
+                            variant="subtle"
+                            borderRadius="full"
+                            px={2}
+                            py={1}
+                            whiteSpace="nowrap"
+                          >
+                            {getStatusLabel(row.status)}
+                          </Badge>
+                        )}
                       </Flex>
                     </Flex>
 
-                    <SimpleGrid columns={2} gap={2} pl={2} pr={2}>
+                    <SimpleGrid columns={row.isManualProbe ? 1 : 2} gap={2} pl={2} pr={2}>
                       <Box
                         bg="gray.900"
                         borderRadius="md"
@@ -626,7 +636,7 @@ export function DeviceTable({
                             color="gray.500"
                             textTransform="uppercase"
                           >
-                            Pluviômetro
+                            {row.isManualProbe ? "Irrigação Manual" : "Pluviômetro"}
                           </Text>
                         </HStack>
                         <VStack
@@ -635,72 +645,95 @@ export function DeviceTable({
                           justify="center"
                           flex="1"
                         >
-                          <Flex justify="space-between" align="center">
-                            <Text fontSize="xs" color="gray.500">
-                              1h
-                            </Text>
-                            <Text
-                              fontSize="sm"
-                              fontWeight="bold"
-                              color="blue.200"
-                            >
-                              {formatRain(row.rain_1h)}{" "}
-                              <Text
-                                as="span"
-                                fontSize="10px"
-                                color="gray.500"
-                                fontWeight="normal"
-                              >
-                                mm
+                          {row.isManualProbe ? (
+                            <VStack spacing={2} justify="center" h="100%" pb={2}>
+                              <Text color="blue.400" fontWeight="bold" fontSize="lg">
+                                {row.irrigation_value_mm != null ? row.irrigation_value_mm.toFixed(1) : "-"} mm
                               </Text>
-                            </Text>
-                          </Flex>
-                          <Flex justify="space-between" align="center">
-                            <Text fontSize="xs" color="gray.500">
-                              24h
-                            </Text>
-                            <Text
-                              fontSize="sm"
-                              fontWeight="bold"
-                              color="blue.300"
-                            >
-                              {formatRain(row.rain_24h)}{" "}
-                              <Text
-                                as="span"
-                                fontSize="10px"
-                                color="gray.500"
-                                fontWeight="normal"
-                              >
-                                mm
-                              </Text>
-                            </Text>
-                          </Flex>
-                          <Flex justify="space-between" align="center">
-                            <Text fontSize="xs" color="gray.500">
-                              7d
-                            </Text>
-                            <Text
-                              fontSize="sm"
-                              fontWeight="bold"
-                              color="blue.400"
-                            >
-                              {formatRain(row.rain_7d)}{" "}
-                              <Text
-                                as="span"
-                                fontSize="10px"
-                                color="gray.500"
-                                fontWeight="normal"
-                              >
-                                mm
-                              </Text>
-                            </Text>
-                          </Flex>
+                              <VStack spacing={1} align="stretch" w="100%" px={2}>
+                                {row.irrigation_records?.slice(0, 3).map(record => (
+                                  <Flex key={record.id} justify="space-between" align="center" bg="blackAlpha.300" p={1} borderRadius="sm" border="1px solid" borderColor="whiteAlpha.100">
+                                    <Text fontSize="10px" color="gray.500">{new Date(record.date).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})} {new Date(record.date).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</Text>
+                                    <Text fontSize="xs" color="blue.300" fontWeight="bold">+{record.irrigation_value_mm}mm</Text>
+                                  </Flex>
+                                ))}
+                                {(!row.irrigation_records || row.irrigation_records.length === 0) && (
+                                  <Text fontSize="10px" color="gray.500" textAlign="center">Nenhum registro</Text>
+                                )}
+                              </VStack>
+                            </VStack>
+                          ) : (
+                            <>
+                              <Flex justify="space-between" align="center">
+                                <Text fontSize="xs" color="gray.500">
+                                  1h
+                                </Text>
+                                <Text
+                                  fontSize="sm"
+                                  fontWeight="bold"
+                                  color="blue.200"
+                                >
+                                  {formatRain(row.rain_1h)}{" "}
+                                  <Text
+                                    as="span"
+                                    fontSize="10px"
+                                    color="gray.500"
+                                    fontWeight="normal"
+                                  >
+                                    mm
+                                  </Text>
+                                </Text>
+                              </Flex>
+                              <Flex justify="space-between" align="center">
+                                <Text fontSize="xs" color="gray.500">
+                                  24h
+                                </Text>
+                                <Text
+                                  fontSize="sm"
+                                  fontWeight="bold"
+                                  color="blue.300"
+                                >
+                                  {formatRain(row.rain_24h)}{" "}
+                                  <Text
+                                    as="span"
+                                    fontSize="10px"
+                                    color="gray.500"
+                                    fontWeight="normal"
+                                  >
+                                    mm
+                                  </Text>
+                                </Text>
+                              </Flex>
+                              <Flex justify="space-between" align="center">
+                                <Text fontSize="xs" color="gray.500">
+                                  7d
+                                </Text>
+                                <Text
+                                  fontSize="sm"
+                                  fontWeight="bold"
+                                  color="blue.400"
+                                >
+                                  {formatRain(row.rain_7d)}{" "}
+                                  <Text
+                                    as="span"
+                                    fontSize="10px"
+                                    color="gray.500"
+                                    fontWeight="normal"
+                                  >
+                                    mm
+                                  </Text>
+                                </Text>
+                              </Flex>
+                            </>
+                          )}
                         </VStack>
                       </Box>
-                      <MobileForecastCard
-                        lat={row.latitude}
-                        lng={row.longitude}
-                      />
+                      {!row.isManualProbe && (
+                        <MobileForecastCard
+                          lat={row.latitude}
+                          lng={row.longitude}
+                        />
+                      )}
                     </SimpleGrid>
 
                     <Box
@@ -781,20 +814,22 @@ export function DeviceTable({
                           </Text>
                         </Box>
                         <Box textAlign="right" pl={2}>
-                          <Button
-                            size="sm"
-                            colorScheme="blue"
-                            bg="blue.500"
-                            color="white"
-                            variant="solid"
-                            _hover={{ bg: "blue.600" }}
-                            onClick={(e) => toggleFlip(row.id, e)}
-                            leftIcon={<Icon as={MdAutoAwesome} />}
-                            borderRadius="full"
-                            px={3}
-                          >
-                            Copiloto
-                          </Button>
+                          {!row.isManualProbe && (
+                            <Button
+                              size="sm"
+                              colorScheme="blue"
+                              bg="blue.500"
+                              color="white"
+                              variant="solid"
+                              _hover={{ bg: "blue.600" }}
+                              onClick={(e) => toggleFlip(row.id, e)}
+                              leftIcon={<Icon as={MdAutoAwesome} />}
+                              borderRadius="full"
+                              px={3}
+                            >
+                              Copiloto
+                            </Button>
+                          )}
                         </Box>
                       </Flex>
                     </Box>
@@ -1004,8 +1039,8 @@ export function DeviceTable({
 
                 return (
                   <Tr
-                    key={`desktop-row-${row.id}`}
-                    onClick={() => onRowClick(row.id)}
+                    key={`desktop-row-${row.isManualProbe ? row.esn : row.id}`}
+                    onClick={() => onRowClick(row.isManualProbe ? row.esn : row.id)}
                     role="group"
                     cursor="pointer"
                     _hover={{ bg: "whiteAlpha.50" }}
@@ -1046,7 +1081,7 @@ export function DeviceTable({
                             {row.name || row.esn}
                           </Text>
                           <HStack spacing={3} fontSize="11px" color="gray.400">
-                            <Text>ESN: {row.esn}</Text>
+                            {!row.isManualProbe && <Text>ESN: {row.esn}</Text>}
                             <Text>
                               Último Envio: {row.lastCommunicationFormatted}
                             </Text>
@@ -1063,7 +1098,7 @@ export function DeviceTable({
                               </Text>
                             </HStack>
                             <HStack spacing={2} ml={2}>
-                              {isAdmin && (
+                              {isAdmin && !row.isManualProbe && (
                                 <Flex
                                   align="center"
                                   px={2}
@@ -1088,32 +1123,34 @@ export function DeviceTable({
                                   {isOffline ? "Offline" : "Online"}
                                 </Flex>
                               )}
-                              {isAdmin && (
+                              {isAdmin && !row.isManualProbe && (
                                 <Text color="whiteAlpha.400" fontSize="xs">
                                   |
                                 </Text>
                               )}
-                              <Flex
-                                align="center"
-                                px={2}
-                                py={0.5}
-                                rounded="full"
-                                bg={badgeBg}
-                                color={badgeColor}
-                                fontSize="10px"
-                                fontWeight="bold"
-                                letterSpacing="wider"
-                                textTransform="uppercase"
-                              >
-                                <Box
-                                  h={1.5}
-                                  w={1.5}
+                              {!row.isManualProbe && (
+                                <Flex
+                                  align="center"
+                                  px={2}
+                                  py={0.5}
                                   rounded="full"
-                                  bg={badgeDot}
-                                  mr={1}
-                                />
-                                {getStatusLabel(row.status)}
-                              </Flex>
+                                  bg={badgeBg}
+                                  color={badgeColor}
+                                  fontSize="10px"
+                                  fontWeight="bold"
+                                  letterSpacing="wider"
+                                  textTransform="uppercase"
+                                >
+                                  <Box
+                                    h={1.5}
+                                    w={1.5}
+                                    rounded="full"
+                                    bg={badgeDot}
+                                    mr={1}
+                                  />
+                                  {getStatusLabel(row.status)}
+                                </Flex>
+                              )}
                             </HStack>
                           </HStack>
                         </VStack>
@@ -1193,95 +1230,138 @@ export function DeviceTable({
                       </Flex>
                     </Td>
 
-                    <Td
-                      py={4}
-                      px={4}
-                      borderLeft="1px solid"
-                      borderColor="whiteAlpha.100"
-                      borderBottom="none"
-                      maxW="300px"
-                    >
-                      {/* Prop preloadedObservacao injetada aqui */}
-                      <CopilotoText
-                        esn={row.esn}
-                        preloadedSugestao={row.sugestao || row.copiloto_acao}
-                        preloadedObservacao={row.observacao}
-                        isDesktop={true}
-                      />
-                    </Td>
+                    {row.isManualProbe ? (
+                      <Td
+                        py={4}
+                        px={4}
+                        borderLeft="1px solid"
+                        borderColor="whiteAlpha.100"
+                        borderBottom="none"
+                        colSpan={3}
+                      >
+                        <Flex justify="space-between" align="center" h="100%" bg="whiteAlpha.50" p={4} borderRadius="md" border="1px solid" borderColor="whiteAlpha.200">
+                          <Flex align="center" gap={6}>
+                            <Icon as={FaTint} boxSize={5} color="blue.400" />
+                            <VStack align="start" spacing={0}>
+                              <Text fontSize="sm" color="white" fontWeight="bold">Irrigação Manual</Text>
+                              <Text fontSize="xs" color="gray.400">Acumulado (7 dias)</Text>
+                            </VStack>
+                            <VStack spacing={0} align="start">
+                              <Text color="blue.400" fontWeight="bold" fontSize="xl">
+                                {row.irrigation_value_mm != null ? row.irrigation_value_mm.toFixed(1) : "0.0"} <Text as="span" fontSize="sm" color="gray.500">mm</Text>
+                              </Text>
+                              {row.irrigation_records && row.irrigation_records.length > 0 && (
+                                <Text fontSize="10px" color="gray.500">
+                                  {row.irrigation_records.filter(r => new Date(r.date).getTime() >= Date.now() - 7*24*60*60*1000).length} registro(s)
+                                </Text>
+                              )}
+                            </VStack>
+                          </Flex>
+                          <HStack spacing={4} overflowX="auto">
+                             {row.irrigation_records?.slice(0, 5).map(record => (
+                                <VStack key={record.id} spacing={0} bg="blackAlpha.300" p={2} borderRadius="md" border="1px solid" borderColor="whiteAlpha.100" minW="80px">
+                                   <Text fontSize="10px" color="gray.500" whiteSpace="nowrap">{new Date(record.date).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})} {new Date(record.date).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</Text>
+                                   <Text fontSize="sm" color="blue.300" fontWeight="bold">+{record.irrigation_value_mm}mm</Text>
+                                </VStack>
+                             ))}
+                             {(!row.irrigation_records || row.irrigation_records.length === 0) && (
+                                <Text fontSize="xs" color="gray.500" fontStyle="italic">Nenhum registro</Text>
+                             )}
+                          </HStack>
+                        </Flex>
+                      </Td>
+                    ) : (
+                      <>
+                        <Td
+                          py={4}
+                          px={4}
+                          borderLeft="1px solid"
+                          borderColor="whiteAlpha.100"
+                          borderBottom="none"
+                          maxW="300px"
+                        >
+                          <CopilotoText
+                            esn={row.esn as string}
+                            preloadedSugestao={row.sugestao || row.copiloto_acao}
+                            preloadedObservacao={row.observacao}
+                            isDesktop={true}
+                          />
+                        </Td>
 
-                    <Td
-                      py={4}
-                      px={4}
-                      textAlign="center"
-                      borderLeft="1px solid"
-                      borderColor="whiteAlpha.100"
-                      borderBottom="none"
-                    >
-                      <HStack spacing={4} justify="center" whiteSpace="nowrap">
-                        <VStack spacing={0}>
-                          <Text
-                            fontSize="10px"
-                            color="gray.500"
-                            textTransform="uppercase"
-                          >
-                            1h
-                          </Text>
-                          <Text
-                            color="blue.400"
-                            fontWeight="bold"
-                            fontSize="md"
-                          >
-                            {formatRain(row.rain_1h)}
-                          </Text>
-                        </VStack>
-                        <Box w="1px" h="20px" bg="whiteAlpha.200" />
-                        <VStack spacing={0}>
-                          <Text
-                            fontSize="10px"
-                            color="gray.500"
-                            textTransform="uppercase"
-                          >
-                            24h
-                          </Text>
-                          <Text
-                            color="blue.400"
-                            fontWeight="bold"
-                            fontSize="md"
-                          >
-                            {formatRain(row.rain_24h)}
-                          </Text>
-                        </VStack>
-                        <Box w="1px" h="20px" bg="whiteAlpha.200" />
-                        <VStack spacing={0}>
-                          <Text
-                            fontSize="10px"
-                            color="gray.500"
-                            textTransform="uppercase"
-                          >
-                            7d
-                          </Text>
-                          <Text
-                            color="blue.400"
-                            fontWeight="bold"
-                            fontSize="md"
-                          >
-                            {formatRain(row.rain_7d)}
-                          </Text>
-                        </VStack>
-                      </HStack>
-                    </Td>
+                        <Td
+                          py={4}
+                          px={4}
+                          textAlign="center"
+                          borderLeft="1px solid"
+                          borderColor="whiteAlpha.100"
+                          borderBottom="none"
+                        >
+                          <HStack spacing={4} justify="center" whiteSpace="nowrap">
+                            <VStack spacing={0}>
+                              <Text
+                                fontSize="10px"
+                                color="gray.500"
+                                textTransform="uppercase"
+                              >
+                                1h
+                              </Text>
+                              <Text
+                                color="blue.400"
+                                fontWeight="bold"
+                                fontSize="md"
+                              >
+                                {formatRain(row.rain_1h)}
+                              </Text>
+                            </VStack>
+                            <Box w="1px" h="20px" bg="whiteAlpha.200" />
+                            <VStack spacing={0}>
+                              <Text
+                                fontSize="10px"
+                                color="gray.500"
+                                textTransform="uppercase"
+                              >
+                                24h
+                              </Text>
+                              <Text
+                                color="blue.400"
+                                fontWeight="bold"
+                                fontSize="md"
+                              >
+                                {formatRain(row.rain_24h)}
+                              </Text>
+                            </VStack>
+                            <Box w="1px" h="20px" bg="whiteAlpha.200" />
+                            <VStack spacing={0}>
+                              <Text
+                                fontSize="10px"
+                                color="gray.500"
+                                textTransform="uppercase"
+                              >
+                                7d
+                              </Text>
+                              <Text
+                                color="blue.400"
+                                fontWeight="bold"
+                                fontSize="md"
+                              >
+                                {formatRain(row.rain_7d)}
+                              </Text>
+                            </VStack>
+                          </HStack>
+                        </Td>
 
-                    <Td
-                      py={4}
-                      px={4}
-                      borderLeft="1px solid"
-                      borderColor="whiteAlpha.100"
-                      borderBottom="none"
-                      minW="200px"
-                    >
-                      <ForecastCell lat={row.latitude} lng={row.longitude} />
-                    </Td>
+                        <Td
+                          py={4}
+                          px={4}
+                          borderLeft="1px solid"
+                          borderColor="whiteAlpha.100"
+                          borderBottom="none"
+                          minW="200px"
+                        >
+                          <ForecastCell lat={row.latitude} lng={row.longitude} />
+                        </Td>
+                      </>
+                    )}
                   </Tr>
                 );
               })}

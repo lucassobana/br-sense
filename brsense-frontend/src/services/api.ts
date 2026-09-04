@@ -210,3 +210,41 @@ export const updateDeviceConfig = async (
   });
   return response.data;
 };
+
+// --- Funções de Sondas Manuais ---
+
+export const getManualProbes = async (farmId: number) => {
+  const response = await api.get<import("../types").ManualProbe[]>(`/api/manual-probes/farm/${farmId}`);
+  return response.data;
+};
+
+export const createManualProbe = async (data: {
+  farm_id: number;
+  name: string;
+  latitude: number;
+  longitude: number;
+  irrigation_value_mm: number;
+}) => {
+  const response = await api.post<import("../types").ManualProbe>("/api/manual-probes/", data);
+  return response.data;
+};
+
+export const updateManualProbe = async (id: number, data: { name?: string; irrigation_value_mm?: number }) => {
+  const response = await api.put<import("../types").ManualProbe>(`/api/manual-probes/${id}`, data);
+  return response.data;
+};
+
+export const deleteManualProbe = async (id: number) => {
+  const response = await api.delete(`/api/manual-probes/${id}`);
+  return response.data;
+};
+
+export const getManualIrrigations = async (probeId: number) => {
+  const response = await api.get<import("../types").ManualIrrigationRecord[]>(`/api/manual-probes/${probeId}/irrigations`);
+  return response.data;
+};
+
+export const addManualIrrigation = async (probeId: number, data: { irrigation_value_mm: number; date: string }) => {
+  const response = await api.post<import("../types").ManualIrrigationRecord>(`/api/manual-probes/${probeId}/irrigations`, data);
+  return response.data;
+};

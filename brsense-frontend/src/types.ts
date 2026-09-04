@@ -43,6 +43,7 @@ export interface Probe {
   rain_7d?: number;
   rain_15d?: number;
   rain_30d?: number;
+  isManualProbe?: boolean;
 }
 
 export interface Farm {
@@ -75,4 +76,24 @@ export interface DailyForecast {
     precipSum: number;
     tempRange: [number, number];
     et0: number;
+}
+
+export interface ManualProbe {
+  id: number;
+  farm_id: number;
+  name: string;
+  latitude: number;
+  longitude: number;
+  irrigation_value_mm: number;
+  created_at: string;
+  updated_at: string;
+  irrigation_records?: ManualIrrigationRecord[];
+}
+
+export interface ManualIrrigationRecord {
+  id: number;
+  manual_probe_id: number;
+  irrigation_value_mm: number;
+  date: string;
+  created_at: string;
 }

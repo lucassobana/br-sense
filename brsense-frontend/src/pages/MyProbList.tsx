@@ -1,16 +1,21 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
     Box,
-    Heading,
-    Container,
-    Spinner,
-    useToast,
     Flex,
-    Text
-} from '@chakra-ui/react';
-import { getProbes, getFarms } from '../services/api'; 
+    Heading,
+    Text,
+    Spinner,
+    Container,
+    Button,
+    Icon,
+    useDisclosure,
+    useToast
+} from "@chakra-ui/react";
+import { FaTint } from "react-icons/fa";
+import { BatchManualIrrigationModal } from "../components/BatchManualIrrigationModal/BatchManualIrrigationModal";
+import { getProbes, getFarms, getManualProbes } from '../services/api'; 
 import { COLORS } from '../colors/colors';
-import type { Probe, Farm } from '../types';
+import type { Probe, Farm, ManualProbe } from '../types';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { DeviceTable, type TableRowData, type SortKey } from '../components/DeviceTable/DeviceTable';
 import { isUserAdmin } from '../services/auth';
@@ -65,6 +70,8 @@ export function MyProbes() {
     const farmIdFilter = searchParams.get('farmId');
 
     const [probes, setProbes] = useState<Probe[]>([]);
+    const [manualProbes, setManualProbes] = useState<ManualProbe[]>([]);
+    const { isOpen: isBatchOpen, onOpen: onBatchOpen, onClose: onBatchClose } = useDisclosure();
     const [farms, setFarms] = useState<Farm[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -84,12 +91,19 @@ export function MyProbes() {
             setLoading(true);
             const [probesData, farmsData] = await Promise.all([getProbes(), getFarms()]);
             
+            const manualProbesArrays = await Promise.all(
+                farmsData.map(f => getManualProbes(f.id).catch(() => [] as ManualProbe[]))
+            );
+            let allManualProbes = manualProbesArrays.flat();
+            
             let finalProbes = probesData;
             if (farmIdFilter) {
                 finalProbes = probesData.filter(probe => probe.farm_id === Number(farmIdFilter));
+                allManualProbes = allManualProbes.filter(probe => probe.farm_id === Number(farmIdFilter));
             }
 
             setProbes(finalProbes);
+            setManualProbes(allManualProbes);
             setFarms(farmsData);
         } catch (error) {
             console.error(error);
@@ -151,6 +165,48 @@ export function MyProbes() {
             };
         });
 
+        const mappedManuals = manualProbes.map((mp) => {
+            const farmName = farms.find(f => f.id === mp.farm_id)?.name ?? "-";
+            
+            let lastTimestamp = 0;
+            let lastDateString = "-";
+            let sortedRecords: ManualIrrigationRecord[] = [];
+            let sum7d = 0;
+
+            if (mp.irrigation_records && mp.irrigation_records.length > 0) {
+              sortedRecords = [...mp.irrigation_records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+              const dateObj = new Date(sortedRecords[0].date);
+              lastTimestamp = dateObj.getTime();
+              lastDateString = formatLastCommunication(dateObj.toISOString());
+              
+              const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+              sum7d = mp.irrigation_records
+                .filter(r => new Date(r.date).getTime() >= sevenDaysAgo)
+                .reduce((acc, r) => acc + r.irrigation_value_mm, 0);
+            }
+
+            return {
+                id: mp.id,
+                esn: `manual_${mp.id}`,
+                name: mp.name,
+                farm_id: mp.farm_id,
+                farmName,
+                latitude: mp.latitude,
+                longitude: mp.longitude,
+                status: "Manual",
+                isManualProbe: true,
+                irrigation_value_mm: sum7d,
+                readings: [],
+                created_at: mp.created_at,
+                updated_at: mp.updated_at,
+                lastCommunicationFormatted: lastDateString,
+                lastCommunicationTimestamp: lastTimestamp,
+                irrigation_records: sortedRecords
+            } as unknown as TableRowData;
+        });
+
+        const combined = [...mapped, ...mappedManuals];
+
         const statusWeight: Record<string, number> = {
             status_critical: 1,
             status_alert: 2,
@@ -159,7 +215,7 @@ export function MyProbes() {
             status_offline: 5,
         };
 
-        return mapped.sort((a, b) => {
+        return combined.sort((a, b) => {
             if (sortConfig.key === "status") {
                 const weightA = statusWeight[a.status] || 99;
                 const weightB = statusWeight[b.status] || 99;
@@ -178,7 +234,7 @@ export function MyProbes() {
             if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
             return 0;
         });
-    }, [probes, farms, sortConfig]);
+    }, [probes, manualProbes, farms, sortConfig]);
 
     const handleSort = (key: SortKey) => {
         setSortConfig((current) => ({
@@ -187,7 +243,7 @@ export function MyProbes() {
         }));
     };
 
-    const handleProbeSelect = (probeId: number) => {
+    const handleProbeSelect = (probeId: number | string) => {
         // Redireciona para o painel de gráficos do Dashboard
         navigate(`/dashboard?probeId=${probeId}`); 
     };
@@ -200,10 +256,29 @@ export function MyProbes() {
                         <Heading color={COLORS.textPrimary} size={{ base: "md", md: "lg" }}>Monitoramento Detalhado</Heading>
                     </Box>
                     
-                    {processedTableData.length > 0 && (
-                        <ExportPdfButton data={processedTableData} />
-                    )}
+                    <Flex align="center" gap={3}>
+                        {manualProbes.length > 0 && (
+                            <Button
+                                size="sm"
+                                colorScheme="blue"
+                                leftIcon={<Icon as={FaTint} />}
+                                onClick={onBatchOpen}
+                            >
+                                Irrigação em Massa
+                            </Button>
+                        )}
+                        {processedTableData.length > 0 && (
+                            <ExportPdfButton data={processedTableData} />
+                        )}
+                    </Flex>
                 </Flex>
+
+                <BatchManualIrrigationModal
+                    isOpen={isBatchOpen}
+                    onClose={onBatchClose}
+                    manualProbes={manualProbes}
+                    onSuccess={loadData}
+                />
 
                 {farms.length === 0 && !loading && (
                     <Box mb={4} p={3} bg="orange.900" borderRadius="md">

@@ -444,21 +444,20 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
                 <Flex align="center" justify="center" w="38px" h="38px" bg="whiteAlpha.100" borderRadius="md">
                   <Icon as={BsCloudRainFill} color={COLORS.primary} boxSize={5} />
                 </Flex>
-                <VStack align="start" spacing={0}>
+                <HStack align="center" spacing={3}>
                   <Text color="white" fontWeight="bold" fontSize="md" noOfLines={1}>
                     Previsão de Chuva
                   </Text>
-                </VStack>
-                <Button 
-                  size="sm" 
-                  leftIcon={<Icon as={MdHistory} />} 
-                  colorScheme="blue" 
-                  variant="outline"
-                  onClick={() => setIsFlipped(true)}
-                  ml={2}
-                >
-                  Histórico
-                </Button>
+                  <Button 
+                    size="sm" 
+                    leftIcon={<Icon as={MdHistory} />} 
+                    colorScheme="blue" 
+                    variant="outline"
+                    onClick={() => setIsFlipped(true)}
+                  >
+                    Histórico
+                  </Button>
+                </HStack>
               </HStack>
 
               <HStack spacing={3}>
@@ -488,6 +487,7 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
                 "&::-webkit-scrollbar": { height: "6px" },
                 "&::-webkit-scrollbar-track": { background: "transparent" },
                 "&::-webkit-scrollbar-thumb": { background: "whiteAlpha.300", borderRadius: "4px" },
+                ".recharts-wrapper": { touchAction: "auto !important" },
               }}
             >
               {renderForecastChart(chartData, frontMaxRainVol, false)}
@@ -598,6 +598,7 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
                 "&::-webkit-scrollbar": { height: "6px" },
                 "&::-webkit-scrollbar-track": { background: "transparent" },
                 "&::-webkit-scrollbar-thumb": { background: "whiteAlpha.300", borderRadius: "4px" },
+                ".recharts-wrapper": { touchAction: "auto !important" },
               }}
             >
               {historyLoading ? (

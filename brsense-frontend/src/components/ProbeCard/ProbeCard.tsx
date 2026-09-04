@@ -74,7 +74,7 @@ const getProgressColor = (value: number, point: MapPoint) => {
 
 interface ProbeCardProps {
   point: MapPoint | null;
-  onViewGraph: (id: number) => void;
+  onViewGraph: (id: number | string) => void;
   onClose: () => void;
   selectedDepthRef?: number | null;
   onSelectDepthRef?: (depth: number | null) => void;
@@ -245,6 +245,8 @@ export function ProbeCard({
 
   if (!point) return null;
 
+
+
   return (
     <Box
       w={{ base: "85vw", sm: "340px" }}
@@ -349,8 +351,9 @@ interface HeaderProps {
   statusLabel: string;
   lastCommunication?: string | null;
   onClose: () => void;
-  onCopilotoClick: () => void;
-  isCopilotoActive: boolean;
+  onCopilotoClick?: () => void;
+  isCopilotoActive?: boolean;
+  hideCopiloto?: boolean;
 }
 
 const Header = ({
@@ -361,6 +364,7 @@ const Header = ({
   onClose,
   onCopilotoClick,
   isCopilotoActive,
+  hideCopiloto,
 }: HeaderProps) => (
   <HStack justify="space-between" align="start">
     <VStack align="start" spacing={1.5} mb={1}>
@@ -370,21 +374,23 @@ const Header = ({
         </Text>
 
         {/* Botão do Copiloto integrado ao lado do título */}
-        <Button
-          size="xs"
-          colorScheme="blue"
-          bg={isCopilotoActive ? "blue.500" : "whiteAlpha.200"}
-          color="white"
-          variant={isCopilotoActive ? "solid" : "outline"}
-          borderColor={isCopilotoActive ? "blue.500" : "whiteAlpha.400"}
-          _hover={{ bg: "blue.600", borderColor: "blue.600" }}
-          onClick={onCopilotoClick}
-          leftIcon={<Icon as={MdAutoAwesome} />}
-          borderRadius="full"
-          px={3}
-        >
-          Copiloto
-        </Button>
+        {!hideCopiloto && (
+          <Button
+            size="xs"
+            colorScheme="blue"
+            bg={isCopilotoActive ? "blue.500" : "whiteAlpha.200"}
+            color="white"
+            variant={isCopilotoActive ? "solid" : "outline"}
+            borderColor={isCopilotoActive ? "blue.500" : "whiteAlpha.400"}
+            _hover={{ bg: "blue.600", borderColor: "blue.600" }}
+            onClick={onCopilotoClick}
+            leftIcon={<Icon as={MdAutoAwesome} />}
+            borderRadius="full"
+            px={3}
+          >
+            Copiloto
+          </Button>
+        )}
       </HStack>
 
       <HStack spacing={2} align="center">

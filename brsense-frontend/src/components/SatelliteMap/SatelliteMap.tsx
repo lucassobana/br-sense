@@ -11,6 +11,7 @@ import { PiAlignTopSimpleFill } from "react-icons/pi";
 import { ProbeCard } from '../ProbeCard/ProbeCard';
 import { RainViewerRadarLayer } from "../RainViewer/RainViewer";
 import { RainViewerTimeline } from '../RainViewer/RainViewerTimeline';
+import { ManualProbeCard } from '../ProbeCard/ManualProbeCard';
 // import { GiRadarSweep } from "react-icons/gi";
 
 
@@ -54,8 +55,8 @@ const fetchRainViewerFrames = async (): Promise<RadarFrame[]> => {
 export type RainPeriod = '1h' | '24h' | '7d' | '15d' | '30d';
 
 // --- Configuração de Ícones Dinâmicos ---
-const createCustomIcon = (color: string, rainValue: number | null, showRain: boolean) => {
-    const IconComponent = PiAlignTopSimpleFill;
+const createCustomIcon = (color: string, rainValue: number | null, showRain: boolean, isManualProbe: boolean = false) => {
+    const IconComponent = isManualProbe ? MdWaterDrop : PiAlignTopSimpleFill;
 
     // Renderiza o ícone e, opcionalmente, a badge de chuva
     const iconMarkup = renderToStaticMarkup(
@@ -137,6 +138,8 @@ export interface MapPoint {
     rain_7d?: number;
     rain_15d?: number;
     rain_30d?: number;
+    isManualProbe?: boolean;
+    irrigation_value_mm?: number;
 }
 
 interface DisplayMapPoint extends MapPoint {
@@ -149,12 +152,15 @@ interface SatelliteMapProps {
     points: MapPoint[];
     center?: [number, number];
     zoom?: number;
-    onViewGraph: (deviceId: number) => void;
+    onViewGraph: (deviceId: number | string) => void;
     initialCenter?: { lat: number; lng: number } | null;
     selectedDepthRefs?: Record<number, number | null>;
     onSelectDepthRef?: (probeId: number, depth: number | null) => void;
     mapDepthFilter?: number;
     onMapDepthFilterChange?: (depth: number) => void;
+    onMapClick?: (lat: number, lng: number) => void;
+    isAddingManualProbe?: boolean;
+    onBatchUpdateClick?: () => void;
 }
 
 const MapRecenter = ({ center, zoom }: { center: [number, number] | null, zoom: number }) => {
@@ -167,9 +173,10 @@ const MapRecenter = ({ center, zoom }: { center: [number, number] | null, zoom: 
     return null;
 };
 
-const MapClickHandler = ({ onMapClick }: { onMapClick: () => void }) => {
+
+const MapClickHandler = ({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) => {
     useMapEvents({
-        click: () => onMapClick(),
+        click: (e) => onMapClick(e.latlng.lat, e.latlng.lng),
     });
     return null;
 };
@@ -410,8 +417,12 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     selectedDepthRefs = {},
     onSelectDepthRef,
     mapDepthFilter = 20,
-    onMapDepthFilterChange
+    onMapDepthFilterChange,
+    onMapClick,
+    isAddingManualProbe = false,
+    onBatchUpdateClick
 }) => {
+
     const [selectedPoint, setSelectedPoint] = useState<MapPoint | null>(null);
     const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
 
@@ -734,7 +745,13 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                     />
                 )}
 
-                <MapClickHandler onMapClick={() => setSelectedPoint(null)} />
+                <MapClickHandler onMapClick={(lat, lng) => {
+                    if (isAddingManualProbe && onMapClick) {
+                        onMapClick(lat, lng);
+                    } else {
+                        setSelectedPoint(null);
+                    }
+                }} />
 
                 {/* Renderização dos pontos */}
                 {processedPoints.map((point) => {
@@ -770,7 +787,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
 
                             <Marker
                                 position={[point.displayLat, point.displayLng]}
-                                icon={createCustomIcon(markerColor, rainVal, showRain)}
+                                icon={createCustomIcon(markerColor, rainVal, showRain, point.isManualProbe)}
                                 eventHandlers={{
                                     click: (e) => {
                                         L.DomEvent.stopPropagation(e);
@@ -795,13 +812,21 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                         bg="rgba(26, 32, 44, 0.95)"
                         borderRadius="xl"
                     >
-                        <ProbeCard
-                            point={selectedPoint}
-                            onViewGraph={onViewGraph}
-                            onClose={() => setSelectedPoint(null)}
-                            selectedDepthRef={selectedDepthRefs[selectedPoint.id] ?? null}
-                            onSelectDepthRef={(depth) => onSelectDepthRef && onSelectDepthRef(selectedPoint.id, depth)}
-                        />
+                        {selectedPoint.isManualProbe ? (
+                            <ManualProbeCard
+                                point={selectedPoint}
+                                onClose={() => setSelectedPoint(null)}
+                                onBatchUpdateClick={onBatchUpdateClick}
+                            />
+                        ) : (
+                            <ProbeCard
+                                point={selectedPoint}
+                                onViewGraph={onViewGraph}
+                                onClose={() => setSelectedPoint(null)}
+                                selectedDepthRef={selectedDepthRefs[selectedPoint.id] ?? null}
+                                onSelectDepthRef={(depth) => onSelectDepthRef && onSelectDepthRef(selectedPoint.id, depth)}
+                            />
+                        )}
                     </Box>
                 )}
             </Fade>
