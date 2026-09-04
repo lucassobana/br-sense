@@ -336,8 +336,8 @@ export function Dashboard() {
           : "",
         lastCommunicationFormatted: lastCommunicationTimestamp
           ? formatLastCommunication(
-              new Date(lastCommunicationTimestamp).toISOString(),
-            )
+            new Date(lastCommunicationTimestamp).toISOString(),
+          )
           : "-",
         lastCommunicationTimestamp,
       };
@@ -641,7 +641,7 @@ export function Dashboard() {
 
             {/* CORREÇÃO 2: Removido o display="none" para dispositivos móveis 
                 Assim os cards mobile do DeviceTable renderizam na tela normalmente */}
-            <Container maxW="full" mt={8} mb={10} px={{ base: 4, lg: 12 }} display={{base: "none", md: "block"}}>
+            <Container maxW="full" mt={8} mb={10} px={{ base: 4, lg: 12 }} display={{ base: "none", md: "block" }}>
               <Flex
                 justify="space-between"
                 align="center"
@@ -821,8 +821,9 @@ export function Dashboard() {
                       readings={chartData}
                       isLoading={loadingChart}
                       cardTitle={`Pluviometria`}
+                      esn={selectedProbe.esn}
                     />
-                    <WeatherChart data={forecast} isLoading={loadingForecast} />
+                    <WeatherChart data={forecast} isLoading={loadingForecast} lat={selectedProbe?.latitude} lng={selectedProbe?.longitude} />
                     <Suspense
                       fallback={
                         <Flex h="300px" justify="center" align="center">
@@ -838,12 +839,12 @@ export function Dashboard() {
                           dap={
                             selectedProbe.data_plantio
                               ? Math.floor(
-                                  (Date.now() -
-                                    new Date(
-                                      selectedProbe.data_plantio,
-                                    ).getTime()) /
-                                    (1000 * 60 * 60 * 24),
-                                )
+                                (Date.now() -
+                                  new Date(
+                                    selectedProbe.data_plantio,
+                                  ).getTime()) /
+                                (1000 * 60 * 60 * 24),
+                              )
                               : undefined
                           }
                           unit="%"

@@ -29,3 +29,31 @@ export const fetchWeatherData = async (lat: number, lng: number): Promise<DailyF
         };
     });
 };
+
+export const fetchWeatherHistory = async (lat: number, lng: number, startDate: string, endDate: string): Promise<DailyForecast[]> => {
+    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=${startDate}&end_date=${endDate}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,et0_fao_evapotranspiration&timezone=America%2FSao_Paulo`;
+    
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Falha ao buscar histórico meteorológico');
+    
+    const data = await res.json();
+
+    return data.daily.time.map((timeStr: string, index: number) => {
+        const dateObj = new Date(timeStr + 'T12:00:00Z');
+        
+        return {
+            date: timeStr,
+            dayName: dateObj.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', ''),
+            dayNumber: dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+            tempMin: data.daily.temperature_2m_min[index],
+            tempMax: data.daily.temperature_2m_max[index],
+            precipProb: 0, // Not provided by archive API
+            precipSum: data.daily.precipitation_sum[index],
+            tempRange: [
+                data.daily.temperature_2m_min[index], 
+                data.daily.temperature_2m_max[index]
+            ],
+            et0: data.daily.et0_fao_evapotranspiration[index]
+        };
+    });
+};

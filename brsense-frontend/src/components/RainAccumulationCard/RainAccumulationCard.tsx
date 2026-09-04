@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Box,
   Flex,
@@ -15,11 +15,13 @@ import {
   PopoverBody,
   FormControl,
   FormLabel,
-  Input
+  Input,
+  useDisclosure
 } from "@chakra-ui/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MdWaterDrop, MdCalendarToday, MdDateRange } from "react-icons/md";
 import { COLORS } from "../../colors/colors";
+import { getDeviceHistory } from "../../services/api";
 
 export type RainPeriod = "1h" | "24h" | "7d" | "15d" | "30d" | "Personalizado";
 
@@ -29,10 +31,11 @@ export interface RainReadingData {
 }
 
 interface RainAccumulationCardProps {
-  readings: RainReadingData[];
+  readings?: RainReadingData[];
   statusCode?: string;
   isLoading?: boolean;
   cardTitle?: string;
+  esn?: string;
 }
 
 const FilterButton = ({
@@ -64,11 +67,14 @@ const FilterButton = ({
 );
 
 export function RainAccumulationCard({
-  readings = [],
-  isLoading = false,
+  readings: initialReadings = [],
+  isLoading: externalIsLoading = false,
   cardTitle = "Chuva Acumulada",
+  esn,
 }: RainAccumulationCardProps) {
   const [period, setPeriod] = useState<RainPeriod>("30d");
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const endDateRef = useRef<HTMLInputElement>(null);
 
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -76,18 +82,76 @@ export function RainAccumulationCard({
   const [tempStartDate, setTempStartDate] = useState('');
   const [tempEndDate, setTempEndDate] = useState('');
 
+  const [fetchedReadings, setFetchedReadings] = useState<RainReadingData[]>([]);
+  const [isFetching, setIsFetching] = useState(false);
+
+  useEffect(() => {
+    if (!esn) return;
+
+    const fetchRainData = async () => {
+      setIsFetching(true);
+      try {
+        let finalStart: string | undefined;
+        let finalEnd: string | undefined;
+
+        if (period === "Personalizado" && startDate && endDate) {
+          const startObj = new Date(startDate);
+          startObj.setHours(0, 0, 0, 0);
+          finalStart = startObj.toISOString();
+
+          const endObj = new Date(endDate);
+          endObj.setHours(23, 59, 59, 999);
+          finalEnd = endObj.toISOString();
+        } else if (period !== "Personalizado") {
+          const now = new Date();
+          const target = new Date(now);
+          switch (period) {
+            case "1h": target.setHours(now.getHours() - 1); break;
+            case "24h": target.setHours(now.getHours() - 24); break;
+            case "7d": target.setDate(now.getDate() - 7); break;
+            case "15d": target.setDate(now.getDate() - 15); break;
+            case "30d": target.setDate(now.getDate() - 30); break;
+          }
+          finalStart = target.toISOString();
+          finalEnd = now.toISOString();
+        } else {
+           setIsFetching(false);
+           return;
+        }
+
+        const history = await getDeviceHistory(esn, {
+          start_date: finalStart,
+          end_date: finalEnd,
+          limit: 500000,
+        });
+
+        setFetchedReadings(history.map(r => ({ timestamp: r.timestamp, rain_cm: r.rain_cm })));
+      } catch (error) {
+        console.error("Erro ao carregar dados de chuva", error);
+      } finally {
+        setIsFetching(false);
+      }
+    };
+
+    fetchRainData();
+  }, [esn, period, startDate, endDate]);
+
+  const activeReadings = esn ? fetchedReadings : initialReadings;
+  const showLoading = esn ? isFetching : externalIsLoading;
+
   const handleApplyFilters = () => {
     setStartDate(tempStartDate);
     setEndDate(tempEndDate);
     setPeriod("Personalizado");
+    onClose();
   };
 
   const { totalRain, lastRainDate } = useMemo(() => {
-    if (!readings || readings.length === 0) {
+    if (!activeReadings || activeReadings.length === 0) {
       return { totalRain: 0, lastRainDate: null, lastRainVolume: 0 };
     }
 
-    let filteredReadings = readings;
+    let filteredReadings = activeReadings;
 
     if (period === "Personalizado" && startDate && endDate) {
       const startObj = new Date(startDate);
@@ -99,7 +163,7 @@ export function RainAccumulationCard({
       const sTime = startObj.getTime();
       const eTime = endObj.getTime();
 
-      filteredReadings = readings.filter(r => {
+      filteredReadings = activeReadings.filter(r => {
         const t = new Date(r.timestamp).getTime();
         return t >= sTime && t <= eTime;
       });
@@ -116,7 +180,7 @@ export function RainAccumulationCard({
 
       const startTime = now - periodOffsets[period as Exclude<RainPeriod, "Personalizado">];
 
-      filteredReadings = readings.filter(
+      filteredReadings = activeReadings.filter(
         (r) => new Date(r.timestamp).getTime() >= startTime,
       );
     }
@@ -149,7 +213,7 @@ export function RainAccumulationCard({
         ? new Date(finalEvent.timestamp)
         : null,
     };
-  }, [readings, period, startDate, endDate]);
+  }, [activeReadings, period, startDate, endDate]);
 
   return (
     <Box
@@ -217,7 +281,7 @@ export function RainAccumulationCard({
           <FilterButton label="15 Dias" value="15d" currentPeriod={period} onSelect={setPeriod} />
           <FilterButton label="30 Dias" value="30d" currentPeriod={period} onSelect={setPeriod} />
 
-          <Popover placement="bottom-end" isLazy>
+          <Popover placement="bottom-end" isLazy isOpen={isOpen} onOpen={onOpen} onClose={onClose} closeOnBlur={false}>
             <PopoverTrigger>
               <Button 
                 size="xs" 
@@ -251,16 +315,46 @@ export function RainAccumulationCard({
                         size="xs" 
                         type="date" 
                         value={tempStartDate} 
-                        onChange={(e) => setTempStartDate(e.target.value)} 
+                        onClick={(e) => {
+                          try {
+                            if ('showPicker' in HTMLInputElement.prototype) {
+                              e.currentTarget.showPicker();
+                            }
+                          } catch (e) { console.debug(e); }
+                        }}
+                        onChange={(e) => {
+                          setTempStartDate(e.target.value);
+                          if (e.target.value && endDateRef.current) {
+                            setTimeout(() => {
+                              try {
+                                if ('showPicker' in HTMLInputElement.prototype) {
+                                  endDateRef.current?.showPicker();
+                                } else {
+                                  endDateRef.current?.focus();
+                                }
+                              } catch {
+                                endDateRef.current?.focus();
+                              }
+                            }, 50);
+                          }
+                        }} 
                         color="white"
                     />
                   </FormControl>
                   <FormControl>
                     <FormLabel fontSize="xs" color="gray.400" mb={1}>Data Final</FormLabel>
                     <Input 
+                        ref={endDateRef}
                         size="xs" 
                         type="date" 
                         value={tempEndDate} 
+                        onClick={(e) => {
+                          try {
+                            if ('showPicker' in HTMLInputElement.prototype) {
+                              e.currentTarget.showPicker();
+                            }
+                          } catch (e) { console.debug(e); }
+                        }}
                         onChange={(e) => setTempEndDate(e.target.value)} 
                         color="white"
                     />
@@ -281,7 +375,7 @@ export function RainAccumulationCard({
       </Flex>
 
       <VStack align="start" spacing={1}>
-        {isLoading ? (
+        {showLoading ? (
           <Skeleton height="40px" width="120px" startColor="gray.700" endColor="gray.600" />
         ) : (
           <AnimatePresence mode="wait">
@@ -305,7 +399,7 @@ export function RainAccumulationCard({
         )}
 
         <Box mt={1}>
-          {isLoading ? (
+          {showLoading ? (
             <Skeleton height="16px" width="180px" startColor="gray.700" endColor="gray.600" mt={2} />
           ) : lastRainDate ? (
             <HStack spacing={1.5} color="gray.400">
