@@ -12,6 +12,9 @@ class ManualProbe(Base):
     latitude: Mapped[float] = mapped_column(Float, nullable=False)
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
     irrigation_value_mm: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    cultura: Mapped[str] = mapped_column(String(64), nullable=True)
+    data_plantio: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    potencia_cv: Mapped[float] = mapped_column(Float, nullable=True)
     
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

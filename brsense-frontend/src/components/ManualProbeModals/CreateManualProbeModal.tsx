@@ -40,6 +40,9 @@ export const CreateManualProbeModal: React.FC<CreateManualProbeModalProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [irrigationMm, setIrrigationMm] = useState<number>(0);
+  const [cultura, setCultura] = useState('');
+  const [dataPlantio, setDataPlantio] = useState('');
+  const [potenciaCv, setPotenciaCv] = useState<number | ''>('');
   const [selectedFarmId, setSelectedFarmId] = useState<number>(farms.length > 0 ? farms[0].id : 0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const toast = useToast();
@@ -68,7 +71,7 @@ export const CreateManualProbeModal: React.FC<CreateManualProbeModalProps> = ({
 
       toast({
         title: 'Sucesso',
-        description: 'Sonda manual criada com sucesso.',
+        description: 'Pin manual criada com sucesso.',
         status: 'success',
         duration: 3000,
         isClosable: true,
@@ -82,7 +85,7 @@ export const CreateManualProbeModal: React.FC<CreateManualProbeModalProps> = ({
     } catch (error) {
       toast({
         title: 'Erro',
-        description: 'Não foi possível criar a sonda manual.',
+        description: 'Não foi possível criar o pin manual.',
         status: 'error',
         duration: 3000,
         isClosable: true,
@@ -96,7 +99,7 @@ export const CreateManualProbeModal: React.FC<CreateManualProbeModalProps> = ({
     <Modal isOpen={isOpen} onClose={onClose} isCentered>
       <ModalOverlay />
       <ModalContent bg="gray.800" color="white">
-        <ModalHeader>Adicionar Sonda Manual</ModalHeader>
+        <ModalHeader>Adicionar Pin Manual</ModalHeader>
         <ModalCloseButton />
         <ModalBody pb={6}>
           {farms.length > 1 && (
@@ -119,11 +122,49 @@ export const CreateManualProbeModal: React.FC<CreateManualProbeModalProps> = ({
           )}
 
           <FormControl>
-            <FormLabel>Nome da Sonda</FormLabel>
+            <FormLabel>Nome do Pin</FormLabel>
             <Input
               placeholder="Ex: Talhão 1"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              bg="gray.700"
+              border="none"
+              _focus={{ ring: 2, ringColor: "blue.400" }}
+            />
+          </FormControl>
+
+          <FormControl mt={4}>
+            <FormLabel>Cultura</FormLabel>
+            <Input
+              placeholder="Ex: Soja"
+              value={cultura}
+              onChange={(e) => setCultura(e.target.value)}
+              bg="gray.700"
+              border="none"
+              _focus={{ ring: 2, ringColor: "blue.400" }}
+            />
+          </FormControl>
+
+          <FormControl mt={4}>
+            <FormLabel>Data Plantio</FormLabel>
+            <Input
+              type="date"
+              value={dataPlantio}
+              onChange={(e) => setDataPlantio(e.target.value)}
+              bg="gray.700"
+              border="none"
+              _focus={{ ring: 2, ringColor: "blue.400" }}
+              css={{ '::-webkit-calendar-picker-indicator': { filter: 'invert(1)' } }}
+            />
+          </FormControl>
+
+          <FormControl mt={4}>
+            <FormLabel>CV do Pivô</FormLabel>
+            <Input
+              type="number"
+              placeholder="Ex: 50"
+              value={potenciaCv}
+              onChange={(e) => setPotenciaCv(e.target.value ? Number(e.target.value) : '')}
               bg="gray.700"
               border="none"
               _focus={{ ring: 2, ringColor: "blue.400" }}

@@ -161,6 +161,7 @@ interface SatelliteMapProps {
     onMapClick?: (lat: number, lng: number) => void;
     isAddingManualProbe?: boolean;
     onBatchUpdateClick?: () => void;
+    onDeleteManualProbe?: (id: number) => void;
 }
 
 const MapRecenter = ({ center, zoom }: { center: [number, number] | null, zoom: number }) => {
@@ -409,6 +410,7 @@ const ZoomWatcher = ({
 
 
 export const SatelliteMap: React.FC<SatelliteMapProps> = ({
+    onBatchUpdateClick,
     points,
     center = [-22.4319, -46.9578],
     zoom = 13,
@@ -420,7 +422,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     onMapDepthFilterChange,
     onMapClick,
     isAddingManualProbe = false,
-    onBatchUpdateClick
+    onDeleteManualProbe,
 }) => {
 
     const [selectedPoint, setSelectedPoint] = useState<MapPoint | null>(null);
@@ -760,7 +762,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                         ? probeDepthRef
                         : mapDepthFilter;
 
-                    const markerColor = getMarkerColorForDepth(point, activeDepth);
+                    const markerColor = point.isManualProbe ? "#00A3C4" : getMarkerColorForDepth(point, activeDepth);
 
                     let rainVal = 0;
                     if (rainPeriod === '1h') rainVal = point.rain_1h ?? 0;
@@ -817,6 +819,12 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                                 point={selectedPoint}
                                 onClose={() => setSelectedPoint(null)}
                                 onBatchUpdateClick={onBatchUpdateClick}
+                                onDeleteManualProbe={(id) => {
+                                    if (onDeleteManualProbe) {
+                                        onDeleteManualProbe(id);
+                                        setSelectedPoint(null);
+                                    }
+                                }}
                             />
                         ) : (
                             <ProbeCard

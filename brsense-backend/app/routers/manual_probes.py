@@ -21,6 +21,9 @@ def _build_probe_response(probe: ManualProbe, irrigations: list) -> dict:
         "latitude": probe.latitude,
         "longitude": probe.longitude,
         "irrigation_value_mm": probe.irrigation_value_mm,
+        "cultura": probe.cultura,
+        "data_plantio": probe.data_plantio,
+        "potencia_cv": probe.potencia_cv,
         "created_at": probe.created_at,
         "updated_at": probe.updated_at,
         "irrigation_records": [

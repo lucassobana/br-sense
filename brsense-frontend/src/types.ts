@@ -85,6 +85,9 @@ export interface ManualProbe {
   latitude: number;
   longitude: number;
   irrigation_value_mm: number;
+  cultura?: string | null;
+  data_plantio?: string | null;
+  potencia_cv?: number | null;
   created_at: string;
   updated_at: string;
   irrigation_records?: ManualIrrigationRecord[];

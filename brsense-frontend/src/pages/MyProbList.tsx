@@ -201,7 +201,10 @@ export function MyProbes() {
                 updated_at: mp.updated_at,
                 lastCommunicationFormatted: lastDateString,
                 lastCommunicationTimestamp: lastTimestamp,
-                irrigation_records: sortedRecords
+                irrigation_records: sortedRecords,
+                cultura: mp.cultura,
+                data_plantio: mp.data_plantio,
+                potencia_cv: mp.potencia_cv
             } as unknown as TableRowData;
         });
 

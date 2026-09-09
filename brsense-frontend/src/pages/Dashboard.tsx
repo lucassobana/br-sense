@@ -28,7 +28,7 @@ import {
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { MdArrowBack, MdArrowDropDown } from "react-icons/md";
 import { motion, AnimatePresence } from "framer-motion";
-import { getProbes, getFarms, getDeviceHistory, getManualProbes } from "../services/api";
+import { getProbes, getFarms, getDeviceHistory, getManualProbes, deleteManualProbe } from "../services/api";
 import type { Probe, Farm, ManualProbe, ManualIrrigationRecord } from "../types";
 import type {
   RawApiData,
@@ -252,6 +252,17 @@ export function Dashboard() {
     setBatteryData([]);
   };
 
+  const handleDeleteManualProbe = async (id: number) => {
+    try {
+      await deleteManualProbe(id);
+      toast({ title: "Pin Manual excluído", status: "success", duration: 3000 });
+      refreshManualProbes();
+    } catch (error) {
+      console.error(error);
+      toast({ title: "Erro ao excluir", status: "error", duration: 3000 });
+    }
+  };
+
   const handleSort = (key: SortKey) => {
     setSortConfig((current) => ({
       key,
@@ -328,17 +339,38 @@ export function Dashboard() {
       };
     });
     
-    const manualPoints: MapPoint[] = manualProbes.map((probe) => ({
-      id: probe.id,
-      esn: `manual_${probe.id}`,
-      name: probe.name,
-      lat: probe.latitude,
-      lng: probe.longitude,
-      statusCode: "status_ok", // Fake status so it looks alive
-      readings: [],
-      isManualProbe: true,
-      irrigation_value_mm: probe.irrigation_value_mm
-    }));
+    const manualPoints: MapPoint[] = manualProbes.map((probe) => {
+      const now = Date.now();
+      let r24h = 0, r7d = 0, r15d = 0, r30d = 0;
+      
+      if (probe.irrigation_records) {
+        probe.irrigation_records.forEach((r) => {
+          const t = new Date(r.date).getTime();
+          const diffDays = (now - t) / (1000 * 60 * 60 * 24);
+          if (diffDays <= 1) r24h += r.irrigation_value_mm;
+          if (diffDays <= 7) r7d += r.irrigation_value_mm;
+          if (diffDays <= 15) r15d += r.irrigation_value_mm;
+          if (diffDays <= 30) r30d += r.irrigation_value_mm;
+        });
+      }
+
+      return {
+        id: probe.id,
+        esn: `manual_${probe.id}`,
+        name: probe.name,
+        lat: probe.latitude,
+        lng: probe.longitude,
+        statusCode: "status_ok",
+        readings: [],
+        isManualProbe: true,
+        irrigation_value_mm: probe.irrigation_value_mm,
+        rain_1h: 0,
+        rain_24h: r24h,
+        rain_7d: r7d,
+        rain_15d: r15d,
+        rain_30d: r30d,
+      };
+    });
 
     return [...realPoints, ...manualPoints];
   }, [filteredProbes, selectedDepthRefs, mapDepthFilter, manualProbes]);
@@ -432,10 +464,15 @@ export function Dashboard() {
         lastCommunicationFormatted: lastDateString,
         lastCommunicationTimestamp: lastTimestamp,
         isManualProbe: true,
+        latitude: probe.latitude,
+        longitude: probe.longitude,
         irrigation_value_mm: sum7d,
         created_at: probe.created_at,
         updated_at: probe.updated_at,
-        irrigation_records: sortedRecords
+        irrigation_records: sortedRecords,
+        cultura: probe.cultura,
+        data_plantio: probe.data_plantio,
+        potencia_cv: probe.potencia_cv
       } as unknown as TableRowData;
     });
 
@@ -507,7 +544,7 @@ export function Dashboard() {
 
   useEffect(() => {
     if (viewMode !== "chart" || !selectedProbe || !userIsAdmin) return;
-    if ((selectedProbe as unknown as { isManualProbe?: boolean }).isManualProbe) return; // sondas manuais não têm histórico de bateria
+    if ((selectedProbe as unknown as { isManualProbe?: boolean }).isManualProbe) return; // pins manuais não têm histórico de bateria
 
     const fetchBatteryData = async () => {
       const now = new Date();
@@ -671,7 +708,7 @@ export function Dashboard() {
     );
   }
 
-  const handleProbeSelect = (probeId: number) => {
+  const handleProbeSelect = (probeId: number | string) => {
     setSearchParams({ probeId: String(probeId) });
   };
 
@@ -747,15 +784,16 @@ export function Dashboard() {
                     mapDepthFilter={mapDepthFilter}
                     onMapDepthFilterChange={setMapDepthFilter}
                     isAddingManualProbe={isAddingManualProbe}
+                    onBatchUpdateClick={onBatchOpen}
+                    onDeleteManualProbe={handleDeleteManualProbe}
                     onMapClick={(lat, lng) => {
                         setCreateManualProbeCoords({lat, lng});
                         setIsAddingManualProbe(false);
                     }}
-                    onBatchUpdateClick={onBatchOpen}
                   />
-                  {/* FAB para adicionar Sonda Manual */}
+                  {/* FAB para adicionar Pin Manual */}
                   <IconButton
-                    aria-label="Adicionar Sonda Manual"
+                    aria-label="Adicionar Pin Manual"
                     icon={<MdAdd size={28} />}
                     position="absolute"
                     bottom={{ base: "16px", md: "32px" }}
@@ -898,28 +936,31 @@ export function Dashboard() {
                     overflowY="auto"
                     zIndex={10}
                   >
-                    {processedTableData.map((probe) => (
-                      <MenuItem
-                        key={probe.id}
-                        onClick={() => handleProbeSelect(probe.id)}
-                        bg={
-                          probe.id === selectedProbe.id
-                            ? COLORS.primary
-                            : "gray.800"
-                        }
-                        color="white"
-                        _hover={{
-                          bg:
-                            probe.id === selectedProbe.id
-                              ? COLORS.primaryDark
-                              : "gray.700",
-                        }}
-                        _focus={{
-                          bg:
-                            probe.id === selectedProbe.id
-                              ? COLORS.primaryDark
-                              : "gray.700",
-                        }}
+                    {processedTableData.map((probe) => {
+                      const probeKey = probe.isManualProbe ? probe.esn : probe.id;
+                      const selectedKey = selectedProbe.isManualProbe ? selectedProbe.esn : selectedProbe.id;
+                      return (
+                        <MenuItem
+                          key={probeKey}
+                          onClick={() => handleProbeSelect(probeKey)}
+                          bg={
+                            probeKey === selectedKey
+                              ? COLORS.primary
+                              : "gray.800"
+                          }
+                          color="white"
+                          _hover={{
+                            bg:
+                              probeKey === selectedKey
+                                ? COLORS.primaryDark
+                                : "gray.700",
+                          }}
+                          _focus={{
+                            bg:
+                              probeKey === selectedKey
+                                ? COLORS.primaryDark
+                                : "gray.700",
+                          }}
                       >
                         <Flex align="center" gap={3} w="100%">
                           <Box
@@ -934,7 +975,8 @@ export function Dashboard() {
                           </Text>
                         </Flex>
                       </MenuItem>
-                    ))}
+                    );
+                  })}
                   </MenuList>
                 </Menu>
               </Flex>

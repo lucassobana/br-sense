@@ -21,15 +21,16 @@ import {
   HStack,
   Icon,
 } from "@chakra-ui/react";
-import { MdAdd, MdEdit, MdLocationOn, MdSensors, MdAgriculture } from "react-icons/md";
+import { MdAdd, MdEdit, MdLocationOn, MdSensors, MdAgriculture, MdWaterDrop, MdDelete } from "react-icons/md";
 import { COLORS } from "../colors/colors";
 import { isUserAdmin } from "../services/auth";
 import { Navigate } from "react-router-dom";
-import { getFarms, getProbes, getUsers, type User } from "../services/api";
-import type { Farm, Probe } from "../types";
+import { getFarms, getProbes, getUsers, getManualProbes, deleteManualProbe, type User } from "../services/api";
+import type { Farm, Probe, ManualProbe } from "../types";
 
 import { CreateFarmModal } from "../components/CreateFarmModal/CreateFarmModal";
 import { AddDeviceModal } from "../components/AddDeviceModal/AddDeviceModal";
+import { ManualProbeDetailsModal } from "../components/ManualProbeModals/ManualProbeDetailsModal";
 
 export function Settings() {
   const isAdmin = isUserAdmin();
@@ -37,14 +38,17 @@ export function Settings() {
 
   const [farms, setFarms] = useState<Farm[]>([]);
   const [probes, setProbes] = useState<Probe[]>([]);
+  const [manualProbes, setManualProbes] = useState<ManualProbe[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
   const farmModal = useDisclosure();
   const probeModal = useDisclosure();
+  const manualProbeModal = useDisclosure();
 
   const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
   const [selectedProbe, setSelectedProbe] = useState<Probe | null>(null);
+  const [selectedManualProbe, setSelectedManualProbe] = useState<ManualProbe | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -55,8 +59,12 @@ export function Settings() {
         getUsers(),
       ]);
 
+      const manualProbesArrays = await Promise.all(farmsData.map(f => getManualProbes(f.id).catch(() => [])));
+      const allManualProbes = manualProbesArrays.flat();
+
       setFarms([...farmsData].sort((a, b) => a.id - b.id));
       setProbes(probesData);
+      setManualProbes(allManualProbes);
 
       const userResponse = usersData as { users?: User[] };
 
@@ -87,6 +95,28 @@ export function Settings() {
   const handleEditProbe = (probe: Probe) => {
     setSelectedProbe(probe);
     probeModal.onOpen();
+  };
+
+  const handleEditManualProbe = (probe: ManualProbe) => {
+    setSelectedManualProbe(probe);
+    manualProbeModal.onOpen();
+  };
+
+  const handleDeleteManualProbe = async (id: number) => {
+    if (window.confirm("Tem certeza que deseja excluir este Pin Manual?")) {
+      try {
+        await deleteManualProbe(id);
+        toast({ title: "Pin Manual excluído", status: "success", duration: 3000 });
+        loadData();
+      } catch (error) {
+        toast({ title: "Erro ao excluir", status: "error", duration: 3000 });
+      }
+    }
+  };
+
+  const closeManualProbeModal = () => {
+    setSelectedManualProbe(null);
+    manualProbeModal.onClose();
   };
 
   const handleCreateFarm = () => {
@@ -228,6 +258,18 @@ export function Settings() {
                 whiteSpace="nowrap"
               >
                 Sondas
+              </Tab>
+              <Tab
+                color="white"
+                background={COLORS.tabColor}
+                _selected={{
+                  color: "white",
+                  bg: "#53a6ea",
+                  borderColor: "#2D2D2D",
+                }}
+                whiteSpace="nowrap"
+              >
+                Pins Manuais
               </Tab>
             </TabList>
 
@@ -475,6 +517,92 @@ export function Settings() {
                   )}
                 </SimpleGrid>
               </TabPanel>
+
+              {/* TAB PINS MANUAIS */}
+              <TabPanel p={0}>
+                <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+                  {manualProbes.map((probe) => (
+                    <Box
+                      key={probe.id}
+                      bg="rgba(255,255,255,0.02)"
+                      p={5}
+                      borderRadius="md"
+                      border="1px solid"
+                      borderColor="#2D2D2D"
+                    >
+                      <Flex justify="space-between" align="flex-start" mb={4}>
+                        <HStack>
+                          <Flex
+                            w="32px"
+                            h="32px"
+                            borderRadius="md"
+                            bg="rgba(14, 107, 165, 0.2)"
+                            align="center"
+                            justify="center"
+                          >
+                            <Icon as={MdWaterDrop} color="cyan.400" />
+                          </Flex>
+                          <Box>
+                            <Text fontWeight="bold" color="white" lineHeight="1.2">
+                              {probe.name}
+                            </Text>
+                            <Text fontSize="xs" color="gray.500" fontFamily="monospace">
+                              Pin Manual
+                            </Text>
+                          </Box>
+                        </HStack>
+                        <HStack spacing={1}>
+                          <IconButton
+                            aria-label="Editar"
+                            icon={<MdEdit />}
+                            size="sm"
+                            colorScheme="blue"
+                            variant="ghost"
+                            onClick={() => handleEditManualProbe(probe)}
+                          />
+                          <IconButton
+                            aria-label="Excluir"
+                            icon={<MdDelete />}
+                            size="sm"
+                            colorScheme="red"
+                            variant="ghost"
+                            onClick={() => handleDeleteManualProbe(probe.id)}
+                          />
+                        </HStack>
+                      </Flex>
+
+                      <VStack align="stretch" spacing={3}>
+                        <HStack justify="space-between">
+                          <HStack spacing={1}>
+                            <Icon as={MdAgriculture} color="gray.500" fontSize="sm" />
+                            <Text fontSize="sm" color="gray.400">
+                              Fazenda
+                            </Text>
+                          </HStack>
+                          {probe.farm_id ? (
+                            <Text fontSize="sm" color="white" textAlign="right" noOfLines={1}>
+                              {getFarmName(probe.farm_id)}
+                            </Text>
+                          ) : (
+                            <Text fontSize="sm" color="gray.600">-</Text>
+                          )}
+                        </HStack>
+                        
+                        <Flex justify="space-between" align="center" pt={2} borderTop="1px solid" borderColor="whiteAlpha.100">
+                          <Text fontSize="sm" color="gray.400">Local</Text>
+                          <Text fontSize="sm" color="white">{probe.latitude.toFixed(4)}, {probe.longitude.toFixed(4)}</Text>
+                        </Flex>
+                      </VStack>
+                    </Box>
+                  ))}
+                  {manualProbes.length === 0 && (
+                    <Text color="gray.500" py={4}>
+                      Nenhum Pin Manual cadastrado.
+                    </Text>
+                  )}
+                </SimpleGrid>
+              </TabPanel>
+
             </TabPanels>
           </Tabs>
         )}
@@ -490,6 +618,12 @@ export function Settings() {
           onClose={closeProbeModal}
           onSuccess={loadData}
           initialData={selectedProbe}
+        />
+        <ManualProbeDetailsModal
+          isOpen={manualProbeModal.isOpen}
+          onClose={closeManualProbeModal}
+          probe={selectedManualProbe}
+          onUpdated={loadData}
         />
       </Container>
     </Box>

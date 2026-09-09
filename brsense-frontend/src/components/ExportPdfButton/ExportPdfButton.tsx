@@ -218,37 +218,49 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
 
       if (manualProbes.length > 0) {
         const manualTableColumn = [
-          "Sondas Manuais",
+          "Pins Manuais",
           "Dados",
-          "Histórico de Irrigação (Últimos 7)",
+          "Irrigação Acumulada",
+          "Últimas Irrigações",
+          "Previsão",
         ];
 
         const manualTableRows = await Promise.all(
           manualProbes.map(async (row) => {
-            let historyText = "Nenhuma irrigação registrada.";
+            let historyText = "Nenhum registro";
+            let acumuladoText = "7d: 0.0 mm\n15d: 0.0 mm\n30d: 0.0 mm";
+            
             try {
-              const records = await getManualIrrigations(row.id);
-              if (records && records.length > 0) {
-                const last7 = records.slice(0, 7);
-                historyText = last7.map((rec: { date: string; irrigation_value_mm: number }) => {
-                  const dateStr = new Date(rec.date).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-                  return `${dateStr}: ${rec.irrigation_value_mm} mm`;
+              const records = row.irrigation_records || await getManualIrrigations(row.id) || [];
+              if (records.length > 0) {
+                const last3 = records.slice(0, 3);
+                historyText = last3.map((rec: any) => {
+                  const dateStr = new Date(rec.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                  return `${dateStr}: +${rec.irrigation_value_mm.toFixed(1)} mm`;
                 }).join('\n');
+                
+                const now = Date.now();
+                const calcTotal = (days: number) => {
+                  return records
+                    .filter((r: any) => new Date(r.date).getTime() >= now - days * 24 * 60 * 60 * 1000)
+                    .reduce((acc: number, r: any) => acc + (r.irrigation_value_mm || 0), 0);
+                };
+                acumuladoText = `7d: ${calcTotal(7).toFixed(1)} mm\n15d: ${calcTotal(15).toFixed(1)} mm\n30d: ${calcTotal(30).toFixed(1)} mm`;
               }
             } catch (error) {
               console.error("Erro ao carregar histórico", error);
-              historyText = "Erro ao carregar histórico.";
+              historyText = "Erro ao carregar.";
+              acumuladoText = "Erro ao carregar.";
             }
 
-            return [
-              `${row.name || "-"}
-Fazenda: ${row.farmName}`,
-              `Cultura: ${row.cultura || "-"}
-DAP: ${calcularDAP(row.data_plantio)} dias
-Potência: ${formatarPotencia(row.potencia_cv)}`,
-              `Total (Acumulado): ${row.irrigation_value_mm ?? 0} mm
+            const forecastText = await getForecastText(row);
 
-${historyText}`,
+            return [
+              `${row.name || "-"}\nFazenda: ${row.farmName}\nÚltimo Envio: ${row.lastCommunicationFormatted}`,
+              `Cultura: ${row.cultura || "-"}\nDAP: ${calcularDAP(row.data_plantio)} dias\nPotência: ${formatarPotencia(row.potencia_cv)}`,
+              acumuladoText,
+              historyText,
+              forecastText,
             ];
           })
         );
@@ -258,7 +270,7 @@ ${historyText}`,
 
         doc.setFontSize(14);
         doc.setTextColor(26, 32, 44);
-        doc.text("Sondas Manuais", 14, finalY);
+        doc.text("Pins Manuais", 14, finalY);
 
         autoTable(doc, {
           head: [manualTableColumn],
@@ -282,9 +294,11 @@ ${historyText}`,
             fillColor: [247, 250, 252],
           },
           columnStyles: {
-            0: { cellWidth: 70 },
-            1: { cellWidth: 70 },
-            2: { cellWidth: 135 },
+            0: { cellWidth: 50 },
+            1: { cellWidth: 45 },
+            2: { cellWidth: 40 },
+            3: { cellWidth: 45 },
+            4: { cellWidth: 95 },
           },
         });
       }

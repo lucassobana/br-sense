@@ -438,6 +438,7 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
             border="1px solid"
             borderColor="whiteAlpha.100"
             style={{ backfaceVisibility: "hidden" }}
+            pointerEvents={isFlipped ? "none" : "auto"}
           >
             <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={4} shrink={0}>
               <HStack spacing={3}>
@@ -487,7 +488,9 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
                 "&::-webkit-scrollbar": { height: "6px" },
                 "&::-webkit-scrollbar-track": { background: "transparent" },
                 "&::-webkit-scrollbar-thumb": { background: "whiteAlpha.300", borderRadius: "4px" },
-                ".recharts-wrapper": { touchAction: "auto !important" },
+                WebkitOverflowScrolling: "touch",
+                ".recharts-wrapper": { touchAction: "pan-x pan-y !important" },
+                ".recharts-surface": { pointerEvents: "none" }
               }}
             >
               {renderForecastChart(chartData, frontMaxRainVol, false)}
@@ -509,6 +512,7 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
             border="1px solid"
             borderColor="whiteAlpha.100"
             style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+            pointerEvents={isFlipped ? "auto" : "none"}
           >
             <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={4} shrink={0}>
               <HStack spacing={3}>
@@ -591,14 +595,13 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
               w="100%"
               overflowX="auto"
               overflowY="hidden"
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
               sx={{
                 "&::-webkit-scrollbar": { height: "6px" },
                 "&::-webkit-scrollbar-track": { background: "transparent" },
                 "&::-webkit-scrollbar-thumb": { background: "whiteAlpha.300", borderRadius: "4px" },
-                ".recharts-wrapper": { touchAction: "auto !important" },
+                WebkitOverflowScrolling: "touch",
+                ".recharts-wrapper": { touchAction: "pan-x pan-y !important" },
+                ".recharts-surface": { pointerEvents: "none" }
               }}
             >
               {historyLoading ? (

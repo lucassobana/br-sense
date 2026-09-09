@@ -8,11 +8,11 @@ interface ManualProbeHistoryProps {
   probeId: number;
 }
 
-type Period = "today" | "7d" | "30d" | "90d" | "custom";
+type Period = "7d" | "15d" | "30d" | "90d" | "custom";
 
 const PERIOD_LABELS: Record<Period, string> = {
-  today: "Hoje",
   "7d": "7 dias",
+  "15d": "15 dias",
   "30d": "30 dias",
   "90d": "90 dias",
   custom: "Personalizado",
@@ -27,12 +27,7 @@ function getHourLabel(date: Date): string {
 
 function getStartDate(period: Period): Date {
   const now = new Date();
-  if (period === "today") {
-    const d = new Date(now);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
-  const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
+  const days = period === "15d" ? 15 : period === "7d" ? 7 : period === "30d" ? 30 : 90;
   const d = new Date(now);
   d.setDate(d.getDate() - days);
   return d;
@@ -68,12 +63,12 @@ export function ManualProbeHistory({ probeId }: ManualProbeHistoryProps) {
   const filtered = useMemo(() => {
     let start = getStartDate(period);
     let end = new Date();
-    
+
     if (period === "custom") {
       start = customStart ? new Date(customStart + "T00:00:00") : new Date(0);
       end = customEnd ? new Date(customEnd + "T23:59:59") : new Date();
     }
-    
+
     return [...records]
       .filter((r) => {
         const d = new Date(r.date);
@@ -101,14 +96,13 @@ export function ManualProbeHistory({ probeId }: ManualProbeHistoryProps) {
   const PAD_T = 35;
   const PAD_B = 55;
   const plotH = CHART_H - PAD_T - PAD_B;
-  
+
   const barCount = chronological.length;
   // Calculate dynamic width based on bar count
   const barW = 32; // Thinner bars
   const step = 64; // Space between bars
   const requiredPlotW = barCount * step;
-  const minPlotW = 920 - PAD_L - PAD_R;
-  const plotW = Math.max(requiredPlotW, minPlotW);
+  const plotW = requiredPlotW;
   const CHART_W = plotW + PAD_L + PAD_R;
 
   const niceMax = Math.ceil(maxMm / 2) * 2 || 2;
@@ -154,19 +148,19 @@ export function ManualProbeHistory({ probeId }: ManualProbeHistoryProps) {
                 {PERIOD_LABELS[p]}
               </Box>
             ))}
-            
+
             {period === "custom" && (
               <Flex gap={2} ml={2} align="center">
-                <input 
-                  type="date" 
-                  value={customStart} 
+                <input
+                  type="date"
+                  value={customStart}
                   onChange={(e) => setCustomStart(e.target.value)}
                   style={{ background: "#1c2c49", color: "white", border: "1px solid #223049", borderRadius: "6px", padding: "2px 6px", fontSize: "12px", outline: "none", colorScheme: "dark" }}
                 />
                 <Text color="#94a3b8" fontSize="xs">até</Text>
-                <input 
-                  type="date" 
-                  value={customEnd} 
+                <input
+                  type="date"
+                  value={customEnd}
                   onChange={(e) => setCustomEnd(e.target.value)}
                   style={{ background: "#1c2c49", color: "white", border: "1px solid #223049", borderRadius: "6px", padding: "2px 6px", fontSize: "12px", outline: "none", colorScheme: "dark" }}
                 />
@@ -200,16 +194,8 @@ export function ManualProbeHistory({ probeId }: ManualProbeHistoryProps) {
           </Box>
           {chronological.length > 0 && (
             <Flex align="center" gap={4} fontSize="xs" flexWrap="wrap">
-              <Flex align="center" gap={2}>
-                <Box w={3} h={3} borderRadius="sm" bgGradient="linear(to-t, #1d4ed8, #38bdf8)" />
-                <Text color="#cbd5e1" fontWeight="medium">Volume Aplicado (mm)</Text>
-              </Flex>
-              {chronological.length > 1 && (
-                <Flex align="center" gap={2}>
-                  <Box w={4} borderTop="2px dashed #475569" />
-                  <Text color="#94a3b8">Média ({(totalMm / chronological.length).toFixed(1)} mm)</Text>
-                </Flex>
-              )}
+              <Box w={3} h={3} borderRadius="sm" bgGradient="linear(to-t, #1d4ed8, #38bdf8)" />
+              <Text color="#cbd5e1" fontWeight="medium">Volume Aplicado (mm)</Text>
             </Flex>
           )}
         </Flex>
@@ -232,11 +218,12 @@ export function ManualProbeHistory({ probeId }: ManualProbeHistoryProps) {
           </Flex>
         ) : (
           <Box w="100%" overflowX="auto" pb={2}>
-            <Box w="100%" minW={`${CHART_W}px`}>
+            <Box w="100%" display="flex" justifyContent={barCount <= 12 ? "center" : "flex-start"}>
               <svg
+                width={CHART_W}
+                height={CHART_H}
                 viewBox={`0 0 ${CHART_W} ${CHART_H}`}
-                preserveAspectRatio="xMinYMin meet"
-                style={{ width: "100%", height: "auto", overflow: "visible", userSelect: "none" }}
+                style={{ overflow: "visible", userSelect: "none" }}
               >
                 <defs>
                   <linearGradient id={`bg-${probeId}`} x1="0" x2="0" y1="0" y2="1">
@@ -270,13 +257,6 @@ export function ManualProbeHistory({ probeId }: ManualProbeHistoryProps) {
                   );
                 })}
 
-                {/* Average dashed line */}
-                {chronological.length > 1 && (() => {
-                  const avg = totalMm / chronological.length;
-                  const y = PAD_T + plotH - (avg / niceMax) * plotH;
-                  return <line x1={PAD_L} x2={CHART_W - PAD_R} y1={y} y2={y} stroke="#475569" strokeWidth={1.5} strokeDasharray="6 4" opacity={0.75} />;
-                })()}
-
                 {/* Y label */}
                 <text x={16} y={PAD_T + plotH / 2} textAnchor="middle" fill="#94a3b8" fontSize="11" fontWeight="600" transform={`rotate(-90, 16, ${PAD_T + plotH / 2})`}>mm</text>
 
@@ -285,8 +265,8 @@ export function ManualProbeHistory({ probeId }: ManualProbeHistoryProps) {
                   return chronological.map((r, i) => {
                     const d = new Date(r.date);
                     const barH = Math.max(4, (r.irrigation_value_mm / niceMax) * plotH);
-                    
-                    const startX = requiredPlotW < minPlotW ? PAD_L + (minPlotW - requiredPlotW) / 2 : PAD_L;
+
+                    const startX = PAD_L;
                     const x = startX + step * i + (step - barW) / 2;
                     const y = PAD_T + plotH - barH;
                     const cx = x + barW / 2;
@@ -359,10 +339,11 @@ export function ManualProbeHistory({ probeId }: ManualProbeHistoryProps) {
                 <Box as="tr" borderBottom="1px solid #223049" bg="rgba(17,24,39,0.4)">
                   {["Data e Hora", "Período", "Lâmina d'Água"].map((h) => (
                     <Box
-                      key={h} as="th" py={3} px={5}
+                      key={h} as="th" py={3} px={{ base: 2, md: 5 }}
                       textAlign={h === "Lâmina d'Água" ? "right" : "left"}
                       fontSize="xs" fontWeight="semibold" color="#94a3b8"
                       textTransform="uppercase" letterSpacing="wider"
+                      whiteSpace="nowrap"
                     >
                       {h}
                     </Box>
@@ -380,10 +361,10 @@ export function ManualProbeHistory({ probeId }: ManualProbeHistoryProps) {
                       _hover={{ bg: "#162238" }}
                       transition="background 0.15s"
                     >
-                      <Box as="td" py={3} px={5}>
-                        <Flex align="center" gap={2} fontFamily="monospace" color="#e2e8f0" fontSize="xs">
+                      <Box as="td" py={3} px={{ base: 2, md: 5 }}>
+                        <Flex align="center" gap={2} fontFamily="monospace" color="#e2e8f0" fontSize="xs" flexWrap="wrap">
                           <Box w="6px" h="6px" borderRadius="full" bg={isLatest ? "#38bdf8" : "#475569"} flexShrink={0} />
-                          <Text>{d.toLocaleString("pt-BR")}</Text>
+                          <Text>{d.toLocaleString("pt-BR", {day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit'})}</Text>
                           {isLatest && (
                             <Box
                               px="6px" py="1px" borderRadius="sm"
@@ -395,10 +376,10 @@ export function ManualProbeHistory({ probeId }: ManualProbeHistoryProps) {
                           )}
                         </Flex>
                       </Box>
-                      <Box as="td" py={3} px={5}>
+                      <Box as="td" py={3} px={{ base: 2, md: 5 }}>
                         <Text fontSize="xs" color="#cbd5e1">{getHourLabel(d)}</Text>
                       </Box>
-                      <Box as="td" py={3} px={5} textAlign="right">
+                      <Box as="td" py={3} px={{ base: 2, md: 5 }} textAlign="right" whiteSpace="nowrap">
                         <Box display="inline-flex" alignItems="center" justifyContent="flex-end" gap={2}>
                           <Box
                             px={2} py="2px" borderRadius="md"

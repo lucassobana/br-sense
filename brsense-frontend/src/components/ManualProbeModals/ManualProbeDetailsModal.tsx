@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -11,21 +11,13 @@ import {
   FormControl,
   FormLabel,
   Input,
-  NumberInput,
-  NumberInputField,
-  NumberInputStepper,
-  NumberIncrementStepper,
-  NumberDecrementStepper,
   useToast,
-  Text,
   VStack,
   HStack,
-  IconButton,
   Box
 } from '@chakra-ui/react';
-import { MdEdit, MdDelete } from 'react-icons/md';
-import { updateManualProbe, deleteManualProbe } from '../../services/api';
-import type { ManualProbe } from '../../types';
+import { updateManualProbe, deleteManualProbe, getUserFarms } from '../../services/api';
+import type { ManualProbe, Farm } from '../../types';
 
 interface ManualProbeDetailsModalProps {
   isOpen: boolean;
@@ -40,20 +32,44 @@ export const ManualProbeDetailsModal: React.FC<ManualProbeDetailsModalProps> = (
   probe,
   onUpdated,
 }) => {
-  const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState('');
   const [irrigationMm, setIrrigationMm] = useState<number>(0);
+  const [cultura, setCultura] = useState('');
+  const [dataPlantio, setDataPlantio] = useState('');
+  const [potenciaCv, setPotenciaCv] = useState<number | ''>('');
+  const [selectedFarmId, setSelectedFarmId] = useState<string>('');
+  const [lat, setLat] = useState<string>('');
+  const [lng, setLng] = useState<string>('');
+  const [farms, setFarms] = useState<Farm[]>([]);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const toast = useToast();
 
+  const loadFarms = useCallback(async () => {
+    try {
+      const data = await getUserFarms();
+      setFarms(data);
+    } catch (error) {
+      console.error("Erro ao buscar fazendas", error);
+    }
+  }, []);
+
   useEffect(() => {
+    if (isOpen) {
+      loadFarms();
+    }
     if (probe) {
       setName(probe.name);
+      setSelectedFarmId(probe.farm_id ? String(probe.farm_id) : '');
+      setLat(probe.latitude ? String(probe.latitude) : '');
+      setLng(probe.longitude ? String(probe.longitude) : '');
       setIrrigationMm(probe.irrigation_value_mm);
-      setIsEditing(false);
+      setCultura(probe.cultura || '');
+      setDataPlantio(probe.data_plantio ? probe.data_plantio.split('T')[0] : '');
+      setPotenciaCv(probe.potencia_cv ?? '');
     }
-  }, [probe]);
+  }, [probe, isOpen, loadFarms]);
 
   if (!probe) return null;
 
@@ -72,23 +88,29 @@ export const ManualProbeDetailsModal: React.FC<ManualProbeDetailsModalProps> = (
       setIsSubmitting(true);
       await updateManualProbe(probe.id, {
         name,
+        farm_id: selectedFarmId ? Number(selectedFarmId) : undefined,
+        latitude: lat ? parseFloat(lat.replace(',', '.')) : undefined,
+        longitude: lng ? parseFloat(lng.replace(',', '.')) : undefined,
         irrigation_value_mm: irrigationMm,
+        cultura,
+        data_plantio: dataPlantio || undefined,
+        potencia_cv: potenciaCv !== '' ? Number(potenciaCv) : undefined,
       });
 
       toast({
         title: 'Sucesso',
-        description: 'Sonda manual atualizada.',
+        description: 'Pin manual atualizado.',
         status: 'success',
         duration: 3000,
         isClosable: true,
       });
       
       onUpdated();
-      setIsEditing(false);
+      onClose();
     } catch {
       toast({
         title: 'Erro',
-        description: 'Não foi possível atualizar a sonda manual.',
+        description: 'Não foi possível atualizar o pin manual.',
         status: 'error',
         duration: 3000,
         isClosable: true,
@@ -106,8 +128,8 @@ export const ManualProbeDetailsModal: React.FC<ManualProbeDetailsModalProps> = (
       await deleteManualProbe(probe.id);
 
       toast({
-        title: 'Excluída',
-        description: 'Sonda manual removida.',
+        title: 'Excluído',
+        description: 'Pin manual removido.',
         status: 'info',
         duration: 3000,
         isClosable: true,
@@ -118,7 +140,7 @@ export const ManualProbeDetailsModal: React.FC<ManualProbeDetailsModalProps> = (
     } catch {
       toast({
         title: 'Erro',
-        description: 'Não foi possível excluir a sonda.',
+        description: 'Não foi possível excluir o pin manual.',
         status: 'error',
         duration: 3000,
         isClosable: true,
@@ -133,34 +155,13 @@ export const ManualProbeDetailsModal: React.FC<ManualProbeDetailsModalProps> = (
       <ModalOverlay />
       <ModalContent bg="gray.800" color="white">
         <ModalHeader display="flex" justifyContent="space-between" alignItems="center">
-          {isEditing ? 'Editar Sonda Manual' : 'Detalhes da Sonda Manual'}
-          {!isEditing && (
-            <HStack mr={8}>
-              <IconButton
-                aria-label="Editar"
-                icon={<MdEdit />}
-                size="sm"
-                variant="ghost"
-                onClick={() => setIsEditing(true)}
-              />
-              <IconButton
-                aria-label="Excluir"
-                icon={<MdDelete />}
-                size="sm"
-                colorScheme="red"
-                variant="ghost"
-                isLoading={isDeleting}
-                onClick={handleDelete}
-              />
-            </HStack>
-          )}
+          Editar Pin Manual
         </ModalHeader>
         <ModalCloseButton />
         <ModalBody pb={6}>
-          {isEditing ? (
             <VStack spacing={4} align="stretch">
               <FormControl>
-                <FormLabel>Nome da Sonda</FormLabel>
+                <FormLabel>Nome do Pin</FormLabel>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -171,60 +172,62 @@ export const ManualProbeDetailsModal: React.FC<ManualProbeDetailsModalProps> = (
               </FormControl>
 
               <FormControl>
-                <FormLabel>Valor de Irrigação (mm)</FormLabel>
-                <NumberInput
-                  value={irrigationMm}
-                  onChange={(_, valueAsNumber) => setIrrigationMm(isNaN(valueAsNumber) ? 0 : valueAsNumber)}
-                  min={0}
-                  step={1}
+                <FormLabel>Fazenda do Cliente</FormLabel>
+                <Box as="select"
+                  value={selectedFarmId}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedFarmId(e.target.value)}
+                  w="100%" h="40px" borderRadius="md" px={4} bg="gray.700" color="white"
+                  border="none" outline="none" _focus={{ ring: 2, ringColor: "blue.400" }}
                 >
-                  <NumberInputField 
-                    bg="gray.700" 
-                    border="none"
-                    _focus={{ ring: 2, ringColor: "blue.400" }}
-                  />
-                  <NumberInputStepper>
-                    <NumberIncrementStepper color="white" />
-                    <NumberDecrementStepper color="white" />
-                  </NumberInputStepper>
-                </NumberInput>
+                  <option value="" style={{ background: '#2d3748', color: 'white' }}>Sem Fazenda</option>
+                  {farms.map(f => (
+                    <option key={f.id} value={f.id} style={{ background: '#2d3748', color: 'white' }}>
+                      {f.name}
+                    </option>
+                  ))}
+                </Box>
               </FormControl>
+
+              <HStack spacing={4}>
+                <FormControl>
+                  <FormLabel>Cultura</FormLabel>
+                  <Input placeholder="Ex: Soja" value={cultura} onChange={(e) => setCultura(e.target.value)} bg="gray.700" border="none" _focus={{ ring: 2, ringColor: "blue.400" }} />
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Data Plantio</FormLabel>
+                  <Input type="date" value={dataPlantio} onChange={(e) => setDataPlantio(e.target.value)} bg="gray.700" border="none" _focus={{ ring: 2, ringColor: "blue.400" }} css={{ '::-webkit-calendar-picker-indicator': { filter: 'invert(1)' } }} />
+                </FormControl>
+                <FormControl>
+                  <FormLabel>CV do Pivô</FormLabel>
+                  <Input type="number" placeholder="Ex: 50" value={potenciaCv} onChange={(e) => setPotenciaCv(e.target.value ? Number(e.target.value) : '')} bg="gray.700" border="none" _focus={{ ring: 2, ringColor: "blue.400" }} />
+                </FormControl>
+              </HStack>
+
+              <HStack spacing={4}>
+                <FormControl>
+                  <FormLabel>Latitude</FormLabel>
+                  <Input type="number" step="any" value={lat} onChange={(e) => setLat(e.target.value)} bg="gray.700" border="none" _focus={{ ring: 2, ringColor: "blue.400" }} />
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Longitude</FormLabel>
+                  <Input type="number" step="any" value={lng} onChange={(e) => setLng(e.target.value)} bg="gray.700" border="none" _focus={{ ring: 2, ringColor: "blue.400" }} />
+                </FormControl>
+              </HStack>
             </VStack>
-          ) : (
-            <VStack spacing={6} align="stretch" py={4}>
-              <Box>
-                <Text color="gray.400" fontSize="sm">Nome</Text>
-                <Text fontSize="lg" fontWeight="bold">{probe.name}</Text>
-              </Box>
-              <Box>
-                <Text color="gray.400" fontSize="sm">Irrigação (mm)</Text>
-                <Text fontSize="3xl" fontWeight="bold" color="blue.400">{probe.irrigation_value_mm} mm</Text>
-              </Box>
-              <Box>
-                <Text color="gray.400" fontSize="sm">Coordenadas</Text>
-                <Text fontSize="sm" color="gray.300">
-                  Lat: {probe.latitude.toFixed(6)} | Lng: {probe.longitude.toFixed(6)}
-                </Text>
-              </Box>
-            </VStack>
-          )}
         </ModalBody>
 
-        <ModalFooter>
-          {isEditing ? (
-            <>
-              <Button colorScheme="blue" mr={3} onClick={handleSave} isLoading={isSubmitting}>
-                Salvar
-              </Button>
-              <Button onClick={() => setIsEditing(false)} variant="ghost" _hover={{ bg: "gray.700" }}>
-                Cancelar
-              </Button>
-            </>
-          ) : (
-            <Button onClick={onClose} colorScheme="blue">
-              Fechar
+        <ModalFooter display="flex" justifyContent="space-between">
+          <Button colorScheme="red" variant="ghost" onClick={handleDelete} isLoading={isDeleting}>
+            Excluir
+          </Button>
+          <HStack>
+            <Button variant="ghost" _hover={{ bg: "gray.700" }} onClick={onClose}>
+              Cancelar
             </Button>
-          )}
+            <Button colorScheme="blue" onClick={handleSave} isLoading={isSubmitting}>
+              Salvar
+            </Button>
+          </HStack>
         </ModalFooter>
       </ModalContent>
     </Modal>

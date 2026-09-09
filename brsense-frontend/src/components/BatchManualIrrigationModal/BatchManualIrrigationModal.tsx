@@ -71,7 +71,7 @@ export function BatchManualIrrigationModal({
     if (selectedProbes.length === 0) {
       toast({
         title: "Seleção inválida",
-        description: "Selecione pelo menos uma sonda manual.",
+        description: "Selecione pelo menos um pin manual.",
         status: "warning",
         duration: 3000,
         isClosable: true,
@@ -162,7 +162,7 @@ export function BatchManualIrrigationModal({
                 Irrigação em Massa
               </Text>
               <Text fontSize="sm" color="gray.400" fontWeight="normal">
-                Atualize múltiplas sondas manuais
+                Atualize múltiplas pins manuais
               </Text>
             </Box>
           </Flex>
@@ -217,7 +217,7 @@ export function BatchManualIrrigationModal({
             <Box>
               <Flex justify="space-between" align="center" mb={3}>
                 <Text fontSize="sm" fontWeight="bold" color="gray.300">
-                  Selecionar Sondas ({selectedProbes.length}/{manualProbes.length})
+                  Selecionar Pin ({selectedProbes.length}/{manualProbes.length})
                 </Text>
                 <Checkbox
                   isChecked={allSelected}
@@ -245,7 +245,7 @@ export function BatchManualIrrigationModal({
               >
                 {manualProbes.length === 0 ? (
                   <Text p={4} color="gray.500" textAlign="center" fontSize="sm">
-                    Nenhuma sonda manual encontrada na fazenda.
+                    Nenhum pin manual encontrado na fazenda.
                   </Text>
                 ) : (
                   manualProbes.map((probe) => (
@@ -271,9 +271,6 @@ export function BatchManualIrrigationModal({
                       <Box>
                         <Text fontSize="sm" fontWeight="medium" color="white">
                           {probe.name}
-                        </Text>
-                        <Text fontSize="xs" color="gray.500">
-                          ID: {probe.id}
                         </Text>
                       </Box>
                     </Flex>

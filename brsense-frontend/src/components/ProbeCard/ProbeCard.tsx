@@ -421,14 +421,14 @@ const Header = ({
   </HStack>
 );
 
-interface TabButtonProps {
+export interface TabButtonProps {
   label: string;
   isActive: boolean;
   onClick: () => void;
   icon?: ElementType;
 }
 
-const TabButton = ({ label, isActive, onClick, icon }: TabButtonProps) => (
+export const TabButton = ({ label, isActive, onClick, icon }: TabButtonProps) => (
   <Button
     size="xs"
     flex={1}
@@ -452,7 +452,7 @@ interface RainBoxProps {
   isHighlight?: boolean;
 }
 
-const RainBox = ({ label, value, isHighlight }: RainBoxProps) => (
+export const RainBox = ({ label, value, isHighlight }: RainBoxProps) => (
   <Box
     h="100%"
     minH="65px"

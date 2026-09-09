@@ -29,6 +29,7 @@ export function AddDeviceModal({ isOpen, onClose, onSuccess, farmId, initialData
     const [locationMode, setLocationMode] = useState<'latest' | 'manual'>('latest');
     const [cultura, setCultura] = useState('');
     const [dataPlantio, setDataPlantio] = useState('');
+    const [potenciaCv, setPotenciaCv] = useState<number | ''>('');
 
     const [farms, setFarms] = useState<Farm[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -54,6 +55,7 @@ export function AddDeviceModal({ isOpen, onClose, onSuccess, farmId, initialData
                 setLocationMode('manual');
                 setCultura(initialData.cultura || '');
                 setDataPlantio(initialData.data_plantio ? initialData.data_plantio.split('T')[0] : '');
+                setPotenciaCv(initialData.potencia_cv ?? '');
             } else {
                 setName('');
                 setEsn('');
@@ -62,6 +64,7 @@ export function AddDeviceModal({ isOpen, onClose, onSuccess, farmId, initialData
                 setLocationMode('latest');
                 setCultura('');
                 setDataPlantio('');
+                setPotenciaCv('');
                 setSelectedFarmId(farmId ? String(farmId) : '');
             }
         }
@@ -95,6 +98,7 @@ export function AddDeviceModal({ isOpen, onClose, onSuccess, farmId, initialData
                     farm_id: selectedFarmId ? Number(selectedFarmId) : undefined,
                     cultura,
                     data_plantio: dataPlantio || undefined,
+                    potencia_cv: potenciaCv !== '' ? Number(potenciaCv) : undefined,
                     latitude,
                     longitude
                 });
@@ -103,6 +107,9 @@ export function AddDeviceModal({ isOpen, onClose, onSuccess, farmId, initialData
                 await createDevice({
                     name, esn,
                     farm_id: Number(selectedFarmId),
+                    cultura,
+                    data_plantio: dataPlantio || undefined,
+                    potencia_cv: potenciaCv !== '' ? Number(potenciaCv) : undefined,
                     latitude, longitude
                 });
                 toast({ title: 'Sonda Vinculada!', status: 'success' });
@@ -157,6 +164,10 @@ export function AddDeviceModal({ isOpen, onClose, onSuccess, farmId, initialData
                             <FormControl>
                                 <FormLabel color="gray.300" fontSize="sm">Data Plantio</FormLabel>
                                 <Input type="date" value={dataPlantio} onChange={(e) => setDataPlantio(e.target.value)} bg={COLORS.background} border="none" css={{ '::-webkit-calendar-picker-indicator': { filter: 'invert(1)' } }} />
+                            </FormControl>
+                            <FormControl>
+                                <FormLabel color="gray.300" fontSize="sm">CV do Pivô</FormLabel>
+                                <Input type="number" placeholder="Ex: 50" value={potenciaCv} onChange={(e) => setPotenciaCv(e.target.value ? Number(e.target.value) : '')} bg={COLORS.background} border="none" />
                             </FormControl>
                         </Stack>
 

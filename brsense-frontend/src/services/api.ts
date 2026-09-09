@@ -88,6 +88,9 @@ export interface CreateDeviceDTO {
   farm_id: number;
   latitude?: number;
   longitude?: number;
+  cultura?: string;
+  data_plantio?: string;
+  potencia_cv?: number;
   config_moisture_v1?: number;
   config_moisture_v2?: number;
   config_moisture_v3?: number;
@@ -192,7 +195,7 @@ export const updateFarm = async (
 
 export const updateDeviceAdmin = async (
   esn: string,
-  data: Partial<CreateDeviceDTO & { cultura: string; data_plantio: string }>,
+  data: Partial<CreateDeviceDTO & { cultura: string; data_plantio: string; potencia_cv: number }>,
 ) => {
   const response = await api.patch(`/api/devices/${esn}`, data);
   return response.data;
@@ -224,12 +227,15 @@ export const createManualProbe = async (data: {
   latitude: number;
   longitude: number;
   irrigation_value_mm: number;
+  cultura?: string;
+  data_plantio?: string;
+  potencia_cv?: number;
 }) => {
   const response = await api.post<import("../types").ManualProbe>("/api/manual-probes/", data);
   return response.data;
 };
 
-export const updateManualProbe = async (id: number, data: { name?: string; irrigation_value_mm?: number }) => {
+export const updateManualProbe = async (id: number, data: { name?: string; irrigation_value_mm?: number; cultura?: string; data_plantio?: string; potencia_cv?: number; farm_id?: number; latitude?: number; longitude?: number }) => {
   const response = await api.put<import("../types").ManualProbe>(`/api/manual-probes/${id}`, data);
   return response.data;
 };
