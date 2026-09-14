@@ -11,7 +11,7 @@ import {
   Spinner,
   Icon
 } from "@chakra-ui/react";
-import { MdWaterDrop, MdCloud, MdDelete } from "react-icons/md";
+import { MdWaterDrop, MdCloud, MdDelete, MdEdit } from "react-icons/md";
 import { Grid } from "@chakra-ui/react";
 import { RainBox, TabButton } from "./ProbeCard";
 import { motion, AnimatePresence } from "framer-motion";
@@ -26,9 +26,18 @@ interface ManualProbeCardProps {
   onClose: () => void;
   onBatchUpdateClick?: () => void;
   onDeleteManualProbe?: (id: number) => void;
+  onEditManualProbe?: (id: number) => void;
 }
 
-export function ManualProbeCard({ point, onClose, onBatchUpdateClick, onDeleteManualProbe }: ManualProbeCardProps) {
+export function ManualProbeCard({ point, onClose, onBatchUpdateClick, onDeleteManualProbe, onEditManualProbe }: ManualProbeCardProps) {
+  const calcularDAP = (dataPlantio?: string | null) => {
+    if (!dataPlantio) return "-";
+    const hoje = new Date();
+    const dataP = new Date(dataPlantio);
+    const diffTime = Math.abs(hoje.getTime() - dataP.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
   const [activeTab, setActiveTab] = useState<'front' | 'rain' | 'forecast'>('front');
 
   const [fetching, setFetching] = useState(true);
@@ -84,6 +93,18 @@ export function ManualProbeCard({ point, onClose, onBatchUpdateClick, onDeleteMa
               onClick={() => onBatchUpdateClick && onBatchUpdateClick()}
               borderRadius="md"
             />
+            {onEditManualProbe && (
+              <IconButton
+                aria-label="Editar"
+                icon={<Icon as={MdEdit} />}
+                size="sm"
+                bg="gray.500"
+                color="white"
+                onClick={() => onEditManualProbe(point.id)}
+                borderRadius="md"
+                _hover={{ bg: "gray.600" }}
+              />
+            )}
             {onDeleteManualProbe && (
               <IconButton
                 aria-label="Excluir"
@@ -122,9 +143,16 @@ export function ManualProbeCard({ point, onClose, onBatchUpdateClick, onDeleteMa
           >
             {activeTab === 'front' && (
               <Flex direction="column" h="100%">
-                <Text fontSize="sm" fontWeight="bold" color="gray.300" mb={3}>
-                  Últimas Irrigações
-                </Text>
+                <Flex justify="space-between" align="center" mb={3}>
+                  <Text fontSize="sm" fontWeight="bold" color="gray.300">
+                    Últimas Irrigações
+                  </Text>
+                  {point.data_plantio && (
+                    <Text fontSize="xs" fontWeight="bold" color="green.400" bg="green.900" px={2} py={1} borderRadius="md">
+                      DAP: {calcularDAP(point.data_plantio)} dias
+                    </Text>
+                  )}
+                </Flex>
 
                 {fetching ? (
                   <Flex flex="1" justify="center" align="center">

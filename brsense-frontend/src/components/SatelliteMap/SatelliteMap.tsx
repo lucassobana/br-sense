@@ -140,6 +140,7 @@ export interface MapPoint {
     rain_30d?: number;
     isManualProbe?: boolean;
     irrigation_value_mm?: number;
+    data_plantio?: string | null;
 }
 
 interface DisplayMapPoint extends MapPoint {
@@ -162,6 +163,7 @@ interface SatelliteMapProps {
     isAddingManualProbe?: boolean;
     onBatchUpdateClick?: () => void;
     onDeleteManualProbe?: (id: number) => void;
+    onEditManualProbe?: (id: number) => void;
 }
 
 const MapRecenter = ({ center, zoom }: { center: [number, number] | null, zoom: number }) => {
@@ -423,6 +425,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     onMapClick,
     isAddingManualProbe = false,
     onDeleteManualProbe,
+    onEditManualProbe,
 }) => {
 
     const [selectedPoint, setSelectedPoint] = useState<MapPoint | null>(null);
@@ -430,7 +433,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
 
     // Estados para os Controles no Mapa
     // const [selectedDepth, setSelectedDepth] = useState<number>(20);
-    const [showRain, setShowRain] = useState<boolean>(false);
+    const [showRain, setShowRain] = useState<boolean>(true);
     const [showRadar, setShowRadar] = useState<boolean>(false);
     const [rainPeriod, setRainPeriod] = useState<RainPeriod>('24h'); // Padrão: 24h
 
@@ -825,6 +828,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                                         setSelectedPoint(null);
                                     }
                                 }}
+                                onEditManualProbe={onEditManualProbe}
                             />
                         ) : (
                             <ProbeCard

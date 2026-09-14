@@ -263,6 +263,13 @@ export function Dashboard() {
     }
   };
 
+  const handleEditManualProbe = (id: number) => {
+    const probe = manualProbes.find(p => p.id === id);
+    if (probe) {
+      setSelectedManualProbe(probe);
+    }
+  };
+
   const handleSort = (key: SortKey) => {
     setSortConfig((current) => ({
       key,
@@ -369,6 +376,7 @@ export function Dashboard() {
         rain_7d: r7d,
         rain_15d: r15d,
         rain_30d: r30d,
+        data_plantio: probe.data_plantio,
       };
     });
 
@@ -786,6 +794,7 @@ export function Dashboard() {
                     isAddingManualProbe={isAddingManualProbe}
                     onBatchUpdateClick={onBatchOpen}
                     onDeleteManualProbe={handleDeleteManualProbe}
+                    onEditManualProbe={handleEditManualProbe}
                     onMapClick={(lat, lng) => {
                         setCreateManualProbeCoords({lat, lng});
                         setIsAddingManualProbe(false);
