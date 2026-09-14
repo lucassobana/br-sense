@@ -88,6 +88,37 @@ def read_devices(
     devices = populate_rain_metrics(db, devices)
     
     result_list = []
+    device_ids = [dev.id for dev in devices]
+    
+    if device_ids:
+        # 3. Busca a leitura mais recente por depth de todos os devices de uma vez
+        latest_readings_all = (
+            db.query(Reading)
+            .filter(Reading.device_id.in_(device_ids), Reading.depth_cm.isnot(None), Reading.moisture_pct.isnot(None))
+            .distinct(Reading.device_id, Reading.depth_cm)
+            .order_by(Reading.device_id, Reading.depth_cm, Reading.timestamp.desc())
+            .all()
+        )
+        
+        # 4. Busca a bateria mais recente
+        latest_battery_all = (
+            db.query(Reading)
+            .filter(Reading.device_id.in_(device_ids), Reading.battery_status.isnot(None))
+            .distinct(Reading.device_id)
+            .order_by(Reading.device_id, Reading.timestamp.desc())
+            .all()
+        )
+        
+        from collections import defaultdict
+        readings_map = defaultdict(list)
+        for r in latest_readings_all:
+            readings_map[r.device_id].append(r)
+            
+        battery_map = {r.device_id: r for r in latest_battery_all}
+    else:
+        readings_map = {}
+        battery_map = {}
+        
     for dev in devices:
         # 1. Copia as colunas do banco
         dev_data = {col.name: getattr(dev, col.name) for col in dev.__table__.columns}
@@ -99,42 +130,9 @@ def read_devices(
         dev_data["rain_15d"] = float(getattr(dev, "rain_15d", 0.0))
         dev_data["rain_30d"] = float(getattr(dev, "rain_30d", 0.0))
         
-        # 3. SUBQUERY: Encontra a última leitura de CADA profundidade que tenha humidade válida
-        subquery = (
-            db.query(
-                Reading.depth_cm,
-                func.max(Reading.timestamp).label("max_ts")
-            )
-            .filter(
-                Reading.device_id == dev.id, 
-                Reading.depth_cm.isnot(None),
-                Reading.moisture_pct.isnot(None) # Mantém as cores do mapa a funcionar
-            )
-            .group_by(Reading.depth_cm)
-            .subquery()
-        )
+        all_readings = readings_map.get(dev.id, []).copy()
+        latest_battery = battery_map.get(dev.id)
         
-        # Busca as leituras completas usando a data da subquery
-        latest_depth_readings = (
-            db.query(Reading)
-            .join(
-                subquery,
-                (Reading.depth_cm == subquery.c.depth_cm) &
-                (Reading.timestamp == subquery.c.max_ts)
-            )
-            .filter(Reading.device_id == dev.id)
-            .all()
-        )
-        
-        # 4. Busca a bateria mais recente
-        latest_battery = (
-            db.query(Reading)
-            .filter(Reading.device_id == dev.id, Reading.battery_status.isnot(None))
-            .order_by(desc(Reading.timestamp))
-            .first()
-        )
-        
-        all_readings = list(latest_depth_readings)
         if latest_battery and latest_battery.id not in [r.id for r in all_readings]:
             all_readings.append(latest_battery)
             
