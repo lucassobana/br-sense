@@ -438,27 +438,27 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
             border="1px solid"
             borderColor="whiteAlpha.100"
             style={{ backfaceVisibility: "hidden" }}
+            pointerEvents={isFlipped ? "none" : "auto"}
           >
             <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={4} shrink={0}>
               <HStack spacing={3}>
                 <Flex align="center" justify="center" w="38px" h="38px" bg="whiteAlpha.100" borderRadius="md">
                   <Icon as={BsCloudRainFill} color={COLORS.primary} boxSize={5} />
                 </Flex>
-                <VStack align="start" spacing={0}>
+                <HStack align="center" spacing={3}>
                   <Text color="white" fontWeight="bold" fontSize="md" noOfLines={1}>
                     Previsão de Chuva
                   </Text>
-                </VStack>
-                <Button 
-                  size="sm" 
-                  leftIcon={<Icon as={MdHistory} />} 
-                  colorScheme="blue" 
-                  variant="outline"
-                  onClick={() => setIsFlipped(true)}
-                  ml={2}
-                >
-                  Histórico
-                </Button>
+                  <Button 
+                    size="sm" 
+                    leftIcon={<Icon as={MdHistory} />} 
+                    colorScheme="blue" 
+                    variant="outline"
+                    onClick={() => setIsFlipped(true)}
+                  >
+                    Histórico
+                  </Button>
+                </HStack>
               </HStack>
 
               <HStack spacing={3}>
@@ -488,6 +488,9 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
                 "&::-webkit-scrollbar": { height: "6px" },
                 "&::-webkit-scrollbar-track": { background: "transparent" },
                 "&::-webkit-scrollbar-thumb": { background: "whiteAlpha.300", borderRadius: "4px" },
+                WebkitOverflowScrolling: "touch",
+                ".recharts-wrapper": { touchAction: "pan-x pan-y !important" },
+                ".recharts-surface": { pointerEvents: "none" }
               }}
             >
               {renderForecastChart(chartData, frontMaxRainVol, false)}
@@ -509,6 +512,7 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
             border="1px solid"
             borderColor="whiteAlpha.100"
             style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+            pointerEvents={isFlipped ? "auto" : "none"}
           >
             <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={4} shrink={0}>
               <HStack spacing={3}>
@@ -591,13 +595,13 @@ export const WeatherChart: React.FC<WeatherChartProps> = ({
               w="100%"
               overflowX="auto"
               overflowY="hidden"
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
               sx={{
                 "&::-webkit-scrollbar": { height: "6px" },
                 "&::-webkit-scrollbar-track": { background: "transparent" },
                 "&::-webkit-scrollbar-thumb": { background: "whiteAlpha.300", borderRadius: "4px" },
+                WebkitOverflowScrolling: "touch",
+                ".recharts-wrapper": { touchAction: "pan-x pan-y !important" },
+                ".recharts-surface": { pointerEvents: "none" }
               }}
             >
               {historyLoading ? (

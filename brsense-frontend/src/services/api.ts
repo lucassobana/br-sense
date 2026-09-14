@@ -88,6 +88,9 @@ export interface CreateDeviceDTO {
   farm_id: number;
   latitude?: number;
   longitude?: number;
+  cultura?: string;
+  data_plantio?: string;
+  potencia_cv?: number;
   config_moisture_v1?: number;
   config_moisture_v2?: number;
   config_moisture_v3?: number;
@@ -192,7 +195,7 @@ export const updateFarm = async (
 
 export const updateDeviceAdmin = async (
   esn: string,
-  data: Partial<CreateDeviceDTO & { cultura: string; data_plantio: string }>,
+  data: Partial<CreateDeviceDTO & { cultura: string; data_plantio: string; potencia_cv: number }>,
 ) => {
   const response = await api.patch(`/api/devices/${esn}`, data);
   return response.data;
@@ -208,5 +211,46 @@ export const updateDeviceConfig = async (
     config_moisture_v3: config.v3,
     config_gradient_intensity: config.intensity,
   });
+  return response.data;
+};
+
+// --- Funções de Sondas Manuais ---
+
+export const getManualProbes = async (farmId: number) => {
+  const response = await api.get<import("../types").ManualProbe[]>(`/api/manual-probes/farm/${farmId}`);
+  return response.data;
+};
+
+export const createManualProbe = async (data: {
+  farm_id: number;
+  name: string;
+  latitude: number;
+  longitude: number;
+  irrigation_value_mm: number;
+  cultura?: string;
+  data_plantio?: string;
+  potencia_cv?: number;
+}) => {
+  const response = await api.post<import("../types").ManualProbe>("/api/manual-probes/", data);
+  return response.data;
+};
+
+export const updateManualProbe = async (id: number, data: { name?: string; irrigation_value_mm?: number; cultura?: string; data_plantio?: string; potencia_cv?: number; farm_id?: number; latitude?: number; longitude?: number }) => {
+  const response = await api.put<import("../types").ManualProbe>(`/api/manual-probes/${id}`, data);
+  return response.data;
+};
+
+export const deleteManualProbe = async (id: number) => {
+  const response = await api.delete(`/api/manual-probes/${id}`);
+  return response.data;
+};
+
+export const getManualIrrigations = async (probeId: number) => {
+  const response = await api.get<import("../types").ManualIrrigationRecord[]>(`/api/manual-probes/${probeId}/irrigations`);
+  return response.data;
+};
+
+export const addManualIrrigation = async (probeId: number, data: { irrigation_value_mm: number; date: string }) => {
+  const response = await api.post<import("../types").ManualIrrigationRecord>(`/api/manual-probes/${probeId}/irrigations`, data);
   return response.data;
 };

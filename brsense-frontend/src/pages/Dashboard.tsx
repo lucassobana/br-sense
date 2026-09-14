@@ -23,12 +23,13 @@ import {
   MenuList,
   MenuItem,
   useBreakpointValue,
+  useDisclosure,
 } from "@chakra-ui/react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { MdArrowBack, MdArrowDropDown } from "react-icons/md";
 import { motion, AnimatePresence } from "framer-motion";
-import { getProbes, getFarms, getDeviceHistory } from "../services/api";
-import type { Probe, Farm } from "../types";
+import { getProbes, getFarms, getDeviceHistory, getManualProbes, deleteManualProbe } from "../services/api";
+import type { Probe, Farm, ManualProbe, ManualIrrigationRecord } from "../types";
 import type {
   RawApiData,
   TimeRange,
@@ -44,8 +45,14 @@ import {
   type SortKey,
 } from "../components/DeviceTable/DeviceTable";
 import { WeatherChart } from "../components/WeatherChart/WeatherChart";
+import { ManualProbeHistory } from "../components/ManualProbeHistory/ManualProbeHistory";
 import { useWeatherForecast } from "../hooks/useWeatherForecast";
 import { ExportPdfButton } from "../components/ExportPdfButton/ExportPdfButton";
+import { CreateManualProbeModal } from "../components/ManualProbeModals/CreateManualProbeModal";
+import { ManualProbeDetailsModal } from "../components/ManualProbeModals/ManualProbeDetailsModal";
+import { BatchManualIrrigationModal } from "../components/BatchManualIrrigationModal/BatchManualIrrigationModal";
+import { IconButton } from "@chakra-ui/react";
+import { MdAdd } from "react-icons/md";
 
 const SoilMoistureChart = lazy(() =>
   import("../components/SoilMoistureChart/SoilMoistureChart").then(
@@ -143,6 +150,23 @@ export function Dashboard() {
     [],
   );
 
+  const [manualProbes, setManualProbes] = useState<ManualProbe[]>([]);
+  const [isAddingManualProbe, setIsAddingManualProbe] = useState(false);
+  const [createManualProbeCoords, setCreateManualProbeCoords] = useState<{lat: number, lng: number} | null>(null);
+  const [selectedManualProbe, setSelectedManualProbe] = useState<ManualProbe | null>(null);
+  const { isOpen: isBatchOpen, onOpen: onBatchOpen, onClose: onBatchClose } = useDisclosure();
+
+  const refreshManualProbes = useCallback(() => {
+    if (farms.length > 0) {
+      Promise.all(farms.map(f => getManualProbes(f.id)))
+        .then(results => {
+          if (isMountedRef.current) setManualProbes(results.flat());
+        })
+        .catch(console.error);
+    }
+  }, [farms]);
+
+
   const [sortConfig, setSortConfig] = useState<{
     key: SortKey;
     direction: "asc" | "desc";
@@ -169,8 +193,28 @@ export function Dashboard() {
 
   const selectedProbe = useMemo(() => {
     if (!probeIdParam) return null;
-    return probes.find((p) => p.id === Number(probeIdParam)) || null;
-  }, [probes, probeIdParam]);
+    if (probeIdParam.startsWith("manual_")) {
+      const id = Number(probeIdParam.replace("manual_", ""));
+      const mp = manualProbes.find((p) => p.id === id);
+      if (mp) {
+        return {
+          id: mp.id,
+          esn: `manual_${mp.id}`,
+          name: mp.name,
+          farm_id: mp.farm_id,
+          latitude: mp.latitude,
+          longitude: mp.longitude,
+          status: "Manual",
+          isManualProbe: true,
+          irrigation_value_mm: mp.irrigation_value_mm,
+          readings: [],
+          created_at: mp.created_at,
+          updated_at: mp.updated_at
+        } as unknown as TableRowData;
+      }
+    }
+    return probes.find((p) => String(p.id) === probeIdParam) || null;
+  }, [probes, manualProbes, probeIdParam]);
 
   const { forecast, loading: loadingForecast } = useWeatherForecast(
     selectedProbe?.latitude ? Number(selectedProbe.latitude) : undefined,
@@ -195,7 +239,7 @@ export function Dashboard() {
     return probes.filter((probe) => probe.farm_id === selectedFarm.id);
   }, [selectedFarm, probes]);
 
-  const handleMapGraphClick = (deviceId: number) => {
+  const handleMapGraphClick = (deviceId: number | string) => {
     setDirection(1);
     setSearchParams({ probeId: String(deviceId) });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -208,6 +252,24 @@ export function Dashboard() {
     setBatteryData([]);
   };
 
+  const handleDeleteManualProbe = async (id: number) => {
+    try {
+      await deleteManualProbe(id);
+      toast({ title: "Pin Manual excluído", status: "success", duration: 3000 });
+      refreshManualProbes();
+    } catch (error) {
+      console.error(error);
+      toast({ title: "Erro ao excluir", status: "error", duration: 3000 });
+    }
+  };
+
+  const handleEditManualProbe = (id: number) => {
+    const probe = manualProbes.find(p => p.id === id);
+    if (probe) {
+      setSelectedManualProbe(probe);
+    }
+  };
+
   const handleSort = (key: SortKey) => {
     setSortConfig((current) => ({
       key,
@@ -217,7 +279,7 @@ export function Dashboard() {
   };
 
   const mapPoints: MapPoint[] = useMemo(() => {
-    return filteredProbes.map((probe) => {
+    const realPoints = filteredProbes.map((probe) => {
       const hasLocation =
         probe.latitude !== undefined &&
         probe.latitude !== null &&
@@ -283,7 +345,43 @@ export function Dashboard() {
         rain_30d: probe.rain_30d,
       };
     });
-  }, [filteredProbes, selectedDepthRefs, mapDepthFilter]);
+    
+    const manualPoints: MapPoint[] = manualProbes.map((probe) => {
+      const now = Date.now();
+      let r24h = 0, r7d = 0, r15d = 0, r30d = 0;
+      
+      if (probe.irrigation_records) {
+        probe.irrigation_records.forEach((r) => {
+          const t = new Date(r.date).getTime();
+          const diffDays = (now - t) / (1000 * 60 * 60 * 24);
+          if (diffDays <= 1) r24h += r.irrigation_value_mm;
+          if (diffDays <= 7) r7d += r.irrigation_value_mm;
+          if (diffDays <= 15) r15d += r.irrigation_value_mm;
+          if (diffDays <= 30) r30d += r.irrigation_value_mm;
+        });
+      }
+
+      return {
+        id: probe.id,
+        esn: `manual_${probe.id}`,
+        name: probe.name,
+        lat: probe.latitude,
+        lng: probe.longitude,
+        statusCode: "status_ok",
+        readings: [],
+        isManualProbe: true,
+        irrigation_value_mm: probe.irrigation_value_mm,
+        rain_1h: 0,
+        rain_24h: r24h,
+        rain_7d: r7d,
+        rain_15d: r15d,
+        rain_30d: r30d,
+        data_plantio: probe.data_plantio,
+      };
+    });
+
+    return [...realPoints, ...manualPoints];
+  }, [filteredProbes, selectedDepthRefs, mapDepthFilter, manualProbes]);
 
   const initialMapPosition = useMemo(() => {
     if (viewMode !== "map") return null;
@@ -342,6 +440,51 @@ export function Dashboard() {
         lastCommunicationTimestamp,
       };
     });
+
+    const mappedManuals: TableRowData[] = manualProbes.map((probe) => {
+      const farmName = farmNameById.get(probe.farm_id) ?? "-";
+
+      let lastTimestamp = 0;
+      let lastDateString = "-";
+      let sortedRecords: ManualIrrigationRecord[] = [];
+      let sum7d = 0;
+
+      if (probe.irrigation_records && probe.irrigation_records.length > 0) {
+        sortedRecords = [...probe.irrigation_records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const dateObj = new Date(sortedRecords[0].date);
+        lastTimestamp = dateObj.getTime();
+        lastDateString = formatLastCommunication(dateObj.toISOString());
+        
+        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        sum7d = probe.irrigation_records
+          .filter(r => new Date(r.date).getTime() >= sevenDaysAgo)
+          .reduce((acc, r) => acc + r.irrigation_value_mm, 0);
+      }
+
+      return {
+        id: probe.id,
+        esn: `manual_${probe.id}`,
+        name: probe.name,
+        farmName,
+        status: "Manual",
+        batteryLevel: undefined,
+        batteryDate: "",
+        lastCommunicationFormatted: lastDateString,
+        lastCommunicationTimestamp: lastTimestamp,
+        isManualProbe: true,
+        latitude: probe.latitude,
+        longitude: probe.longitude,
+        irrigation_value_mm: sum7d,
+        created_at: probe.created_at,
+        updated_at: probe.updated_at,
+        irrigation_records: sortedRecords,
+        cultura: probe.cultura,
+        data_plantio: probe.data_plantio,
+        potencia_cv: probe.potencia_cv
+      } as unknown as TableRowData;
+    });
+
+    mapped.push(...mappedManuals);
     const statusWeight: Record<string, number> = {
       status_critical: 1,
       status_alert: 2,
@@ -369,7 +512,7 @@ export function Dashboard() {
       if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
       return 0;
     });
-  }, [filteredProbes, mapPoints, farms, sortConfig]);
+  }, [filteredProbes, farms, mapPoints, manualProbes, sortConfig]);
 
   const loadData = useCallback(async () => {
     try {
@@ -381,6 +524,13 @@ export function Dashboard() {
       if (isMountedRef.current) {
         setProbes(probesData);
         setFarms(farmsData);
+        if (farmsData.length > 0) {
+          Promise.all(farmsData.map(f => getManualProbes(f.id)))
+            .then(results => {
+              if (isMountedRef.current) setManualProbes(results.flat());
+            })
+            .catch(console.error);
+        }
       }
     } catch (error) {
       console.error(error);
@@ -402,6 +552,7 @@ export function Dashboard() {
 
   useEffect(() => {
     if (viewMode !== "chart" || !selectedProbe || !userIsAdmin) return;
+    if ((selectedProbe as unknown as { isManualProbe?: boolean }).isManualProbe) return; // pins manuais não têm histórico de bateria
 
     const fetchBatteryData = async () => {
       const now = new Date();
@@ -441,6 +592,12 @@ export function Dashboard() {
   const fetchHistory = useCallback(
     async (period: TimeRange, startDateStr?: string, endDateStr?: string) => {
       if (!selectedProbe) return;
+      if ((selectedProbe as unknown as { isManualProbe?: boolean }).isManualProbe) {
+        // Sondas manuais não têm histórico de sensor — limpa o gráfico e sai
+        setChartData([]);
+        setLoadingChart(false);
+        return;
+      }
 
       try {
         setLoadingChart(true);
@@ -559,7 +716,7 @@ export function Dashboard() {
     );
   }
 
-  const handleProbeSelect = (probeId: number) => {
+  const handleProbeSelect = (probeId: number | string) => {
     setSearchParams({ probeId: String(probeId) });
   };
 
@@ -634,7 +791,50 @@ export function Dashboard() {
                     onSelectDepthRef={handleSelectDepthRef}
                     mapDepthFilter={mapDepthFilter}
                     onMapDepthFilterChange={setMapDepthFilter}
+                    isAddingManualProbe={isAddingManualProbe}
+                    onBatchUpdateClick={onBatchOpen}
+                    onDeleteManualProbe={handleDeleteManualProbe}
+                    onEditManualProbe={handleEditManualProbe}
+                    onMapClick={(lat, lng) => {
+                        setCreateManualProbeCoords({lat, lng});
+                        setIsAddingManualProbe(false);
+                    }}
                   />
+                  {/* FAB para adicionar Pin Manual */}
+                  <IconButton
+                    aria-label="Adicionar Pin Manual"
+                    icon={<MdAdd size={28} />}
+                    position="absolute"
+                    bottom={{ base: "16px", md: "32px" }}
+                    right={{ base: "16px", md: "32px" }}
+                    colorScheme={isAddingManualProbe ? "red" : "blue"}
+                    size="lg"
+                    isRound
+                    boxShadow="2xl"
+                    zIndex={1000}
+                    onClick={() => setIsAddingManualProbe(!isAddingManualProbe)}
+                    sx={{
+                      transform: isAddingManualProbe ? "rotate(45deg)" : "none",
+                      transition: "transform 0.2s ease-in-out"
+                    }}
+                  />
+                  {isAddingManualProbe && (
+                      <Box
+                        position="absolute"
+                        bottom={{ base: "80px", md: "96px" }}
+                        right={{ base: "16px", md: "32px" }}
+                        bg="blue.500"
+                        color="white"
+                        px={4}
+                        py={2}
+                        borderRadius="md"
+                        boxShadow="lg"
+                        zIndex={1000}
+                        pointerEvents="none"
+                      >
+                          <Text fontWeight="bold" fontSize="sm">Clique no mapa para adicionar</Text>
+                      </Box>
+                  )}
                 </Suspense>
               </Box>
             </Box>
@@ -689,8 +889,9 @@ export function Dashboard() {
           >
             <Button
               leftIcon={<MdArrowBack />}
-              variant="ghost"
-              color="white"
+              variant="outline"
+              colorScheme="blue"
+              size="sm"
               mb={4}
               onClick={() => {
                 if (isMobile) {
@@ -699,7 +900,6 @@ export function Dashboard() {
                   handleBackToMap();
                 }
               }}
-              _hover={{ bg: "whiteAlpha.200" }}
             >
               {isMobile ? "Voltar ao monitoramento" : "Voltar ao Mapa"}
             </Button>
@@ -745,28 +945,31 @@ export function Dashboard() {
                     overflowY="auto"
                     zIndex={10}
                   >
-                    {processedTableData.map((probe) => (
-                      <MenuItem
-                        key={probe.id}
-                        onClick={() => handleProbeSelect(probe.id)}
-                        bg={
-                          probe.id === selectedProbe.id
-                            ? COLORS.primary
-                            : "gray.800"
-                        }
-                        color="white"
-                        _hover={{
-                          bg:
-                            probe.id === selectedProbe.id
-                              ? COLORS.primaryDark
-                              : "gray.700",
-                        }}
-                        _focus={{
-                          bg:
-                            probe.id === selectedProbe.id
-                              ? COLORS.primaryDark
-                              : "gray.700",
-                        }}
+                    {processedTableData.map((probe) => {
+                      const probeKey = probe.isManualProbe ? probe.esn : probe.id;
+                      const selectedKey = selectedProbe.isManualProbe ? selectedProbe.esn : selectedProbe.id;
+                      return (
+                        <MenuItem
+                          key={probeKey}
+                          onClick={() => handleProbeSelect(probeKey)}
+                          bg={
+                            probeKey === selectedKey
+                              ? COLORS.primary
+                              : "gray.800"
+                          }
+                          color="white"
+                          _hover={{
+                            bg:
+                              probeKey === selectedKey
+                                ? COLORS.primaryDark
+                                : "gray.700",
+                          }}
+                          _focus={{
+                            bg:
+                              probeKey === selectedKey
+                                ? COLORS.primaryDark
+                                : "gray.700",
+                          }}
                       >
                         <Flex align="center" gap={3} w="100%">
                           <Box
@@ -781,7 +984,8 @@ export function Dashboard() {
                           </Text>
                         </Flex>
                       </MenuItem>
-                    ))}
+                    );
+                  })}
                   </MenuList>
                 </Menu>
               </Flex>
@@ -817,105 +1021,113 @@ export function Dashboard() {
                     transition={{ duration: 0.4 }}
                     mb={6}
                   >
-                    <RainAccumulationCard
-                      readings={chartData}
-                      isLoading={loadingChart}
-                      cardTitle={`Pluviometria`}
-                      esn={selectedProbe.esn}
-                    />
-                    <WeatherChart data={forecast} isLoading={loadingForecast} lat={selectedProbe?.latitude} lng={selectedProbe?.longitude} />
-                    <Suspense
-                      fallback={
-                        <Flex h="300px" justify="center" align="center">
-                          <Spinner size="lg" color="blue.500" />
-                        </Flex>
-                      }
-                    >
-                      {chartData.length > 0 ? (
-                        <SoilMoistureChart
-                          data={chartData}
-                          title="Perfil de Umidade (%)"
-                          cultura={selectedProbe.cultura ?? "Sem cultura"}
-                          dap={
-                            selectedProbe.data_plantio
-                              ? Math.floor(
-                                (Date.now() -
-                                  new Date(
-                                    selectedProbe.data_plantio,
-                                  ).getTime()) /
-                                (1000 * 60 * 60 * 24),
-                              )
-                              : undefined
-                          }
-                          unit="%"
-                          yDomain={[0, 100]}
-                          showZones={true}
-                          metric="moisture"
-                          isAdmin={userIsAdmin}
+                    {selectedProbe.isManualProbe ? (
+                      <ManualProbeHistory probeId={selectedProbe.id} />
+                    ) : (
+                      <>
+                        <RainAccumulationCard
+                          readings={chartData}
+                          isLoading={loadingChart}
+                          cardTitle={`Pluviometria`}
                           esn={selectedProbe.esn}
-                          initialV1={selectedProbe.config_moisture_v1 ?? 30}
-                          initialV2={selectedProbe.config_moisture_v2 ?? 45}
-                          initialV3={selectedProbe.config_moisture_v3 ?? 60}
-                          intensity={
-                            selectedProbe.config_gradient_intensity ?? 50
-                          }
-                          onConfigUpdate={() => loadData()}
-                          selectedPeriod={selectedPeriod}
-                          onPeriodChange={handlePeriodChange}
-                          selectedDepthRef={
-                            selectedDepthRefs[selectedProbe.id] ?? null
-                          }
-                          onSelectDepthRef={(depth) =>
-                            handleSelectDepthRef(selectedProbe.id, depth)
-                          }
                         />
-                      ) : (
-                        <Flex h="300px" justify="center" align="center">
-                          <Text color="gray.500">
-                            Sem dados de umidade para este período.
-                          </Text>
-                        </Flex>
-                      )}
-                    </Suspense>
+                        <WeatherChart data={forecast} isLoading={loadingForecast} lat={selectedProbe?.latitude} lng={selectedProbe?.longitude} />
+                        <Suspense
+                          fallback={
+                            <Flex h="300px" justify="center" align="center">
+                              <Spinner size="lg" color="blue.500" />
+                            </Flex>
+                          }
+                        >
+                          {chartData.length > 0 ? (
+                            <SoilMoistureChart
+                              data={chartData}
+                              title="Perfil de Umidade (%)"
+                              cultura={selectedProbe.cultura ?? "Sem cultura"}
+                              dap={
+                                selectedProbe.data_plantio
+                                  ? Math.floor(
+                                    (Date.now() -
+                                      new Date(
+                                        selectedProbe.data_plantio,
+                                      ).getTime()) /
+                                    (1000 * 60 * 60 * 24),
+                                  )
+                                  : undefined
+                              }
+                              unit="%"
+                              yDomain={[0, 100]}
+                              showZones={true}
+                              metric="moisture"
+                              isAdmin={userIsAdmin}
+                              esn={selectedProbe.esn}
+                              initialV1={selectedProbe.config_moisture_v1 ?? 30}
+                              initialV2={selectedProbe.config_moisture_v2 ?? 45}
+                              initialV3={selectedProbe.config_moisture_v3 ?? 60}
+                              intensity={
+                                selectedProbe.config_gradient_intensity ?? 50
+                              }
+                              onConfigUpdate={() => loadData()}
+                              selectedPeriod={selectedPeriod}
+                              onPeriodChange={handlePeriodChange}
+                              selectedDepthRef={
+                                selectedDepthRefs[selectedProbe.id] ?? null
+                              }
+                              onSelectDepthRef={(depth) =>
+                                handleSelectDepthRef(selectedProbe.id, depth)
+                              }
+                            />
+                          ) : (
+                            <Flex h="300px" justify="center" align="center">
+                              <Text color="gray.500">
+                                Sem dados de umidade para este período.
+                              </Text>
+                            </Flex>
+                          )}
+                        </Suspense>
+                      </>
+                    )}
                   </MotionBox>
 
-                  <MotionBox
-                    p={0}
-                    variants={{
-                      hidden: { opacity: 0, y: 30 },
-                      visible: { opacity: 1, y: 0 },
-                    }}
-                    transition={{ duration: 0.4 }}
-                  >
-                    <Suspense
-                      fallback={
-                        <Flex h="300px" justify="center" align="center">
-                          <Spinner size="lg" color="blue.500" />
-                        </Flex>
-                      }
+                  {!selectedProbe.isManualProbe && (
+                    <MotionBox
+                      p={0}
+                      variants={{
+                        hidden: { opacity: 0, y: 30 },
+                        visible: { opacity: 1, y: 0 },
+                      }}
+                      transition={{ duration: 0.4 }}
                     >
-                      {chartData.length > 0 ? (
-                        <SoilMoistureChart
-                          data={chartData}
-                          title="Perfil de Temperatura (°C)"
-                          unit="°C"
-                          yDomain={["auto", "auto"]}
-                          showZones={true}
-                          metric="temperature"
-                          selectedPeriod={selectedPeriod}
-                          onPeriodChange={handlePeriodChange}
-                        />
-                      ) : (
-                        <Flex h="300px" justify="center" align="center">
-                          <Text color="gray.500">
-                            Sem dados de temperatura para este período.
-                          </Text>
-                        </Flex>
-                      )}
-                    </Suspense>
-                  </MotionBox>
+                      <Suspense
+                        fallback={
+                          <Flex h="300px" justify="center" align="center">
+                            <Spinner size="lg" color="blue.500" />
+                          </Flex>
+                        }
+                      >
+                        {chartData.length > 0 ? (
+                          <SoilMoistureChart
+                            data={chartData}
+                            title="Perfil de Temperatura (°C)"
+                            unit="°C"
+                            yDomain={["auto", "auto"]}
+                            showZones={true}
+                            metric="temperature"
+                            selectedPeriod={selectedPeriod}
+                            onPeriodChange={handlePeriodChange}
+                          />
+                        ) : (
+                          <Flex h="300px" justify="center" align="center">
+                            <Text color="gray.500">
+                              Sem dados de temperatura para este período.
+                            </Text>
+                          </Flex>
+                        )}
+                      </Suspense>
+                    </MotionBox>
+                  )}
 
-                  {userIsAdmin && (
+                  {userIsAdmin && !selectedProbe.isManualProbe && (
                     <MotionBox
                       p={0}
                       variants={{
@@ -937,6 +1149,34 @@ export function Dashboard() {
           </MotionBox>
         )}
       </AnimatePresence>
+
+      {createManualProbeCoords && farms.length > 0 && (
+        <CreateManualProbeModal
+          isOpen={!!createManualProbeCoords}
+          onClose={() => setCreateManualProbeCoords(null)}
+          farms={farms.map(f => ({ id: f.id, name: f.name }))}
+          latitude={createManualProbeCoords.lat}
+          longitude={createManualProbeCoords.lng}
+          onCreated={refreshManualProbes}
+        />
+      )}
+
+      <BatchManualIrrigationModal
+        isOpen={isBatchOpen}
+        onClose={onBatchClose}
+        manualProbes={manualProbes}
+        onSuccess={refreshManualProbes}
+      />
+      
+      {selectedManualProbe && (
+          <ManualProbeDetailsModal
+            isOpen={!!selectedManualProbe}
+            onClose={() => setSelectedManualProbe(null)}
+            probe={selectedManualProbe}
+            onUpdated={refreshManualProbes}
+          />
+      )}
     </Box>
   );
 }
+

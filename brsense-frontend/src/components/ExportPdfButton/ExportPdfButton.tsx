@@ -4,7 +4,7 @@ import { MdPictureAsPdf, MdShare, MdDownload } from "react-icons/md";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { TableRowData } from "../DeviceTable/DeviceTable";
-import { getDeviceAnalysis } from "../../services/api";
+import { getDeviceAnalysis, getManualIrrigations } from "../../services/api";
 import { fetchWeatherData } from "../../services/weatherService";
 
 interface ExportPdfButtonProps {
@@ -72,6 +72,69 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
     toast({ title: "Download concluído.", status: "success", duration: 3000 });
   };
 
+  const getForecastText = async (row: TableRowData) => {
+    let forecastText = "-";
+    if (row.latitude !== undefined && row.longitude !== undefined) {
+      try {
+        const roundedLat = Number(row.latitude).toFixed(2);
+        const roundedLng = Number(row.longitude).toFixed(2);
+        const cacheKey = `weather_${roundedLat}_${roundedLng}`;
+        const cachedDataStr = sessionStorage.getItem(cacheKey);
+
+        let forecastData = null;
+        if (cachedDataStr) {
+          const cachedData = JSON.parse(cachedDataStr);
+          if (Date.now() - cachedData.timestamp < 60 * 60 * 1000) {
+            forecastData = cachedData.data;
+          }
+        }
+
+        if (!forecastData) {
+          forecastData = await fetchWeatherData(
+            Number(roundedLat),
+            Number(roundedLng),
+          );
+          sessionStorage.setItem(
+            cacheKey,
+            JSON.stringify({
+              timestamp: Date.now(),
+              data: forecastData,
+            }),
+          );
+        }
+
+        if (forecastData && forecastData.length > 0) {
+          type ForecastItem = {
+            dayNumber: number;
+            dayName?: string;
+            rain?: number;
+            precipitation?: number;
+            precipitation_sum?: number;
+            et0?: number;
+          };
+
+          forecastText = forecastData
+            .slice(0, 4)
+            .map((d: ForecastItem, index: number) => {
+              const label =
+                index === 0
+                  ? `Hoje, ${d.dayNumber}`
+                  : `${d.dayName?.substring(0, 3) || ""}, ${d.dayNumber}`;
+              const rain =
+                d.rain ?? d.precipitation ?? d.precipitation_sum ?? 0;
+              const et0 = d.et0 != null ? d.et0.toFixed(1) : "-";
+              return `${label}: ETo ${et0} | Chuva ${Number(rain).toFixed(1)}mm`;
+            })
+            .join("\n");
+        }
+      } catch (err) {
+        console.error("Erro ao buscar previsão pro PDF:", err);
+        forecastText = "Dados indisponíveis";
+      }
+    }
+    return forecastText;
+  };
+
   const handleGenerate = async () => {
     setExportStatus("loading");
     try {
@@ -85,127 +148,160 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
       doc.setTextColor(113, 128, 150);
       doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, 14, 22);
 
-      const tableColumn = [
-        "Dispositivos",
-        "Dados",
-        "Decisão",
-        "Pluviômetro",
-        "Previsão",
-      ];
 
-      const tableRows = await Promise.all(
-        data.map(async (row) => {
-          let decisionText = row.sugestao || row.copiloto_acao;
-          if (!decisionText) {
-            try {
-              const res = await getDeviceAnalysis(row.esn);
-              decisionText = res.sugestao || "Monitoramento padrão.";
-            } catch {
-              decisionText = "Condições em monitoramento padrão.";
+      const normalProbes = data.filter(r => !r.isManualProbe);
+      const manualProbes = data.filter(r => r.isManualProbe);
+
+      if (normalProbes.length > 0) {
+        const tableColumn = [
+          "Dispositivos",
+          "Dados",
+          "Decisão",
+          "Pluviômetro",
+          "Previsão",
+        ];
+
+        const tableRows = await Promise.all(
+          normalProbes.map(async (row) => {
+            let decisionText = row.sugestao || row.copiloto_acao;
+            if (!decisionText) {
+              try {
+                const res = await getDeviceAnalysis(row.esn);
+                decisionText = res.sugestao || "Monitoramento padrão.";
+              } catch {
+                decisionText = "Condições em monitoramento padrão.";
+              }
             }
-          }
 
-          let forecastText = "-";
-          if (row.latitude !== undefined && row.longitude !== undefined) {
+            const forecastText = await getForecastText(row);
+
+            return [
+              `${row.name || "-"}\nESN: ${row.esn}\nFazenda: ${row.farmName}\nStatus: ${getStatusLabel(row.status)}\nÚltimo Envio: ${row.lastCommunicationFormatted}`,
+              `Cultura: ${row.cultura || "-"}\nDAP: ${calcularDAP(row.data_plantio)} dias\nPotência: ${formatarPotencia(row.potencia_cv)}`,
+              decisionText,
+              `1h: ${formatRain(row.rain_1h)} mm\n24h: ${formatRain(row.rain_24h)} mm\n7d: ${formatRain(row.rain_7d)} mm`,
+              forecastText,
+            ];
+          }),
+        );
+
+        autoTable(doc, {
+          head: [tableColumn],
+          body: tableRows,
+          startY: 28,
+          margin: { left: 14, right: 8 },
+          styles: {
+            fontSize: 9,
+            cellPadding: 4,
+            textColor: [45, 55, 72],
+            lineColor: [226, 232, 240],
+            lineWidth: 0.1,
+            valign: "middle",
+          },
+          headStyles: {
+            fillColor: [11, 95, 165],
+            textColor: [255, 255, 255],
+            fontStyle: "bold",
+          },
+          alternateRowStyles: {
+            fillColor: [247, 250, 252],
+          },
+          columnStyles: {
+            0: { cellWidth: 50 },
+            1: { cellWidth: 45 },
+            2: { cellWidth: 75 },
+            3: { cellWidth: 30 },
+            4: { cellWidth: 75 },
+          },
+        });
+      }
+
+      if (manualProbes.length > 0) {
+        const manualTableColumn = [
+          "Pins Manuais",
+          "Dados",
+          "Irrigação Acumulada",
+          "Últimas Irrigações",
+          "Previsão",
+        ];
+
+        const manualTableRows = await Promise.all(
+          manualProbes.map(async (row) => {
+            let historyText = "Nenhum registro";
+            let acumuladoText = "7d: 0.0 mm\n15d: 0.0 mm\n30d: 0.0 mm";
+            
             try {
-              const roundedLat = Number(row.latitude).toFixed(2);
-              const roundedLng = Number(row.longitude).toFixed(2);
-              const cacheKey = `weather_${roundedLat}_${roundedLng}`;
-              const cachedDataStr = sessionStorage.getItem(cacheKey);
-
-              let forecastData = null;
-              if (cachedDataStr) {
-                const cachedData = JSON.parse(cachedDataStr);
-                if (Date.now() - cachedData.timestamp < 60 * 60 * 1000) {
-                  forecastData = cachedData.data;
-                }
-              }
-
-              if (!forecastData) {
-                forecastData = await fetchWeatherData(
-                  Number(roundedLat),
-                  Number(roundedLng),
-                );
-                sessionStorage.setItem(
-                  cacheKey,
-                  JSON.stringify({
-                    timestamp: Date.now(),
-                    data: forecastData,
-                  }),
-                );
-              }
-
-              if (forecastData && forecastData.length > 0) {
-                type ForecastItem = {
-                  dayNumber: number;
-                  dayName?: string;
-                  rain?: number;
-                  precipitation?: number;
-                  precipitation_sum?: number;
-                  et0?: number;
+              const records = row.irrigation_records || await getManualIrrigations(row.id) || [];
+              if (records.length > 0) {
+                const last3 = records.slice(0, 3);
+                historyText = last3.map((rec: any) => {
+                  const dateStr = new Date(rec.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                  return `${dateStr}: +${rec.irrigation_value_mm.toFixed(1)} mm`;
+                }).join('\n');
+                
+                const now = Date.now();
+                const calcTotal = (days: number) => {
+                  return records
+                    .filter((r: any) => new Date(r.date).getTime() >= now - days * 24 * 60 * 60 * 1000)
+                    .reduce((acc: number, r: any) => acc + (r.irrigation_value_mm || 0), 0);
                 };
-
-                forecastText = forecastData
-                  .slice(0, 4)
-                  .map((d: ForecastItem, index: number) => {
-                    const label =
-                      index === 0
-                        ? `Hoje, ${d.dayNumber}`
-                        : `${d.dayName?.substring(0, 3) || ""}, ${d.dayNumber}`;
-                    const rain =
-                      d.rain ?? d.precipitation ?? d.precipitation_sum ?? 0;
-                    const et0 = d.et0 != null ? d.et0.toFixed(1) : "-";
-                    return `${label}: ETo ${et0} | Chuva ${Number(rain).toFixed(1)}mm`;
-                  })
-                  .join("\n");
+                acumuladoText = `7d: ${calcTotal(7).toFixed(1)} mm\n15d: ${calcTotal(15).toFixed(1)} mm\n30d: ${calcTotal(30).toFixed(1)} mm`;
               }
-            } catch (err) {
-              console.error("Erro ao buscar previsão pro PDF:", err);
-              forecastText = "Dados indisponíveis";
+            } catch (error) {
+              console.error("Erro ao carregar histórico", error);
+              historyText = "Erro ao carregar.";
+              acumuladoText = "Erro ao carregar.";
             }
-          }
 
-          return [
-            `${row.name || "-"}\nESN: ${row.esn}\nFazenda: ${row.farmName}\nStatus: ${getStatusLabel(row.status)}\nÚltimo Envio: ${row.lastCommunicationFormatted}`,
-            `Cultura: ${row.cultura || "-"}\nDAP: ${calcularDAP(row.data_plantio)} dias\nPotência: ${formatarPotencia(row.potencia_cv)}`,
-            decisionText,
-            `1h: ${formatRain(row.rain_1h)} mm\n24h: ${formatRain(row.rain_24h)} mm\n7d: ${formatRain(row.rain_7d)} mm`,
-            forecastText,
-          ];
-        }),
-      );
+            const forecastText = await getForecastText(row);
 
-      autoTable(doc, {
-        head: [tableColumn],
-        body: tableRows,
-        startY: 28,
-        // Define explicitamente uma margem menor à direita
-        margin: { left: 14, right: 8 },
-        styles: {
-          fontSize: 9,
-          cellPadding: 4,
-          textColor: [45, 55, 72],
-          lineColor: [226, 232, 240],
-          lineWidth: 0.1,
-          valign: "middle",
-        },
-        headStyles: {
-          fillColor: [11, 95, 165],
-          textColor: [255, 255, 255],
-          fontStyle: "bold",
-        },
-        alternateRowStyles: {
-          fillColor: [247, 250, 252],
-        },
-        columnStyles: {
-          // Total distribuído: 275mm (A4 297mm - 14mm esq - 8mm dir)
-          0: { cellWidth: 50 }, // Dispositivos (reduzido levemente)
-          1: { cellWidth: 45 }, // Dados (Aumentado em +10mm)
-          2: { cellWidth: 75 }, // Decisão (Reduzido em -5mm)
-          3: { cellWidth: 30 }, // Pluviômetro (Reduzido em -5mm)
-          4: { cellWidth: 75 }, // Previsão (Aumentado em +20mm para não quebrar linha)
-        },
-      });
+            return [
+              `${row.name || "-"}\nFazenda: ${row.farmName}\nÚltimo Envio: ${row.lastCommunicationFormatted}`,
+              `Cultura: ${row.cultura || "-"}\nDAP: ${calcularDAP(row.data_plantio)} dias\nPotência: ${formatarPotencia(row.potencia_cv)}`,
+              acumuladoText,
+              historyText,
+              forecastText,
+            ];
+          })
+        );
+
+        const pdfDoc = doc as unknown as { lastAutoTable?: { finalY: number } };
+        const finalY = pdfDoc.lastAutoTable ? pdfDoc.lastAutoTable.finalY + 15 : 28;
+
+        doc.setFontSize(14);
+        doc.setTextColor(26, 32, 44);
+        doc.text("Pins Manuais", 14, finalY);
+
+        autoTable(doc, {
+          head: [manualTableColumn],
+          body: manualTableRows,
+          startY: finalY + 6,
+          margin: { left: 14, right: 8 },
+          styles: {
+            fontSize: 9,
+            cellPadding: 4,
+            textColor: [45, 55, 72],
+            lineColor: [226, 232, 240],
+            lineWidth: 0.1,
+            valign: "middle",
+          },
+          headStyles: {
+            fillColor: [11, 95, 165],
+            textColor: [255, 255, 255],
+            fontStyle: "bold",
+          },
+          alternateRowStyles: {
+            fillColor: [247, 250, 252],
+          },
+          columnStyles: {
+            0: { cellWidth: 50 },
+            1: { cellWidth: 45 },
+            2: { cellWidth: 40 },
+            3: { cellWidth: 45 },
+            4: { cellWidth: 95 },
+          },
+        });
+      }
 
       const hoje = new Date().toISOString().split("T")[0];
       const fileName = `monitoramento_detalhado_${hoje}.pdf`;
