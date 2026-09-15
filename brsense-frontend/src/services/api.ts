@@ -254,3 +254,12 @@ export const addManualIrrigation = async (probeId: number, data: { irrigation_va
   const response = await api.post<import("../types").ManualIrrigationRecord>(`/api/manual-probes/${probeId}/irrigations`, data);
   return response.data;
 };
+
+export const updateManualIrrigation = async (id: number, data: { irrigation_value_mm?: number; date?: string }) => {
+  const response = await api.put<import("../types").ManualIrrigationRecord>(`/api/manual-probes/irrigations/${id}`, data);
+  return response.data;
+};
+export const deleteManualIrrigation = async (id: number) => {
+  const response = await api.delete(`/api/manual-probes/irrigations/${id}`);
+  return response.data;
+};

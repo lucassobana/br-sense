@@ -1,8 +1,10 @@
 import { useEffect, useState, useMemo } from "react";
-import { Box, Flex, Spinner, Text, Icon } from "@chakra-ui/react";
+import { Box, Flex, Spinner, Text, Icon, IconButton, useDisclosure, useToast, VStack } from "@chakra-ui/react";
 import { FaTint } from "react-icons/fa";
-import { getManualIrrigations } from "../../services/api";
+import { getManualIrrigations, deleteManualIrrigation } from "../../services/api";
 import type { ManualIrrigationRecord } from "../../types";
+import { EditIrrigationModal } from "../ManualProbeModals/EditIrrigationModal";
+import { MdEdit, MdDelete } from "react-icons/md";
 
 interface ManualProbeHistoryProps {
   probeId: number;
@@ -40,25 +42,52 @@ export function ManualProbeHistory({ probeId }: ManualProbeHistoryProps) {
   const [customStart, setCustomStart] = useState<string>("");
   const [customEnd, setCustomEnd] = useState<string>("");
   const [tooltip, setTooltip] = useState<number | null>(null);
+  
+  const { isOpen: isEditModalOpen, onOpen: onEditModalOpen, onClose: onEditModalClose } = useDisclosure();
+  const [editingRecord, setEditingRecord] = useState<ManualIrrigationRecord | null>(null);
+  const toast = useToast();
+
+  const fetchHistory = async () => {
+    setLoading(true);
+    try {
+      const data = await getManualIrrigations(probeId);
+      setRecords(data);
+    } catch {
+      // Ignorado, já estava silencioso
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let active = true;
-    const fetchHistory = async () => {
+    const fetchInitial = async () => {
       setLoading(true);
       try {
         const data = await getManualIrrigations(probeId);
         if (active) setRecords(data);
       } catch {
-        // Ignorado, já estava silencioso
+        // Ignorado
       } finally {
         if (active) setLoading(false);
       }
     };
-    fetchHistory();
+    fetchInitial();
     return () => {
       active = false;
     };
   }, [probeId]);
+  
+  const handleDeleteIrrigation = async (recordId: number) => {
+    if (!window.confirm("Deseja realmente deletar esta irrigação?")) return;
+    try {
+      await deleteManualIrrigation(recordId);
+      toast({ title: "Irrigação removida", status: "success", duration: 2000 });
+      fetchHistory();
+    } catch {
+      toast({ title: "Erro ao deletar", status: "error", duration: 3000 });
+    }
+  };
 
   const filtered = useMemo(() => {
     let start = getStartDate(period);
@@ -360,6 +389,7 @@ export function ManualProbeHistory({ probeId }: ManualProbeHistoryProps) {
                       borderBottom="1px solid rgba(34,48,73,0.5)"
                       _hover={{ bg: "#162238" }}
                       transition="background 0.15s"
+                      role="group"
                     >
                       <Box as="td" py={3} px={{ base: 2, md: 5 }}>
                         <Flex align="center" gap={2} fontFamily="monospace" color="#e2e8f0" fontSize="xs" flexWrap="wrap">
@@ -381,6 +411,28 @@ export function ManualProbeHistory({ probeId }: ManualProbeHistoryProps) {
                       </Box>
                       <Box as="td" py={3} px={{ base: 2, md: 5 }} textAlign="right" whiteSpace="nowrap">
                         <Box display="inline-flex" alignItems="center" justifyContent="flex-end" gap={2}>
+                          {/* Botões de Ação */}
+                          <VStack spacing={0} mr={2}>
+                            <IconButton
+                              aria-label="Editar irrigação"
+                              icon={<Icon as={MdEdit} />}
+                              size="xs"
+                              colorScheme="gray"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingRecord(r);
+                                onEditModalOpen();
+                              }}
+                            />
+                            <IconButton
+                              aria-label="Deletar irrigação"
+                              icon={<Icon as={MdDelete} />}
+                              size="xs"
+                              colorScheme="red"
+                              variant="ghost"
+                              onClick={() => handleDeleteIrrigation(r.id)}
+                            />
+                          </VStack>
                           <Box
                             px={2} py="2px" borderRadius="md"
                             bg="rgba(8,47,73,0.5)" border="1px solid rgba(56,189,248,0.35)"
@@ -398,6 +450,16 @@ export function ManualProbeHistory({ probeId }: ManualProbeHistoryProps) {
           </Box>
         </Box>
       )}
+
+      <EditIrrigationModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          onEditModalClose();
+          setEditingRecord(null);
+        }}
+        record={editingRecord}
+        onUpdated={fetchHistory}
+      />
     </Box>
   );
 }
