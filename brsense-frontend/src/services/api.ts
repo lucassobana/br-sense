@@ -254,3 +254,27 @@ export const addManualIrrigation = async (probeId: number, data: { irrigation_va
   const response = await api.post<import("../types").ManualIrrigationRecord>(`/api/manual-probes/${probeId}/irrigations`, data);
   return response.data;
 };
+
+// ── Map Layers (KML/KMZ) ──────────────────────────────────────────────────────
+
+export const getMapLayers = async (farmId: number) => {
+  const response = await api.get<import("../types").MapLayer[]>(`/api/map-layers/farm/${farmId}`);
+  return response.data;
+};
+
+export const uploadMapLayer = async (farmId: number, file: File, name?: string) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (name) formData.append("name", name);
+  const response = await api.post<import("../types").MapLayer>(
+    `/api/map-layers/farm/${farmId}`,
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
+  return response.data;
+};
+
+export const deleteMapLayer = async (layerId: number) => {
+  await api.delete(`/api/map-layers/${layerId}`);
+};
+
