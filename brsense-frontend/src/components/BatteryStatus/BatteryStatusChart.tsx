@@ -274,6 +274,7 @@ export function BatteryStatusChart({
 
     const initialRef = filteredData.find(
       (d) =>
+        d.reading_type === "L" &&
         d.latitude != null &&
         d.longitude != null &&
         Number.isFinite(Number(d.latitude)),
@@ -288,6 +289,7 @@ export function BatteryStatusChart({
       const lon = Number(item.longitude);
 
       if (
+        item.reading_type === "L" &&
         item.latitude != null &&
         item.longitude != null &&
         Number.isFinite(lat) &&
