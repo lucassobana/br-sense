@@ -7,7 +7,7 @@ from app.models.manual_probe import ManualProbe
 from app.models.manual_irrigation_record import ManualIrrigationRecord
 from app.models.farm import Farm
 from app.schemas.manual_probe import ManualProbeCreate, ManualProbeUpdate, ManualProbeResponse
-from app.schemas.manual_irrigation import ManualIrrigationCreate, ManualIrrigationResponse
+from app.schemas.manual_irrigation import ManualIrrigationCreate, ManualIrrigationUpdate, ManualIrrigationResponse
 
 router = APIRouter()
 
@@ -137,3 +137,30 @@ def get_manual_irrigations(probe_id: int, db: Session = Depends(get_db)):
 
     records = db.query(ManualIrrigationRecord).filter(ManualIrrigationRecord.manual_probe_id == probe_id).order_by(ManualIrrigationRecord.date.desc()).all()
     return records
+
+@router.put("/irrigations/{irrigation_id}", response_model=ManualIrrigationResponse)
+def update_manual_irrigation(irrigation_id: int, irrigation_update: ManualIrrigationUpdate, db: Session = Depends(get_db)):
+    record = db.query(ManualIrrigationRecord).filter(ManualIrrigationRecord.id == irrigation_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Registro de irrigação não encontrado")
+
+    update_data = irrigation_update.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(record, key, value)
+        
+    # Opcional: Se atualizar o registro mais recente, talvez queiramos atualizar o probe.irrigation_value_mm
+    # Para simplicidade, vamos atualizar a irrigação apenas
+    
+    db.commit()
+    db.refresh(record)
+    return record
+
+@router.delete("/irrigations/{irrigation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_manual_irrigation(irrigation_id: int, db: Session = Depends(get_db)):
+    record = db.query(ManualIrrigationRecord).filter(ManualIrrigationRecord.id == irrigation_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Registro de irrigação não encontrado")
+
+    db.delete(record)
+    db.commit()
+    return

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Text,
@@ -18,8 +18,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ForecastTab } from "../ForecastTab/ForecastTab";
 import { FaTint, FaList } from "react-icons/fa";
 import type { MapPoint } from "../SatelliteMap/SatelliteMap";
-import { getManualIrrigations } from "../../services/api";
+import { getManualIrrigations, deleteManualIrrigation } from "../../services/api";
 import type { ManualIrrigationRecord } from "../../types";
+import { EditIrrigationModal } from "../ManualProbeModals/EditIrrigationModal";
+import { useDisclosure, useToast } from "@chakra-ui/react";
 
 interface ManualProbeCardProps {
   point: MapPoint | null;
@@ -43,23 +45,37 @@ export function ManualProbeCard({ point, onClose, onBatchUpdateClick, onDeleteMa
   const [fetching, setFetching] = useState(true);
   const [records, setRecords] = useState<ManualIrrigationRecord[]>([]);
 
-  useEffect(() => {
+  const { isOpen: isEditModalOpen, onOpen: onEditModalOpen, onClose: onEditModalClose } = useDisclosure();
+  const [editingRecord, setEditingRecord] = useState<ManualIrrigationRecord | null>(null);
+  const toast = useToast();
+
+  const fetchHistory = useCallback(async () => {
     if (!point || !point.isManualProbe) return;
-
-    const fetchHistory = async () => {
-      try {
-        setFetching(true);
-        const data = await getManualIrrigations(point.id);
-        setRecords(data);
-      } catch (error) {
-        console.error("Erro ao carregar irrigações", error);
-      } finally {
-        setFetching(false);
-      }
-    };
-
-    fetchHistory();
+    try {
+      setFetching(true);
+      const data = await getManualIrrigations(point.id);
+      setRecords(data);
+    } catch (error) {
+      console.error("Erro ao carregar irrigações", error);
+    } finally {
+      setFetching(false);
+    }
   }, [point]);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
+  const handleDeleteIrrigation = async (recordId: number) => {
+    if (!window.confirm("Deseja realmente deletar esta irrigação?")) return;
+    try {
+      await deleteManualIrrigation(recordId);
+      toast({ title: "Irrigação removida", status: "success", duration: 2000 });
+      fetchHistory();
+    } catch {
+      toast({ title: "Erro ao deletar", status: "error", duration: 3000 });
+    }
+  };
 
   if (!point || !point.isManualProbe) return null;
 
@@ -174,7 +190,7 @@ export function ManualProbeCard({ point, onClose, onBatchUpdateClick, onDeleteMa
                     }}
                   >
                     {records.slice(0, 7).map((r) => (
-                      <HStack key={r.id} justify="space-between" p={2} bg="whiteAlpha.50" borderRadius="md">
+                      <HStack key={r.id} justify="space-between" p={2} bg="whiteAlpha.50" borderRadius="md" role="group">
                         <VStack align="start" spacing={0}>
                           <Text color="white" fontSize="sm">
                             {new Date(r.date).toLocaleDateString("pt-BR")}
@@ -183,11 +199,40 @@ export function ManualProbeCard({ point, onClose, onBatchUpdateClick, onDeleteMa
                             {new Date(r.date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                           </Text>
                         </VStack>
-                        <HStack>
-                          <Icon as={MdWaterDrop} color="blue.400" />
-                          <Text color="blue.300" fontWeight="bold" fontSize="sm">
-                            {r.irrigation_value_mm.toFixed(1)} mm
-                          </Text>
+                        <HStack spacing={1}>
+                          <HStack mr={2}>
+                            <Icon as={MdWaterDrop} color="blue.400" />
+                            <Text color="blue.300" fontWeight="bold" fontSize="sm">
+                              {r.irrigation_value_mm.toFixed(1)} mm
+                            </Text>
+                          </HStack>
+
+                          {/* Botões de Ação */}
+                          <HStack spacing={1}>
+                            <IconButton
+                              aria-label="Editar irrigação"
+                              icon={<Icon as={MdEdit} />}
+                              size="xs"
+                              color="white"
+                              bg="gray"
+                              variant="ghost"
+                              _hover={{ bg: "whiteAlpha.500" }}
+                              onClick={() => {
+                                setEditingRecord(r);
+                                onEditModalOpen();
+                              }}
+                            />
+                            <IconButton
+                              aria-label="Deletar irrigação"
+                              icon={<Icon as={MdDelete} />}
+                              size="xs"
+                              color="white"
+                              bg="red.500"
+                              variant="solid"
+                              _hover={{ bg: "red.700" }}
+                              onClick={() => handleDeleteIrrigation(r.id)}
+                            />
+                          </HStack>
                         </HStack>
                       </HStack>
                     ))}
@@ -261,6 +306,16 @@ export function ManualProbeCard({ point, onClose, onBatchUpdateClick, onDeleteMa
           onClick={() => setActiveTab("forecast")}
         />
       </HStack>
+
+      <EditIrrigationModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          onEditModalClose();
+          setEditingRecord(null);
+        }}
+        record={editingRecord}
+        onUpdated={fetchHistory}
+      />
     </Box>
   );
 }
