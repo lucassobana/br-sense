@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from app.models.user import User
     from app.models.device import Device
     from app.models.manual_probe import ManualProbe
+    from app.models.map_layer import MapLayer
 
 class Farm(Base):
     __tablename__ = "farm"
@@ -24,3 +25,4 @@ class Farm(Base):
     owner: Mapped["User"] = relationship("User", back_populates="farms")
     devices: Mapped[List["Device"]] = relationship("Device", back_populates="farm")
     manual_probes: Mapped[List["ManualProbe"]] = relationship("ManualProbe", back_populates="farm")
+    map_layers: Mapped[List["MapLayer"]] = relationship("MapLayer", back_populates="farm", cascade="all, delete-orphan")

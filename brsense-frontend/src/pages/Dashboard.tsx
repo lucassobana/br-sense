@@ -28,8 +28,8 @@ import {
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { MdArrowBack, MdArrowDropDown } from "react-icons/md";
 import { motion, AnimatePresence } from "framer-motion";
-import { getProbes, getFarms, getDeviceHistory, getManualProbes, deleteManualProbe } from "../services/api";
-import type { Probe, Farm, ManualProbe, ManualIrrigationRecord } from "../types";
+import { getProbes, getFarms, getDeviceHistory, getManualProbes, deleteManualProbe, getMapLayers, uploadMapLayer, deleteMapLayer } from "../services/api";
+import type { Probe, Farm, ManualProbe, ManualIrrigationRecord, MapLayer } from "../types";
 import type {
   RawApiData,
   TimeRange,
@@ -151,6 +151,7 @@ export function Dashboard() {
   );
 
   const [manualProbes, setManualProbes] = useState<ManualProbe[]>([]);
+  const [mapLayers, setMapLayers] = useState<MapLayer[]>([]);
   const [isAddingManualProbe, setIsAddingManualProbe] = useState(false);
   const [createManualProbeCoords, setCreateManualProbeCoords] = useState<{lat: number, lng: number} | null>(null);
   const [selectedManualProbe, setSelectedManualProbe] = useState<ManualProbe | null>(null);
@@ -530,6 +531,11 @@ export function Dashboard() {
               if (isMountedRef.current) setManualProbes(results.flat());
             })
             .catch(console.error);
+          Promise.all(farmsData.map(f => getMapLayers(f.id)))
+            .then(results => {
+              if (isMountedRef.current) setMapLayers(results.flat());
+            })
+            .catch(console.error);
         }
       }
     } catch (error) {
@@ -798,6 +804,27 @@ export function Dashboard() {
                     onMapClick={(lat, lng) => {
                         setCreateManualProbeCoords({lat, lng});
                         setIsAddingManualProbe(false);
+                    }}
+                    mapLayers={mapLayers}
+                    onUploadMapLayer={async (file, name) => {
+                        if (farms.length === 0) return;
+                        const farmId = farms[0].id;
+                        try {
+                            const newLayer = await uploadMapLayer(farmId, file, name);
+                            setMapLayers(prev => [newLayer, ...prev]);
+                            toast({ title: "Camada importada!", status: "success", duration: 3000 });
+                        } catch {
+                            toast({ title: "Erro ao importar camada", status: "error", duration: 3000 });
+                        }
+                    }}
+                    onDeleteMapLayer={async (id) => {
+                        try {
+                            await deleteMapLayer(id);
+                            setMapLayers(prev => prev.filter(l => l.id !== id));
+                            toast({ title: "Camada removida", status: "success", duration: 2000 });
+                        } catch {
+                            toast({ title: "Erro ao remover camada", status: "error", duration: 3000 });
+                        }
                     }}
                   />
                   {/* FAB para adicionar Pin Manual */}
