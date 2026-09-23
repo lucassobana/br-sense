@@ -274,6 +274,7 @@ export function BatteryStatusChart({
 
     const initialRef = filteredData.find(
       (d) =>
+        d.reading_type === "L" &&
         d.latitude != null &&
         d.longitude != null &&
         Number.isFinite(Number(d.latitude)),
@@ -288,6 +289,7 @@ export function BatteryStatusChart({
       const lon = Number(item.longitude);
 
       if (
+        item.reading_type === "L" &&
         item.latitude != null &&
         item.longitude != null &&
         Number.isFinite(lat) &&
@@ -312,29 +314,40 @@ export function BatteryStatusChart({
     allLocs.sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime(),
     );
-    const last15Locs = allLocs.slice(-15);
-
     const finalData = batteryArray.map((p) => ({ ...p }));
-    const N = finalData.length;
-    const L = last15Locs.length;
 
-    if (L > 0) {
-      last15Locs.forEach((loc, index) => {
-        const targetIndex =
-          L === 1
-            ? Math.floor((N - 1) / 2)
-            : Math.floor((index * (N - 1)) / (L - 1));
-
-        if (finalData[targetIndex]) {
-          finalData[targetIndex].hasLocation = true;
-          finalData[targetIndex].locTime = loc.time;
-          finalData[targetIndex].lat = loc.lat;
-          finalData[targetIndex].lon = loc.lon;
-          finalData[targetIndex].distance = loc.distance;
-          finalData[targetIndex].isChange = loc.isChange;
-          finalData[targetIndex].locY = 1;
+    if (allLocs.length > 0) {
+      const last15Locs = allLocs.slice(-15);
+      
+      last15Locs.forEach((loc) => {
+        // Tenta encontrar um ponto de bateria com o mesmo exato timestamp
+        const existingPoint = finalData.find(p => p.time === loc.time);
+        
+        if (existingPoint) {
+          existingPoint.hasLocation = true;
+          existingPoint.locTime = loc.time;
+          existingPoint.lat = loc.lat;
+          existingPoint.lon = loc.lon;
+          existingPoint.distance = loc.distance;
+          existingPoint.isChange = loc.isChange;
+          existingPoint.locY = 1;
+        } else {
+          // Se não existir, insere como um novo ponto no gráfico
+          finalData.push({
+            time: loc.time,
+            hasLocation: true,
+            locTime: loc.time,
+            lat: loc.lat,
+            lon: loc.lon,
+            distance: loc.distance,
+            isChange: loc.isChange,
+            locY: 1,
+          });
         }
       });
+
+      // Reordena pelo tempo para o Recharts desenhar corretamente
+      finalData.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
     }
 
     return finalData;

@@ -1,12 +1,17 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
+from typing import Optional
 
 class ManualIrrigationBase(BaseModel):
     irrigation_value_mm: float = Field(..., description="Valor de irrigação em milímetros")
-    date: datetime = Field(..., description="Data e hora da irrigação")
+    date: datetime = Field(..., description="Data da irrigação")
 
 class ManualIrrigationCreate(ManualIrrigationBase):
     pass
+
+class ManualIrrigationUpdate(BaseModel):
+    irrigation_value_mm: Optional[float] = None
+    date: Optional[datetime] = None
 
 class ManualIrrigationResponse(ManualIrrigationBase):
     id: int
