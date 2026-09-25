@@ -826,6 +826,11 @@ export function Dashboard() {
                             toast({ title: "Erro ao remover camada", status: "error", duration: 3000 });
                         }
                     }}
+                    onUpdateMapLayer={(id, newGeoJSON) => {
+                        setMapLayers(prev =>
+                            prev.map(l => l.id === id ? { ...l, geojson: newGeoJSON } : l)
+                        );
+                    }}
                   />
                   {/* FAB para adicionar Pin Manual */}
                   <IconButton

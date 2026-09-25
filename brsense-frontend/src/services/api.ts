@@ -284,3 +284,15 @@ export const uploadMapLayer = async (farmId: number, file: File, name?: string) 
 export const deleteMapLayer = async (layerId: number) => {
   await api.delete(`/api/map-layers/${layerId}`);
 };
+
+export const updateMapLayerGeoJSON = async (
+  layerId: number,
+  geojson: GeoJSON.FeatureCollection
+): Promise<import("../types").MapLayer> => {
+  const response = await api.patch<import("../types").MapLayer>(
+    `/api/map-layers/${layerId}`,
+    { geojson }
+  );
+  return response.data;
+};
+

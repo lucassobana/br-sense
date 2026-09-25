@@ -1,8 +1,13 @@
 # app/routers/map_layers.py
 import json
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
+
+
+class UpdateGeoJSONBody(BaseModel):
+    geojson: Dict[str, Any]
 
 from app.db.session import get_db
 from app.models.map_layer import MapLayer
@@ -95,6 +100,31 @@ def get_map_layers_by_farm(farm_id: int, db: Session = Depends(get_db)):
 
     layers = db.query(MapLayer).filter(MapLayer.farm_id == farm_id).order_by(MapLayer.created_at.desc()).all()
     return [_layer_to_response(layer) for layer in layers]
+
+
+@router.patch("/{layer_id}", status_code=status.HTTP_200_OK)
+def update_map_layer_geojson(
+    layer_id: int,
+    body: UpdateGeoJSONBody,
+    db: Session = Depends(get_db),
+):
+    """
+    Update the GeoJSON of an existing map layer.
+    Used when features are individually deleted from the frontend.
+    Body: { "geojson": <GeoJSON FeatureCollection object> }
+    """
+    layer = db.query(MapLayer).filter(MapLayer.id == layer_id).first()
+    if not layer:
+        raise HTTPException(status_code=404, detail="Camada não encontrada")
+
+    geojson_data = body.geojson
+    if geojson_data.get("type") != "FeatureCollection":
+        raise HTTPException(status_code=422, detail="GeoJSON inválido: deve ser um FeatureCollection")
+
+    layer.geojson = json.dumps(geojson_data)
+    db.commit()
+    db.refresh(layer)
+    return _layer_to_response(layer)
 
 
 @router.delete("/{layer_id}", status_code=status.HTTP_204_NO_CONTENT)
