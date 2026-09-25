@@ -263,3 +263,36 @@ export const deleteManualIrrigation = async (id: number) => {
   const response = await api.delete(`/api/manual-probes/irrigations/${id}`);
   return response.data;
 };
+
+export const getMapLayers = async (farmId: number) => {
+  const response = await api.get<import("../types").MapLayer[]>(`/api/map-layers/farm/${farmId}`);
+  return response.data;
+};
+
+export const uploadMapLayer = async (farmId: number, file: File, name?: string) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (name) formData.append("name", name);
+  const response = await api.post<import("../types").MapLayer>(
+    `/api/map-layers/farm/${farmId}`,
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
+  return response.data;
+};
+
+export const deleteMapLayer = async (layerId: number) => {
+  await api.delete(`/api/map-layers/${layerId}`);
+};
+
+export const updateMapLayerGeoJSON = async (
+  layerId: number,
+  geojson: GeoJSON.FeatureCollection
+): Promise<import("../types").MapLayer> => {
+  const response = await api.patch<import("../types").MapLayer>(
+    `/api/map-layers/${layerId}`,
+    { geojson }
+  );
+  return response.data;
+};
+

@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap, CircleMarker, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap, CircleMarker, Polyline, GeoJSON } from 'react-leaflet';
 import { Box, VStack, Fade, IconButton, useToast, Tooltip, Select, Text, HStack, Flex } from '@chakra-ui/react';
 import { MdAdd, MdRemove, MdMyLocation, MdWaterDrop } from 'react-icons/md';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { Measurement, RadarFrame } from '../../types';
+import type { Measurement, RadarFrame, MapLayer } from '../../types';
 import { COLORS } from '../../colors/colors';
 import { PiAlignTopSimpleFill } from "react-icons/pi";
 import { ProbeCard } from '../ProbeCard/ProbeCard';
 import { RainViewerRadarLayer } from "../RainViewer/RainViewer";
 import { RainViewerTimeline } from '../RainViewer/RainViewerTimeline';
 import { ManualProbeCard } from '../ProbeCard/ManualProbeCard';
+import { KmlLayersControl } from './KmlLayersControl';
+import { KmlUploadModal } from './KmlUploadModal';
+import { updateMapLayerGeoJSON } from '../../services/api';
 // import { GiRadarSweep } from "react-icons/gi";
 
 
@@ -164,6 +167,11 @@ interface SatelliteMapProps {
     onBatchUpdateClick?: () => void;
     onDeleteManualProbe?: (id: number) => void;
     onEditManualProbe?: (id: number) => void;
+    // KML layers
+    mapLayers?: MapLayer[];
+    onUploadMapLayer?: (file: File, name?: string) => Promise<void>;
+    onDeleteMapLayer?: (id: number) => void;
+    onUpdateMapLayer?: (id: number, geojson: GeoJSON.FeatureCollection) => void;
 }
 
 const MapRecenter = ({ center, zoom }: { center: [number, number] | null, zoom: number }) => {
@@ -190,12 +198,28 @@ const MapControls = ({
     onToggleRain,
     showRadar,
     // onToggleRadar,
+    kmlLayers,
+    visibleLayerIds,
+    onToggleLayer,
+    onDeleteLayer,
+    onOpenUpload,
+    hiddenFeatures,
+    onToggleFeature,
+    onDeleteFeature,
 }: {
     onLocationFound: (pos: [number, number]) => void;
     showRain: boolean;
     onToggleRain: () => void;
     showRadar: boolean;
     onToggleRadar: () => void;
+    kmlLayers: MapLayer[];
+    visibleLayerIds: Set<number>;
+    onToggleLayer: (id: number) => void;
+    onDeleteLayer: (id: number) => void;
+    onOpenUpload: () => void;
+    hiddenFeatures: Map<number, Set<number>>;
+    onToggleFeature: (layerId: number, fIdx: number) => void;
+    onDeleteFeature: (layerId: number, fIdx: number) => void;
 }) => {
     const map = useMap();
     const toast = useToast();
@@ -310,6 +334,17 @@ const MapControls = ({
                     />
                 </Tooltip> */}
             </VStack>
+            {/* KML Layers Control */}
+            <KmlLayersControl
+                layers={kmlLayers}
+                visibleLayerIds={visibleLayerIds}
+                onToggleLayer={onToggleLayer}
+                onDeleteLayer={onDeleteLayer}
+                onOpenUpload={onOpenUpload}
+                hiddenFeatures={hiddenFeatures}
+                onToggleFeature={onToggleFeature}
+                onDeleteFeature={onDeleteFeature}
+            />
             {showRadar && <RadarLegend />}
         </Box>
     );
@@ -426,10 +461,18 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     isAddingManualProbe = false,
     onDeleteManualProbe,
     onEditManualProbe,
+    mapLayers = [],
+    onUploadMapLayer,
+    onDeleteMapLayer,
+    onUpdateMapLayer,
 }) => {
 
     const [selectedPoint, setSelectedPoint] = useState<MapPoint | null>(null);
     const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+    const [visibleLayerIds, setVisibleLayerIds] = useState<Set<number>>(() => new Set(mapLayers.map(l => l.id)));
+    const [isKmlModalOpen, setIsKmlModalOpen] = useState(false);
+    // Map<layerId, Set<featureIndex>> — features hidden locally (no backend persist)
+    const [hiddenFeatures, setHiddenFeatures] = useState<Map<number, Set<number>>>(() => new Map());
 
     // Estados para os Controles no Mapa
     // const [selectedDepth, setSelectedDepth] = useState<number>(20);
@@ -659,6 +702,60 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                     onToggleRain={() => setShowRain((prev) => !prev)}
                     showRadar={showRadar}
                     onToggleRadar={() => setShowRadar((prev) => !prev)}
+                    kmlLayers={mapLayers}
+                    visibleLayerIds={visibleLayerIds}
+                    onToggleLayer={(id) => setVisibleLayerIds(prev => {
+                        const next = new Set(prev);
+                        if (next.has(id)) next.delete(id); else next.add(id);
+                        return next;
+                    })}
+                    onDeleteLayer={(id) => {
+                        if (onDeleteMapLayer) onDeleteMapLayer(id);
+                        setVisibleLayerIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+                        setHiddenFeatures(prev => { const next = new Map(prev); next.delete(id); return next; });
+                    }}
+                    hiddenFeatures={hiddenFeatures}
+                    onToggleFeature={(layerId, fIdx) => {
+                        setHiddenFeatures(prev => {
+                            const next = new Map(prev);
+                            const set = new Set(next.get(layerId) ?? []);
+                            if (set.has(fIdx)) set.delete(fIdx); else set.add(fIdx);
+                            next.set(layerId, set);
+                            return next;
+                        });
+                    }}
+                    onDeleteFeature={async (layerId, fIdx) => {
+                        const layer = mapLayers.find(l => l.id === layerId);
+                        if (!layer) return;
+                        const newFeatures = layer.geojson.features.filter((_, i) => i !== fIdx);
+                        const newGeoJSON: GeoJSON.FeatureCollection = {
+                            ...layer.geojson,
+                            features: newFeatures,
+                        };
+                        try {
+                            const updated = await updateMapLayerGeoJSON(layerId, newGeoJSON);
+                            if (onUpdateMapLayer) onUpdateMapLayer(layerId, updated.geojson);
+                            // Also clean up hiddenFeatures index shift
+                            setHiddenFeatures(prev => {
+                                const next = new Map(prev);
+                                const oldSet = next.get(layerId);
+                                if (oldSet) {
+                                    // Remove deleted index, shift indices above it down by 1
+                                    const newSet = new Set<number>();
+                                    oldSet.forEach(i => {
+                                        if (i < fIdx) newSet.add(i);
+                                        else if (i > fIdx) newSet.add(i - 1);
+                                        // i === fIdx is dropped
+                                    });
+                                    next.set(layerId, newSet);
+                                }
+                                return next;
+                            });
+                        } catch (err) {
+                            console.error('Erro ao remover feature:', err);
+                        }
+                    }}
+                    onOpenUpload={() => setIsKmlModalOpen(true)}
                 />
 
 
@@ -750,6 +847,31 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                     />
                 )}
 
+                {/* ── KML/KMZ Layers ───────────────────────────── */}
+                {mapLayers
+                    .filter(layer => visibleLayerIds.has(layer.id))
+                    .map(layer => {
+                        const hiddenSet = hiddenFeatures.get(layer.id) ?? new Set<number>();
+                        const filteredGeoJSON: GeoJSON.FeatureCollection = {
+                            ...layer.geojson,
+                            features: layer.geojson.features.filter((_, idx) => !hiddenSet.has(idx)),
+                        };
+                        return (
+                            <GeoJSON
+                                key={`${layer.id}-${hiddenSet.size}`}
+                                data={filteredGeoJSON}
+                                style={() => ({
+                                    color: '#3B82F6',
+                                    weight: 2.5,
+                                    opacity: 0.9,
+                                    fillColor: '#3B82F6',
+                                    fillOpacity: 0.15,
+                                })}
+                            />
+                        );
+                    })
+                }
+
                 <MapClickHandler onMapClick={(lat, lng) => {
                     if (isAddingManualProbe && onMapClick) {
                         onMapClick(lat, lng);
@@ -804,6 +926,18 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                     );
                 })}
             </MapContainer>
+
+            {/* KML/KMZ Upload Modal */}
+            <KmlUploadModal
+                isOpen={isKmlModalOpen}
+                onClose={() => setIsKmlModalOpen(false)}
+                onUpload={async (file, name) => {
+                    if (onUploadMapLayer) {
+                        await onUploadMapLayer(file, name);
+                        setIsKmlModalOpen(false);
+                    }
+                }}
+            />
 
             <Fade in={!!selectedPoint} unmountOnExit>
                 {selectedPoint && (

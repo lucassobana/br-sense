@@ -100,3 +100,12 @@ export interface ManualIrrigationRecord {
   date: string;
   created_at: string;
 }
+
+export interface MapLayer {
+  id: number;
+  farm_id: number;
+  name: string;
+  original_filename: string | null;
+  geojson: GeoJSON.FeatureCollection;
+  created_at: string;
+}
