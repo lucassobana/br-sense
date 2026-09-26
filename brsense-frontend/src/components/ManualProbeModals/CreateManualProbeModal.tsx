@@ -67,6 +67,9 @@ export const CreateManualProbeModal: React.FC<CreateManualProbeModalProps> = ({
         latitude,
         longitude,
         irrigation_value_mm: irrigationMm,
+        cultura: cultura || undefined,
+        data_plantio: dataPlantio || undefined,
+        potencia_cv: potenciaCv !== '' ? Number(potenciaCv) : undefined,
       });
 
       toast({
@@ -82,7 +85,10 @@ export const CreateManualProbeModal: React.FC<CreateManualProbeModalProps> = ({
       // Reset form
       setName('');
       setIrrigationMm(0);
-    } catch (error) {
+      setCultura('');
+      setDataPlantio('');
+      setPotenciaCv('');
+    } catch {
       toast({
         title: 'Erro',
         description: 'Não foi possível criar o pin manual.',
