@@ -50,7 +50,10 @@ def create_manual_probe(probe: ManualProbeCreate, db: Session = Depends(get_db))
         name=probe.name,
         latitude=probe.latitude,
         longitude=probe.longitude,
-        irrigation_value_mm=probe.irrigation_value_mm
+        irrigation_value_mm=probe.irrigation_value_mm,
+        cultura=probe.cultura,
+        data_plantio=probe.data_plantio,
+        potencia_cv=probe.potencia_cv
     )
     db.add(new_probe)
     db.commit()
