@@ -1,6 +1,6 @@
 # app/models/reading.py
 from datetime import datetime
-from sqlalchemy import Float, DateTime, ForeignKey, String, Integer, Index
+from sqlalchemy import Float, DateTime, ForeignKey, String, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
@@ -20,8 +20,8 @@ class Reading(Base):
     
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     
-    battery_status: Mapped[int] = mapped_column(Integer, nullable=True)
-    solar_status: Mapped[int] = mapped_column(Integer, nullable=True)
+    battery_status: Mapped[float] = mapped_column(Float, nullable=True)
+    solar_status: Mapped[float] = mapped_column(Float, nullable=True)
     latitude: Mapped[float] = mapped_column(Float, nullable=True)
     longitude: Mapped[float] = mapped_column(Float, nullable=True)
 
