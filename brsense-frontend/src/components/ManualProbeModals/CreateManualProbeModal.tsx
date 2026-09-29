@@ -11,11 +11,6 @@ import {
   FormControl,
   FormLabel,
   Input,
-  NumberInput,
-  NumberInputField,
-  NumberInputStepper,
-  NumberIncrementStepper,
-  NumberDecrementStepper,
   useToast,
   Select
 } from '@chakra-ui/react';
@@ -176,33 +171,13 @@ export const CreateManualProbeModal: React.FC<CreateManualProbeModalProps> = ({
               _focus={{ ring: 2, ringColor: "blue.400" }}
             />
           </FormControl>
-
-          <FormControl mt={4}>
-            <FormLabel>Valor de Irrigação (mm)</FormLabel>
-            <NumberInput
-              value={irrigationMm}
-              onChange={(_, valueAsNumber) => setIrrigationMm(isNaN(valueAsNumber) ? 0 : valueAsNumber)}
-              min={0}
-              step={1}
-            >
-              <NumberInputField 
-                bg="gray.700" 
-                border="none"
-                _focus={{ ring: 2, ringColor: "blue.400" }}
-              />
-              <NumberInputStepper>
-                <NumberIncrementStepper color="white" />
-                <NumberDecrementStepper color="white" />
-              </NumberInputStepper>
-            </NumberInput>
-          </FormControl>
         </ModalBody>
 
         <ModalFooter>
           <Button colorScheme="blue" mr={3} onClick={handleSave} isLoading={isSubmitting}>
             Salvar
           </Button>
-          <Button onClick={onClose} variant="ghost" _hover={{ bg: "gray.700" }}>
+          <Button onClick={onClose} colorScheme="red" _hover={{ bg: "gray.700" }}>
             Cancelar
           </Button>
         </ModalFooter>

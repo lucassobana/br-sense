@@ -20,8 +20,8 @@ class ReadingResponse(BaseModel):
     depth_cm: Optional[float] = None
     moisture_pct: Optional[float] = None
     temperature_c: Optional[float] = None
-    battery_status: Optional[int] = None
-    solar_status: Optional[int] = None
+    battery_status: Optional[float] = None
+    solar_status: Optional[float] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     rain_cm: Optional[float] = None
