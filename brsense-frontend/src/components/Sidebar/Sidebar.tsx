@@ -270,14 +270,17 @@ const SidebarContent = ({
 };
 
 // NOVO COMPONENTE MOBILE: Barra inferior estilo Spotify
-const BottomNav = () => {
+const BottomNav = ({ isAdmin = false }: { isAdmin?: boolean }) => {
   const location = useLocation();
 
-  // Apenas as duas rotas solicitadas
-  const mobileItems = [
+  const baseItems = [
     { label: "Mapa", icon: MdMap, path: "/dashboard" },
     { label: "Sondas", icon: MdSensors, path: "/probes" },
   ];
+
+  const mobileItems = isAdmin
+    ? [...baseItems, { label: "Config.", icon: MdSettings, path: "/settings" }]
+    : baseItems;
 
   return (
     <Flex
@@ -364,7 +367,7 @@ export function Sidebar({ organization = true }) {
       </Box>
 
       {/* 2. VISÃO MOBILE (Navegação Inferior) */}
-      <BottomNav />
+      <BottomNav isAdmin={isAdmin} />
     </>
   );
 }

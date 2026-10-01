@@ -172,6 +172,7 @@ interface SatelliteMapProps {
     onUploadMapLayer?: (file: File, name?: string) => Promise<void>;
     onDeleteMapLayer?: (id: number) => void;
     onUpdateMapLayer?: (id: number, geojson: GeoJSON.FeatureCollection) => void;
+    onManualProbeUpdated?: () => void;
 }
 
 const MapRecenter = ({ center, zoom }: { center: [number, number] | null, zoom: number }) => {
@@ -465,6 +466,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     onUploadMapLayer,
     onDeleteMapLayer,
     onUpdateMapLayer,
+    onManualProbeUpdated,
 }) => {
 
     const [selectedPoint, setSelectedPoint] = useState<MapPoint | null>(null);
@@ -887,7 +889,15 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                         ? probeDepthRef
                         : mapDepthFilter;
 
-                    const markerColor = point.isManualProbe ? "#00A3C4" : getMarkerColorForDepth(point, activeDepth);
+                    const getManualProbeColor = (val?: number) => {
+                        const value = val || 0;
+                        if (value < 20) return "#E53E3E"; // red.500
+                        if (value < 50) return "#D69E2E"; // yellow.500
+                        if (value < 200) return "#38A169"; // green.500
+                        return "#3182CE"; // blue.500
+                    };
+
+                    const markerColor = point.isManualProbe ? getManualProbeColor(point.irrigation_value_mm) : getMarkerColorForDepth(point, activeDepth);
 
                     let rainVal = 0;
                     if (rainPeriod === '1h') rainVal = point.rain_1h ?? 0;
@@ -963,6 +973,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                                     }
                                 }}
                                 onEditManualProbe={onEditManualProbe}
+                                onManualProbeUpdated={onManualProbeUpdated}
                             />
                         ) : (
                             <ProbeCard
