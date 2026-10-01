@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import func
 from typing import List
 
 from app.db.session import get_db
@@ -10,6 +11,16 @@ from app.schemas.manual_probe import ManualProbeCreate, ManualProbeUpdate, Manua
 from app.schemas.manual_irrigation import ManualIrrigationCreate, ManualIrrigationUpdate, ManualIrrigationResponse
 
 router = APIRouter()
+
+def _recalculate_irrigation_total(probe_id: int, db: Session):
+    total = db.query(func.sum(ManualIrrigationRecord.irrigation_value_mm)).filter(
+        ManualIrrigationRecord.manual_probe_id == probe_id
+    ).scalar()
+    
+    probe = db.query(ManualProbe).filter(ManualProbe.id == probe_id).first()
+    if probe:
+        probe.irrigation_value_mm = total or 0.0
+        db.commit()
 
 
 def _build_probe_response(probe: ManualProbe, irrigations: list) -> dict:
@@ -124,11 +135,11 @@ def create_manual_irrigation(probe_id: int, irrigation: ManualIrrigationCreate, 
         date=irrigation.date
     )
     db.add(new_record)
-    
-    # Atualiza o valor atual da sonda para manter retrocompatibilidade / visual
-    probe.irrigation_value_mm = irrigation.irrigation_value_mm
-    
     db.commit()
+    
+    # Atualiza o valor atual da sonda para o acumulado TOTAL de irrigações
+    _recalculate_irrigation_total(probe_id, db)
+    
     db.refresh(new_record)
     return new_record
 
@@ -151,10 +162,11 @@ def update_manual_irrigation(irrigation_id: int, irrigation_update: ManualIrriga
     for key, value in update_data.items():
         setattr(record, key, value)
         
-    # Opcional: Se atualizar o registro mais recente, talvez queiramos atualizar o probe.irrigation_value_mm
-    # Para simplicidade, vamos atualizar a irrigação apenas
-    
     db.commit()
+    
+    # Atualiza o total acumulado do pin
+    _recalculate_irrigation_total(record.manual_probe_id, db)
+    
     db.refresh(record)
     return record
 
@@ -164,6 +176,9 @@ def delete_manual_irrigation(irrigation_id: int, db: Session = Depends(get_db)):
     if not record:
         raise HTTPException(status_code=404, detail="Registro de irrigação não encontrado")
 
+    probe_id = record.manual_probe_id
     db.delete(record)
     db.commit()
+    
+    _recalculate_irrigation_total(probe_id, db)
     return
