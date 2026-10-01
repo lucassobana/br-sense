@@ -109,6 +109,7 @@ export function Settings() {
         toast({ title: "Pin Manual excluído", status: "success", duration: 3000 });
         loadData();
       } catch (error) {
+        console.error("Erro ao excluir Pin Manual:", error);
         toast({ title: "Erro ao excluir", status: "error", duration: 3000 });
       }
     }
@@ -197,22 +198,6 @@ export function Settings() {
     if (val <= v3) return "status_ok";
     return "status_saturated";
   };
-
-  const getStatusPriority = (code?: string) => {
-    switch (code) {
-      case "status_critical":
-        return 1;
-      case "status_alert":
-        return 2;
-      case "status_saturated":
-        return 3;
-      case "status_ok":
-        return 4;
-      default:
-        return 5;
-    }
-  };
-
   const getManualProbeTheme = (val?: number) => {
     const value = val || 0;
     if (value < 20) return { bg: "rgba(229, 62, 62, 0.2)", icon: "red.400" };
