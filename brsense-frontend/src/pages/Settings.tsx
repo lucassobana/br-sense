@@ -62,7 +62,7 @@ export function Settings() {
       const manualProbesArrays = await Promise.all(farmsData.map(f => getManualProbes(f.id).catch(() => [])));
       const allManualProbes = manualProbesArrays.flat();
 
-      setFarms([...farmsData].sort((a, b) => a.id - b.id));
+      setFarms([...farmsData].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })));
       setProbes(probesData);
       setManualProbes(allManualProbes);
 
@@ -211,6 +211,14 @@ export function Settings() {
       default:
         return 5;
     }
+  };
+
+  const getManualProbeTheme = (val?: number) => {
+    const value = val || 0;
+    if (value < 20) return { bg: "rgba(229, 62, 62, 0.2)", icon: "red.400" };
+    if (value < 50) return { bg: "rgba(214, 158, 46, 0.2)", icon: "yellow.400" };
+    if (value < 200) return { bg: "rgba(56, 161, 105, 0.2)", icon: "green.400" };
+    return { bg: "rgba(49, 130, 206, 0.2)", icon: "blue.400" };
   };
 
   return (
@@ -395,13 +403,9 @@ export function Settings() {
               <TabPanel p={0}>
                 <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
                   {[...probes]
-                    .sort((a, b) => {
-                      const statusA = calculateProbeStatus(a);
-                      const statusB = calculateProbeStatus(b);
-                      return (
-                        getStatusPriority(statusA) - getStatusPriority(statusB)
-                      );
-                    })
+                    .sort((a, b) =>
+                      (a.name ?? "").localeCompare(b.name ?? "", "pt-BR", { sensitivity: "base" })
+                    )
                     .map((probe) => {
                       const realStatus = calculateProbeStatus(probe);
                       const statusColor =
@@ -521,27 +525,31 @@ export function Settings() {
               {/* TAB PINS MANUAIS */}
               <TabPanel p={0}>
                 <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
-                  {manualProbes.map((probe) => (
-                    <Box
-                      key={probe.id}
-                      bg="rgba(255,255,255,0.02)"
-                      p={5}
-                      borderRadius="md"
-                      border="1px solid"
-                      borderColor="#2D2D2D"
-                    >
-                      <Flex justify="space-between" align="flex-start" mb={4}>
-                        <HStack>
-                          <Flex
-                            w="32px"
-                            h="32px"
-                            borderRadius="md"
-                            bg="rgba(14, 107, 165, 0.2)"
-                            align="center"
-                            justify="center"
-                          >
-                            <Icon as={MdWaterDrop} color="cyan.400" />
-                          </Flex>
+                  {[...manualProbes]
+                    .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "", "pt-BR", { sensitivity: "base" }))
+                    .map((probe) => {
+                      const theme = getManualProbeTheme(probe.irrigation_value_mm);
+                      return (
+                      <Box
+                        key={probe.id}
+                        bg="rgba(255,255,255,0.02)"
+                        p={5}
+                        borderRadius="md"
+                        border="1px solid"
+                        borderColor="#2D2D2D"
+                      >
+                        <Flex justify="space-between" align="flex-start" mb={4}>
+                          <HStack>
+                            <Flex
+                              w="32px"
+                              h="32px"
+                              borderRadius="md"
+                              bg={theme.bg}
+                              align="center"
+                              justify="center"
+                            >
+                              <Icon as={MdWaterDrop} color={theme.icon} />
+                            </Flex>
                           <Box>
                             <Text fontWeight="bold" color="white" lineHeight="1.2">
                               {probe.name}
@@ -589,12 +597,14 @@ export function Settings() {
                         </HStack>
                         
                         <Flex justify="space-between" align="center" pt={2} borderTop="1px solid" borderColor="whiteAlpha.100">
-                          <Text fontSize="sm" color="gray.400">Local</Text>
-                          <Text fontSize="sm" color="white">{probe.latitude.toFixed(4)}, {probe.longitude.toFixed(4)}</Text>
+                          <Text fontSize="sm" color="gray.400">Acumulado Total</Text>
+                          <Text fontSize="sm" color="white" fontWeight="bold">
+                            {(probe.irrigation_value_mm || 0).toFixed(1)} mm
+                          </Text>
                         </Flex>
                       </VStack>
                     </Box>
-                  ))}
+                  )})}
                   {manualProbes.length === 0 && (
                     <Text color="gray.500" py={4}>
                       Nenhum Pin Manual cadastrado.
