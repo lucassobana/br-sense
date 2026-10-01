@@ -57,6 +57,12 @@ interface BatteryStatusChartProps {
     startDate?: string,
     endDate?: string,
   ) => void;
+  /** Posição cadastrada do dispositivo no sistema — usada como referência fixa
+   *  para detectar deslocamentos não autorizados (roubo). Quando informados,
+   *  qualquer leitura GPS que se afaste mais de 10m dessas coordenadas
+   *  aparece como ponto vermelho, independente de quantas leituras novas chegarem. */
+  deviceLat?: number | null;
+  deviceLon?: number | null;
 }
 
 interface ChartPoint {
@@ -107,6 +113,8 @@ export function BatteryStatusChart({
   data,
   selectedPeriod = "24h",
   onPeriodChange,
+  deviceLat,
+  deviceLon,
 }: BatteryStatusChartProps) {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const endDateRef = useRef<HTMLInputElement>(null);
@@ -272,43 +280,76 @@ export function BatteryStatusChart({
 
     if (batteryArray.length === 0) return [];
 
-    const initialRef = filteredData.find(
-      (d) =>
-        d.reading_type === "L" &&
-        d.latitude != null &&
-        d.longitude != null &&
-        Number.isFinite(Number(d.latitude)),
-    );
-    const refLat = initialRef ? Number(initialRef.latitude) : null;
-    const refLon = initialRef ? Number(initialRef.longitude) : null;
-
     const allLocs: TempLocation[] = [];
 
-    filteredData.forEach((item) => {
+    // Coleta todas as leituras de localização em ordem cronológica
+    const locReadings = filteredData
+      .filter(
+        (d) =>
+          d.reading_type === "L" &&
+          d.latitude != null &&
+          d.longitude != null &&
+          Number.isFinite(Number(d.latitude)) &&
+          Number.isFinite(Number(d.longitude)),
+      )
+      .sort((a, b) => {
+        const tA = new Date(
+          a.timestamp.includes("Z") || a.timestamp.includes("+")
+            ? a.timestamp
+            : `${a.timestamp}Z`,
+        ).getTime();
+        const tB = new Date(
+          b.timestamp.includes("Z") || b.timestamp.includes("+")
+            ? b.timestamp
+            : `${b.timestamp}Z`,
+        ).getTime();
+        return tA - tB;
+      });
+
+    // --- Referência de posição ---
+    // Prioridade 1: posição cadastrada do dispositivo (lat/lon do cadastro).
+    //   Qualquer GPS que se afaste > 10m fica SEMPRE vermelho até o admin
+    //   atualizar o endereço cadastrado. Detecta roubos corretamente.
+    // Prioridade 2: referência deslizante (fallback quando não há cadastro).
+    const hasDeviceRef =
+      deviceLat != null &&
+      deviceLon != null &&
+      Number.isFinite(deviceLat) &&
+      Number.isFinite(deviceLon);
+
+    let slidingRefLat: number | null = null;
+    let slidingRefLon: number | null = null;
+
+    locReadings.forEach((item) => {
       const lat = Number(item.latitude);
       const lon = Number(item.longitude);
+      const utcStr =
+        item.timestamp.includes("Z") || item.timestamp.includes("+")
+          ? item.timestamp
+          : `${item.timestamp}Z`;
 
-      if (
-        item.reading_type === "L" &&
-        item.latitude != null &&
-        item.longitude != null &&
-        Number.isFinite(lat) &&
-        Number.isFinite(lon)
-      ) {
-        const utcStr =
-          item.timestamp.includes("Z") || item.timestamp.includes("+")
-            ? item.timestamp
-            : `${item.timestamp}Z`;
-        let dist = 0;
-        let isChange = false;
+      let dist = 0;
+      let isChange = false;
 
-        if (refLat !== null && refLon !== null) {
-          dist = getDistanceInMeters(refLat, refLon, lat, lon);
-          isChange = dist >= 10;
+      if (hasDeviceRef) {
+        // Referência fixa no endereço cadastrado — não muda nunca
+        dist = getDistanceInMeters(deviceLat!, deviceLon!, lat, lon);
+        isChange = dist >= 10;
+      } else if (slidingRefLat !== null && slidingRefLon !== null) {
+        // Fallback: referência deslizante
+        dist = getDistanceInMeters(slidingRefLat, slidingRefLon, lat, lon);
+        isChange = dist >= 10;
+        if (isChange) {
+          slidingRefLat = lat;
+          slidingRefLon = lon;
         }
-
-        allLocs.push({ time: utcStr, lat, lon, distance: dist, isChange });
+      } else {
+        // Primeiro ponto sem referência cadastrada: estabelece referência inicial
+        slidingRefLat = lat;
+        slidingRefLon = lon;
       }
+
+      allLocs.push({ time: utcStr, lat, lon, distance: dist, isChange });
     });
 
     allLocs.sort(
@@ -351,14 +392,13 @@ export function BatteryStatusChart({
     }
 
     return finalData;
-  }, [data, startDate, endDate, selectedPeriod]);
+  }, [data, startDate, endDate, selectedPeriod, deviceLat, deviceLon]);
 
   const yDomain = useMemo<[number, number]>(() => {
+    // Apenas solar no eixo esquerdo; bateria tem seu próprio eixo à direita
     const values = chartData
       .flatMap((point) => {
         const vals = [];
-        if (visibleSeries.battery && point.battery !== undefined)
-          vals.push(point.battery);
         if (visibleSeries.solar && point.solar !== undefined)
           vals.push(point.solar);
         return vals;
@@ -673,7 +713,7 @@ export function BatteryStatusChart({
             data={chartData}
             margin={{
               top: 20,
-              right: isMobileViewport ? 5 : 20,
+              right: isMobileViewport ? 40 : 55,
               left: 0,
               bottom: 0,
             }}
@@ -703,16 +743,31 @@ export function BatteryStatusChart({
             <YAxis
               yAxisId="main"
               orientation="left"
-              allowDecimals={false}
-              tickFormatter={(val) => Math.round(val).toString()}
-              tick={{ fill: "#e2e8f0", fontSize: isMobileViewport ? 9 : 11 }}
+              allowDecimals
+              tickFormatter={(val) => `${Number(val).toFixed(1)}V`}
+              tick={{ fill: "#FACC15", fontSize: isMobileViewport ? 9 : 11 }}
               axisLine={{ stroke: "rgba(255,255,255,0.35)" }}
               tickLine={{ stroke: "rgba(255,255,255,0.35)" }}
               domain={yDomain}
-              width={isMobileViewport ? 25 : 40}
+              width={isMobileViewport ? 35 : 45}
             />
 
-            <YAxis yAxisId="loc" orientation="right" hide domain={[0, 1.05]} />
+            <YAxis yAxisId="loc" orientation="right" hide domain={[0, 1.05]} width={0} />
+
+            {/* Eixo Y direito exclusivo para Bateria — range fixo 5 V a 13 V */}
+            <YAxis
+              yAxisId="battery"
+              orientation="right"
+              hide={!visibleSeries.battery}
+              domain={[5, 13]}
+              allowDataOverflow
+              tickCount={5}
+              tickFormatter={(val) => `${val}V`}
+              tick={{ fill: "#FFFFFF", fontSize: isMobileViewport ? 9 : 11 }}
+              axisLine={{ stroke: "rgba(255,255,255,0.35)" }}
+              tickLine={{ stroke: "rgba(255,255,255,0.35)" }}
+              width={isMobileViewport ? 35 : 45}
+            />
 
             <ChartTooltip
               content={({ active, payload }) => {
@@ -904,7 +959,7 @@ export function BatteryStatusChart({
 
             <Line
               hide={!visibleSeries.battery}
-              yAxisId="main"
+              yAxisId="battery"
               type="monotone"
               dataKey="battery"
               name="Bateria"
