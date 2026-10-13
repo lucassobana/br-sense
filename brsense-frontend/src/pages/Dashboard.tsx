@@ -805,6 +805,7 @@ export function Dashboard() {
                         setCreateManualProbeCoords({lat, lng});
                         setIsAddingManualProbe(false);
                     }}
+                    onManualProbeUpdated={refreshManualProbes}
                     mapLayers={mapLayers}
                     onUploadMapLayer={async (file, name) => {
                         if (farms.length === 0) return;
@@ -1172,6 +1173,8 @@ export function Dashboard() {
                         data={batteryData}
                         selectedPeriod={selectedPeriod}
                         onPeriodChange={handlePeriodChange}
+                        deviceLat={selectedProbe?.latitude ?? null}
+                        deviceLon={selectedProbe?.longitude ?? null}
                       />
                     </MotionBox>
                   )}

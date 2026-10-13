@@ -29,9 +29,10 @@ interface ManualProbeCardProps {
   onBatchUpdateClick?: () => void;
   onDeleteManualProbe?: (id: number) => void;
   onEditManualProbe?: (id: number) => void;
+  onManualProbeUpdated?: () => void;
 }
 
-export function ManualProbeCard({ point, onClose, onBatchUpdateClick, onDeleteManualProbe, onEditManualProbe }: ManualProbeCardProps) {
+export function ManualProbeCard({ point, onClose, onBatchUpdateClick, onDeleteManualProbe, onEditManualProbe, onManualProbeUpdated }: ManualProbeCardProps) {
   const calcularDAP = (dataPlantio?: string | null) => {
     if (!dataPlantio) return "-";
     const hoje = new Date();
@@ -72,6 +73,7 @@ export function ManualProbeCard({ point, onClose, onBatchUpdateClick, onDeleteMa
       await deleteManualIrrigation(recordId);
       toast({ title: "Irrigação removida", status: "success", duration: 2000 });
       fetchHistory();
+      onManualProbeUpdated?.();
     } catch {
       toast({ title: "Erro ao deletar", status: "error", duration: 3000 });
     }
@@ -314,7 +316,10 @@ export function ManualProbeCard({ point, onClose, onBatchUpdateClick, onDeleteMa
           setEditingRecord(null);
         }}
         record={editingRecord}
-        onUpdated={fetchHistory}
+        onUpdated={() => {
+          fetchHistory();
+          onManualProbeUpdated?.();
+        }}
       />
     </Box>
   );
