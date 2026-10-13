@@ -108,4 +108,14 @@ export interface MapLayer {
   original_filename: string | null;
   geojson: GeoJSON.FeatureCollection;
   created_at: string;
+  /** Estado persistido do toggle da camada */
+  is_active: boolean;
+  /** Índices das features ocultas (estado persistido) */
+  hidden_feature_indices: number[];
+}
+
+export interface MapLayerVisibilityItem {
+  id: number;
+  is_active: boolean;
+  hidden_feature_indices: number[];
 }

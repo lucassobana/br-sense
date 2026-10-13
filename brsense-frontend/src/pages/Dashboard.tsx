@@ -12,9 +12,10 @@ import {
   Flex,
   Text,
   useToast,
-  Spinner,
   Button,
+  ButtonGroup,
   Container,
+  Spinner,
   Heading,
   VStack,
   Icon,
@@ -191,6 +192,7 @@ export function Dashboard() {
   const isMountedRef = useRef(true);
   const userIsAdmin = isUserAdmin();
   const [direction, setDirection] = useState(1);
+  const [deviceFilter, setDeviceFilter] = useState<"sondas" | "manuais" | null>(null);
 
   const selectedProbe = useMemo(() => {
     if (!probeIdParam) return null;
@@ -442,7 +444,11 @@ export function Dashboard() {
       };
     });
 
-    const mappedManuals: TableRowData[] = manualProbes.map((probe) => {
+    const sortedManualProbes = [...manualProbes].sort((a, b) => 
+      (a.name ?? "").localeCompare(b.name ?? "", "pt-BR", { sensitivity: "base" })
+    );
+
+    const mappedManuals: TableRowData[] = sortedManualProbes.map((probe) => {
       const farmName = farmNameById.get(probe.farm_id) ?? "-";
 
       let lastTimestamp = 0;
@@ -485,7 +491,13 @@ export function Dashboard() {
       } as unknown as TableRowData;
     });
 
-    mapped.push(...mappedManuals);
+    let combined = [...mapped, ...mappedManuals];
+    if (deviceFilter === "sondas") {
+      combined = combined.filter(item => !item.isManualProbe);
+    } else if (deviceFilter === "manuais") {
+      combined = combined.filter(item => item.isManualProbe);
+    }
+
     const statusWeight: Record<string, number> = {
       status_critical: 1,
       status_alert: 2,
@@ -494,7 +506,7 @@ export function Dashboard() {
       status_offline: 5,
     };
 
-    return mapped.sort((a, b) => {
+    return combined.sort((a, b) => {
       if (sortConfig.key === "status") {
         const weightA = statusWeight[a.status] || 99;
         const weightB = statusWeight[b.status] || 99;
@@ -513,7 +525,7 @@ export function Dashboard() {
       if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
       return 0;
     });
-  }, [filteredProbes, farms, mapPoints, manualProbes, sortConfig]);
+  }, [filteredProbes, farms, mapPoints, manualProbes, sortConfig, deviceFilter]);
 
   const loadData = useCallback(async () => {
     try {
@@ -827,10 +839,10 @@ export function Dashboard() {
                             toast({ title: "Erro ao remover camada", status: "error", duration: 3000 });
                         }
                     }}
-                    onUpdateMapLayer={(id, newGeoJSON) => {
-                        setMapLayers(prev =>
-                            prev.map(l => l.id === id ? { ...l, geojson: newGeoJSON } : l)
-                        );
+                    onMapLayersVisibilitySaved={(updatedLayers) => {
+                        // Sincroniza a lista com o estado persistido retornado pelo backend
+                        const byId = new Map(updatedLayers.map(l => [l.id, l]));
+                        setMapLayers(prev => prev.map(l => byId.get(l.id) ?? l));
                     }}
                   />
                   {/* FAB para adicionar Pin Manual */}
@@ -882,16 +894,40 @@ export function Dashboard() {
                 wrap="wrap"
                 gap={4}
               >
-                <Heading
-                  size={{ base: "sm", md: "md" }}
-                  color={COLORS.textPrimary}
-                  borderLeft="4px solid"
-                  borderColor="blue.500"
-                  pl={3}
-                  isTruncated
-                >
-                  Monitoramento Detalhado
-                </Heading>
+                <Flex align="center" gap={4} wrap="wrap">
+                  <Heading
+                    size={{ base: "sm", md: "md" }}
+                    color={COLORS.textPrimary}
+                    borderLeft="4px solid"
+                    borderColor="blue.500"
+                    pl={3}
+                    isTruncated
+                  >
+                    Monitoramento Detalhado
+                  </Heading>
+                  {userIsAdmin && (
+                      <ButtonGroup size="sm" isAttached variant="outline" colorScheme="blue">
+                          <Button 
+                              onClick={() => setDeviceFilter(prev => prev === "sondas" ? null : "sondas")}
+                              bg={deviceFilter === "sondas" ? "blue.600" : "transparent"}
+                              color="white"
+                              _hover={{ bg: deviceFilter === "sondas" ? "blue.700" : "blue.500" }}
+                              _active={{ bg: "blue.700" }}
+                          >
+                              Sondas
+                          </Button>
+                          <Button 
+                              onClick={() => setDeviceFilter(prev => prev === "manuais" ? null : "manuais")}
+                              bg={deviceFilter === "manuais" ? "blue.600" : "transparent"}
+                              color="white"
+                              _hover={{ bg: deviceFilter === "manuais" ? "blue.700" : "blue.500" }}
+                              _active={{ bg: "blue.700" }}
+                          >
+                              Pins Manuais
+                          </Button>
+                      </ButtonGroup>
+                  )}
+                </Flex>
 
                 <ExportPdfButton data={processedTableData} />
               </Flex>

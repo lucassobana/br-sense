@@ -14,7 +14,7 @@ import { RainViewerTimeline } from '../RainViewer/RainViewerTimeline';
 import { ManualProbeCard } from '../ProbeCard/ManualProbeCard';
 import { KmlLayersControl } from './KmlLayersControl';
 import { KmlUploadModal } from './KmlUploadModal';
-import { updateMapLayerGeoJSON } from '../../services/api';
+import { saveMapLayersVisibility } from '../../services/api';
 // import { GiRadarSweep } from "react-icons/gi";
 
 
@@ -171,7 +171,8 @@ interface SatelliteMapProps {
     mapLayers?: MapLayer[];
     onUploadMapLayer?: (file: File, name?: string) => Promise<void>;
     onDeleteMapLayer?: (id: number) => void;
-    onUpdateMapLayer?: (id: number, geojson: GeoJSON.FeatureCollection) => void;
+    /** Chamado após salvar com sucesso o estado de exibição das camadas no backend */
+    onMapLayersVisibilitySaved?: (layers: MapLayer[]) => void;
     onManualProbeUpdated?: () => void;
 }
 
@@ -206,7 +207,9 @@ const MapControls = ({
     onOpenUpload,
     hiddenFeatures,
     onToggleFeature,
-    onDeleteFeature,
+    hasPendingChanges,
+    isSavingLayers,
+    onSaveLayers,
 }: {
     onLocationFound: (pos: [number, number]) => void;
     showRain: boolean;
@@ -220,7 +223,9 @@ const MapControls = ({
     onOpenUpload: () => void;
     hiddenFeatures: Map<number, Set<number>>;
     onToggleFeature: (layerId: number, fIdx: number) => void;
-    onDeleteFeature: (layerId: number, fIdx: number) => void;
+    hasPendingChanges: boolean;
+    isSavingLayers: boolean;
+    onSaveLayers: () => void;
 }) => {
     const map = useMap();
     const toast = useToast();
@@ -344,7 +349,9 @@ const MapControls = ({
                 onOpenUpload={onOpenUpload}
                 hiddenFeatures={hiddenFeatures}
                 onToggleFeature={onToggleFeature}
-                onDeleteFeature={onDeleteFeature}
+                hasPendingChanges={hasPendingChanges}
+                isSaving={isSavingLayers}
+                onSave={onSaveLayers}
             />
             {showRadar && <RadarLegend />}
         </Box>
@@ -465,16 +472,99 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     mapLayers = [],
     onUploadMapLayer,
     onDeleteMapLayer,
-    onUpdateMapLayer,
+    onMapLayersVisibilitySaved,
     onManualProbeUpdated,
 }) => {
 
+    const toast = useToast();
     const [selectedPoint, setSelectedPoint] = useState<MapPoint | null>(null);
     const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
-    const [visibleLayerIds, setVisibleLayerIds] = useState<Set<number>>(() => new Set(mapLayers.map(l => l.id)));
     const [isKmlModalOpen, setIsKmlModalOpen] = useState(false);
-    // Map<layerId, Set<featureIndex>> — features hidden locally (no backend persist)
-    const [hiddenFeatures, setHiddenFeatures] = useState<Map<number, Set<number>>>(() => new Map());
+
+    // ── Estado de exibição das camadas KML ──
+    // O estado persistido vem do backend (layer.is_active / layer.hidden_feature_indices).
+    // Os toggles alteram apenas os "rascunhos" locais abaixo; nada é enviado ao backend
+    // até o usuário clicar em "Salvar".
+    const [draftLayerActive, setDraftLayerActive] = useState<Map<number, boolean>>(() => new Map());
+    const [draftHiddenFeatures, setDraftHiddenFeatures] = useState<Map<number, Set<number>>>(() => new Map());
+    const [isSavingLayers, setIsSavingLayers] = useState(false);
+
+    // Estado efetivo (persistido + rascunho) usado pela UI e pelo mapa
+    const visibleLayerIds = useMemo(() => {
+        const set = new Set<number>();
+        mapLayers.forEach(l => {
+            const active = draftLayerActive.has(l.id) ? draftLayerActive.get(l.id)! : (l.is_active ?? true);
+            if (active) set.add(l.id);
+        });
+        return set;
+    }, [mapLayers, draftLayerActive]);
+
+    const hiddenFeatures = useMemo(() => {
+        const map = new Map<number, Set<number>>();
+        mapLayers.forEach(l => {
+            map.set(l.id, draftHiddenFeatures.get(l.id) ?? new Set(l.hidden_feature_indices ?? []));
+        });
+        return map;
+    }, [mapLayers, draftHiddenFeatures]);
+
+    const hasPendingLayerChanges = draftLayerActive.size > 0 || draftHiddenFeatures.size > 0;
+
+    const handleToggleLayer = (id: number) => {
+        const layer = mapLayers.find(l => l.id === id);
+        if (!layer) return;
+        const persisted = layer.is_active ?? true;
+        const nextValue = !visibleLayerIds.has(id);
+        setDraftLayerActive(prev => {
+            const next = new Map(prev);
+            // Se voltou ao valor salvo, não há alteração pendente
+            if (nextValue === persisted) next.delete(id); else next.set(id, nextValue);
+            return next;
+        });
+    };
+
+    const handleToggleFeature = (layerId: number, fIdx: number) => {
+        const layer = mapLayers.find(l => l.id === layerId);
+        if (!layer) return;
+        const persisted = new Set(layer.hidden_feature_indices ?? []);
+        const set = new Set(hiddenFeatures.get(layerId) ?? []);
+        if (set.has(fIdx)) set.delete(fIdx); else set.add(fIdx);
+        const equalsPersisted = set.size === persisted.size && [...set].every(i => persisted.has(i));
+        setDraftHiddenFeatures(prev => {
+            const next = new Map(prev);
+            if (equalsPersisted) next.delete(layerId); else next.set(layerId, set);
+            return next;
+        });
+    };
+
+    const handleSaveLayers = async () => {
+        if (isSavingLayers || !hasPendingLayerChanges || mapLayers.length === 0) return;
+        // Snapshot do estado atual da interface no momento do clique (todas as camadas)
+        const payload = mapLayers.map(l => ({
+            id: l.id,
+            is_active: visibleLayerIds.has(l.id),
+            hidden_feature_indices: [...(hiddenFeatures.get(l.id) ?? [])].sort((a, b) => a - b),
+        }));
+        setIsSavingLayers(true);
+        try {
+            const updated = await saveMapLayersVisibility(payload);
+            onMapLayersVisibilitySaved?.(updated);
+            setDraftLayerActive(new Map());
+            setDraftHiddenFeatures(new Map());
+            toast({ title: "Camadas salvas!", status: "success", duration: 3000, isClosable: true });
+        } catch (err: unknown) {
+            console.error('Erro ao salvar camadas:', err);
+            const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+            toast({
+                title: "Erro ao salvar camadas",
+                description: typeof detail === 'string' ? detail : "As alterações não foram salvas. Tente novamente.",
+                status: "error",
+                duration: 4000,
+                isClosable: true,
+            });
+        } finally {
+            setIsSavingLayers(false);
+        }
+    };
 
     // Estados para os Controles no Mapa
     // const [selectedDepth, setSelectedDepth] = useState<number>(20);
@@ -706,57 +796,17 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                     onToggleRadar={() => setShowRadar((prev) => !prev)}
                     kmlLayers={mapLayers}
                     visibleLayerIds={visibleLayerIds}
-                    onToggleLayer={(id) => setVisibleLayerIds(prev => {
-                        const next = new Set(prev);
-                        if (next.has(id)) next.delete(id); else next.add(id);
-                        return next;
-                    })}
+                    onToggleLayer={handleToggleLayer}
                     onDeleteLayer={(id) => {
                         if (onDeleteMapLayer) onDeleteMapLayer(id);
-                        setVisibleLayerIds(prev => { const next = new Set(prev); next.delete(id); return next; });
-                        setHiddenFeatures(prev => { const next = new Map(prev); next.delete(id); return next; });
+                        setDraftLayerActive(prev => { const next = new Map(prev); next.delete(id); return next; });
+                        setDraftHiddenFeatures(prev => { const next = new Map(prev); next.delete(id); return next; });
                     }}
                     hiddenFeatures={hiddenFeatures}
-                    onToggleFeature={(layerId, fIdx) => {
-                        setHiddenFeatures(prev => {
-                            const next = new Map(prev);
-                            const set = new Set(next.get(layerId) ?? []);
-                            if (set.has(fIdx)) set.delete(fIdx); else set.add(fIdx);
-                            next.set(layerId, set);
-                            return next;
-                        });
-                    }}
-                    onDeleteFeature={async (layerId, fIdx) => {
-                        const layer = mapLayers.find(l => l.id === layerId);
-                        if (!layer) return;
-                        const newFeatures = layer.geojson.features.filter((_, i) => i !== fIdx);
-                        const newGeoJSON: GeoJSON.FeatureCollection = {
-                            ...layer.geojson,
-                            features: newFeatures,
-                        };
-                        try {
-                            const updated = await updateMapLayerGeoJSON(layerId, newGeoJSON);
-                            if (onUpdateMapLayer) onUpdateMapLayer(layerId, updated.geojson);
-                            // Also clean up hiddenFeatures index shift
-                            setHiddenFeatures(prev => {
-                                const next = new Map(prev);
-                                const oldSet = next.get(layerId);
-                                if (oldSet) {
-                                    // Remove deleted index, shift indices above it down by 1
-                                    const newSet = new Set<number>();
-                                    oldSet.forEach(i => {
-                                        if (i < fIdx) newSet.add(i);
-                                        else if (i > fIdx) newSet.add(i - 1);
-                                        // i === fIdx is dropped
-                                    });
-                                    next.set(layerId, newSet);
-                                }
-                                return next;
-                            });
-                        } catch (err) {
-                            console.error('Erro ao remover feature:', err);
-                        }
-                    }}
+                    onToggleFeature={handleToggleFeature}
+                    hasPendingChanges={hasPendingLayerChanges}
+                    isSavingLayers={isSavingLayers}
+                    onSaveLayers={handleSaveLayers}
                     onOpenUpload={() => setIsKmlModalOpen(true)}
                 />
 
@@ -860,7 +910,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                         };
                         return (
                             <GeoJSON
-                                key={`${layer.id}-${hiddenSet.size}`}
+                                key={`${layer.id}-${[...hiddenSet].sort((a, b) => a - b).join(',')}`}
                                 data={filteredGeoJSON}
                                 style={() => ({
                                     color: '#3B82F6',

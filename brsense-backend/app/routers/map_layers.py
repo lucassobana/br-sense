@@ -1,22 +1,28 @@
 # app/routers/map_layers.py
 import json
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Any, Dict, List, Optional
-
-
-class UpdateGeoJSONBody(BaseModel):
-    geojson: Dict[str, Any]
+from typing import List, Optional
 
 from app.db.session import get_db
 from app.models.map_layer import MapLayer
 from app.models.farm import Farm
+from app.schemas.map_layer import MapLayerVisibilityUpdate
 from app.services.kml_parser import parse_kml_or_kmz
+from app.core.security import get_current_user_token, get_user_and_roles
 
 router = APIRouter()
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+def _parse_hidden_indices(raw: Optional[str]) -> List[int]:
+    """Parse the persisted JSON list of hidden feature indices (tolerant to bad data)."""
+    try:
+        data = json.loads(raw or "[]")
+        return [int(i) for i in data] if isinstance(data, list) else []
+    except (ValueError, TypeError):
+        return []
 
 
 def _layer_to_response(layer: MapLayer) -> dict:
@@ -28,6 +34,8 @@ def _layer_to_response(layer: MapLayer) -> dict:
         "original_filename": layer.original_filename,
         "geojson": json.loads(layer.geojson),
         "created_at": layer.created_at,
+        "is_active": layer.is_active if layer.is_active is not None else True,
+        "hidden_feature_indices": _parse_hidden_indices(layer.hidden_feature_indices),
     }
 
 
@@ -102,29 +110,59 @@ def get_map_layers_by_farm(farm_id: int, db: Session = Depends(get_db)):
     return [_layer_to_response(layer) for layer in layers]
 
 
-@router.patch("/{layer_id}", status_code=status.HTTP_200_OK)
-def update_map_layer_geojson(
-    layer_id: int,
-    body: UpdateGeoJSONBody,
+@router.put("/visibility", status_code=status.HTTP_200_OK)
+def update_map_layers_visibility(
+    body: MapLayerVisibilityUpdate,
+    token_payload: dict = Depends(get_current_user_token),
     db: Session = Depends(get_db),
 ):
     """
-    Update the GeoJSON of an existing map layer.
-    Used when features are individually deleted from the frontend.
-    Body: { "geojson": <GeoJSON FeatureCollection object> }
+    Persist, in a single atomic operation, the display state of several layers
+    (layer toggle + hidden feature indices).
+    Only layers belonging to farms of the authenticated user can be changed
+    (admins can change any layer). If any layer is invalid, nothing is saved.
+    Body: { "layers": [ { "id": 1, "is_active": true, "hidden_feature_indices": [0, 2] } ] }
     """
-    layer = db.query(MapLayer).filter(MapLayer.id == layer_id).first()
-    if not layer:
-        raise HTTPException(status_code=404, detail="Camada não encontrada")
+    user, is_admin = get_user_and_roles(db, token_payload)
 
-    geojson_data = body.geojson
-    if geojson_data.get("type") != "FeatureCollection":
-        raise HTTPException(status_code=422, detail="GeoJSON inválido: deve ser um FeatureCollection")
+    # Deduplicate by id (last occurrence wins)
+    items = {item.id: item for item in body.layers}
 
-    layer.geojson = json.dumps(geojson_data)
-    db.commit()
-    db.refresh(layer)
-    return _layer_to_response(layer)
+    layers = (
+        db.query(MapLayer)
+        .join(Farm, Farm.id == MapLayer.farm_id)
+        .filter(MapLayer.id.in_(list(items.keys())))
+        .all()
+    )
+    found = {layer.id: layer for layer in layers}
+
+    missing = [layer_id for layer_id in items if layer_id not in found]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"Camada(s) não encontrada(s): {missing}")
+
+    if not is_admin:
+        forbidden = [layer.id for layer in layers if layer.farm.user_id != user.id]
+        if forbidden:
+            raise HTTPException(
+                status_code=403,
+                detail="Você não tem permissão para alterar uma ou mais camadas",
+            )
+
+    try:
+        for layer_id, item in items.items():
+            layer = found[layer_id]
+            feature_count = len(json.loads(layer.geojson).get("features", []))
+            hidden = sorted({i for i in item.hidden_feature_indices if 0 <= i < feature_count})
+            layer.is_active = item.is_active
+            layer.hidden_feature_indices = json.dumps(hidden)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Erro ao salvar o estado das camadas")
+
+    for layer in layers:
+        db.refresh(layer)
+    return [_layer_to_response(found[layer_id]) for layer_id in items]
 
 
 @router.delete("/{layer_id}", status_code=status.HTTP_204_NO_CONTENT)

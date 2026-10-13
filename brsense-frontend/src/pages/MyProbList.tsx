@@ -9,7 +9,8 @@ import {
     Button,
     Icon,
     useDisclosure,
-    useToast
+    useToast,
+    ButtonGroup
 } from "@chakra-ui/react";
 import { FaTint } from "react-icons/fa";
 import { BatchManualIrrigationModal } from "../components/BatchManualIrrigationModal/BatchManualIrrigationModal";
@@ -77,6 +78,8 @@ export function MyProbes() {
 
     const toast = useToast();
     const userIsAdmin = isUserAdmin();
+
+    const [deviceFilter, setDeviceFilter] = useState<"sondas" | "manuais" | null>(null);
 
     const [sortConfig, setSortConfig] = useState<{
         key: SortKey;
@@ -165,7 +168,11 @@ export function MyProbes() {
             };
         });
 
-        const mappedManuals = manualProbes.map((mp) => {
+        const sortedManualProbes = [...manualProbes].sort((a, b) => 
+            (a.name ?? "").localeCompare(b.name ?? "", "pt-BR", { sensitivity: "base" })
+        );
+
+        const mappedManuals = sortedManualProbes.map((mp) => {
             const farmName = farms.find(f => f.id === mp.farm_id)?.name ?? "-";
             
             let lastTimestamp = 0;
@@ -208,7 +215,12 @@ export function MyProbes() {
             } as unknown as TableRowData;
         });
 
-        const combined = [...mapped, ...mappedManuals];
+        let combined = [...mapped, ...mappedManuals];
+        if (deviceFilter === "sondas") {
+            combined = combined.filter(item => !item.isManualProbe);
+        } else if (deviceFilter === "manuais") {
+            combined = combined.filter(item => item.isManualProbe);
+        }
 
         const statusWeight: Record<string, number> = {
             status_critical: 1,
@@ -237,7 +249,7 @@ export function MyProbes() {
             if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
             return 0;
         });
-    }, [probes, manualProbes, farms, sortConfig]);
+    }, [probes, manualProbes, farms, sortConfig, deviceFilter]);
 
     const handleSort = (key: SortKey) => {
         setSortConfig((current) => ({
@@ -255,9 +267,31 @@ export function MyProbes() {
         <Box minH="100vh" bg={COLORS.background} p={{ base: 2, md: 8 }} pb={{ base: "100px", md: 8 }}>
             <Container maxW="full">
                 <Flex justify="space-between" align="center" mb={6} wrap="wrap" gap={4}>
-                    <Box>
+                    <Flex align="center" gap={4} wrap="wrap">
                         <Heading color={COLORS.textPrimary} size={{ base: "md", md: "lg" }}>Monitoramento Detalhado</Heading>
-                    </Box>
+                        {userIsAdmin && (
+                            <ButtonGroup size="sm" isAttached variant="outline" colorScheme="blue">
+                                <Button 
+                                    onClick={() => setDeviceFilter(prev => prev === "sondas" ? null : "sondas")}
+                                    bg={deviceFilter === "sondas" ? "blue.600" : "transparent"}
+                                    color="white"
+                                    _hover={{ bg: deviceFilter === "sondas" ? "blue.700" : "blue.500" }}
+                                    _active={{ bg: "blue.700" }}
+                                >
+                                    Sondas
+                                </Button>
+                                <Button 
+                                    onClick={() => setDeviceFilter(prev => prev === "manuais" ? null : "manuais")}
+                                    bg={deviceFilter === "manuais" ? "blue.600" : "transparent"}
+                                    color="white"
+                                    _hover={{ bg: deviceFilter === "manuais" ? "blue.700" : "blue.500" }}
+                                    _active={{ bg: "blue.700" }}
+                                >
+                                    Pins Manuais
+                                </Button>
+                            </ButtonGroup>
+                        )}
+                    </Flex>
                     
                     <Flex align="center" gap={3}>
                         {manualProbes.length > 0 && (

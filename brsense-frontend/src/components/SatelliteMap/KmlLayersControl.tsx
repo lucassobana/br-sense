@@ -21,6 +21,7 @@ import {
   FaCircle,
   FaDrawPolygon,
   FaMapMarkerAlt,
+  FaSave,
 } from "react-icons/fa";
 import { MdClose, MdTimeline } from "react-icons/md";
 import type { MapLayer } from "../../types";
@@ -87,7 +88,12 @@ interface KmlLayersControlProps {
   /** Map<layerId, Set<featureIndex>> of hidden individual features */
   hiddenFeatures: Map<number, Set<number>>;
   onToggleFeature: (layerId: number, featureIndex: number) => void;
-  onDeleteFeature: (layerId: number, featureIndex: number) => void;
+  /** Há alterações de exibição ainda não salvas */
+  hasPendingChanges: boolean;
+  /** Salvamento em andamento */
+  isSaving: boolean;
+  /** Persiste no backend o estado atual de exibição das camadas/features */
+  onSave: () => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -100,7 +106,9 @@ export const KmlLayersControl: React.FC<KmlLayersControlProps> = ({
   onOpenUpload,
   hiddenFeatures,
   onToggleFeature,
-  onDeleteFeature,
+  hasPendingChanges,
+  isSaving,
+  onSave,
 }) => {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [expandedLayerIds, setExpandedLayerIds] = useState<Set<number>>(new Set());
@@ -269,6 +277,7 @@ export const KmlLayersControl: React.FC<KmlLayersControlProps> = ({
                         size="sm"
                         colorScheme="blue"
                         isChecked={isLayerVisible}
+                        isDisabled={isSaving}
                         onChange={() => onToggleLayer(layer.id)}
                         flexShrink={0}
                       />
@@ -386,26 +395,11 @@ export const KmlLayersControl: React.FC<KmlLayersControlProps> = ({
                                     size="sm"
                                     colorScheme="blue"
                                     isChecked={isFeatureVisible}
+                                    isDisabled={isSaving}
                                     onChange={() => onToggleFeature(layer.id, fIdx)}
                                     flexShrink={0}
                                   />
                                 {/* </Tooltip> */}
-
-                                {/* Delete feature */}
-                                <Tooltip label="Remover feature" placement="top">
-                                  <IconButton
-                                    aria-label="Remover feature"
-                                    icon={<Icon as={FaTrash} boxSize={2.5} />}
-                                    size="xs"
-                                    variant="ghost"
-                                    color="red.400"
-                                    _hover={{ bg: "red.900", color: "red.300" }}
-                                    onClick={() => onDeleteFeature(layer.id, fIdx)}
-                                    flexShrink={0}
-                                    minW="20px"
-                                    h="20px"
-                                  />
-                                </Tooltip>
                               </HStack>
                             );
                           })}
@@ -424,16 +418,37 @@ export const KmlLayersControl: React.FC<KmlLayersControlProps> = ({
             <>
               <Divider borderColor="whiteAlpha.100" />
               <Box px={3} py={2}>
-                <Button
-                  size="xs"
-                  colorScheme="blue"
-                  variant="ghost"
-                  w="full"
-                  leftIcon={<Icon as={FaPlus} />}
-                  onClick={onOpenUpload}
-                >
-                  Importar nova camada
-                </Button>
+                <VStack spacing={1.5} align="stretch">
+                  {hasPendingChanges && !isSaving && (
+                    <Text fontSize="9px" color="orange.300" textAlign="center">
+                      Alterações não salvas
+                    </Text>
+                  )}
+                  <Button
+                    id="kml-layers-save-button"
+                    size="xs"
+                    colorScheme="blue"
+                    w="full"
+                    leftIcon={<Icon as={FaSave} />}
+                    onClick={onSave}
+                    isDisabled={!hasPendingChanges}
+                    isLoading={isSaving}
+                    loadingText="Salvando..."
+                  >
+                    Salvar
+                  </Button>
+                  <Button
+                    size="xs"
+                    colorScheme="blue"
+                    variant="ghost"
+                    w="full"
+                    leftIcon={<Icon as={FaPlus} />}
+                    onClick={onOpenUpload}
+                    isDisabled={isSaving}
+                  >
+                    Importar nova camada
+                  </Button>
+                </VStack>
               </Box>
             </>
           )}
