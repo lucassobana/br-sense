@@ -1,7 +1,7 @@
 # app/routers/map_layers.py
 import json
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 
 from app.db.session import get_db
@@ -27,9 +27,16 @@ def _parse_hidden_indices(raw: Optional[str]) -> List[int]:
 
 def _layer_to_response(layer: MapLayer) -> dict:
     """Convert a MapLayer ORM object to a response dict with parsed GeoJSON."""
+    farm_name = layer.farm.name if layer.farm else None
+    user_id = layer.farm.user_id if layer.farm else None
+    user_name = layer.farm.owner.name if (layer.farm and layer.farm.owner) else None
+
     return {
         "id": layer.id,
         "farm_id": layer.farm_id,
+        "farm_name": farm_name,
+        "user_id": user_id,
+        "user_name": user_name,
         "name": layer.name,
         "original_filename": layer.original_filename,
         "geojson": json.loads(layer.geojson),
@@ -94,6 +101,14 @@ async def upload_map_layer(
     db.commit()
     db.refresh(db_layer)
 
+    # Reload with relationships
+    db_layer = (
+        db.query(MapLayer)
+        .options(joinedload(MapLayer.farm).joinedload(Farm.owner))
+        .filter(MapLayer.id == db_layer.id)
+        .first()
+    )
+
     return _layer_to_response(db_layer)
 
 
@@ -106,7 +121,13 @@ def get_map_layers_by_farm(farm_id: int, db: Session = Depends(get_db)):
     if not farm:
         raise HTTPException(status_code=404, detail="Fazenda não encontrada")
 
-    layers = db.query(MapLayer).filter(MapLayer.farm_id == farm_id).order_by(MapLayer.created_at.desc()).all()
+    layers = (
+        db.query(MapLayer)
+        .options(joinedload(MapLayer.farm).joinedload(Farm.owner))
+        .filter(MapLayer.farm_id == farm_id)
+        .order_by(MapLayer.created_at.desc())
+        .all()
+    )
     return [_layer_to_response(layer) for layer in layers]
 
 
@@ -130,6 +151,7 @@ def update_map_layers_visibility(
 
     layers = (
         db.query(MapLayer)
+        .options(joinedload(MapLayer.farm).joinedload(Farm.owner))
         .join(Farm, Farm.id == MapLayer.farm_id)
         .filter(MapLayer.id.in_(list(items.keys())))
         .all()
