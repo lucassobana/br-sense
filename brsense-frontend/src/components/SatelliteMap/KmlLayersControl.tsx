@@ -282,19 +282,42 @@ export const KmlLayersControl: React.FC<KmlLayersControlProps> = ({
                         flexShrink={0}
                       />
 
-                      {/* Layer name */}
-                      <Text
-                        fontSize="xs"
-                        fontWeight="semibold"
-                        color={isLayerVisible ? "white" : "whiteAlpha.400"}
+                      {/* Layer name & Client/Farm subtitle */}
+                      <VStack
+                        align="start"
+                        spacing={0}
                         flex={1}
-                        noOfLines={1}
-                        transition="color 0.2s"
+                        minW={0}
                         cursor="pointer"
                         onClick={() => toggleLayerExpand(layer.id)}
                       >
-                        {layer.name}
-                      </Text>
+                        <Text
+                          fontSize="xs"
+                          fontWeight="semibold"
+                          color={isLayerVisible ? "white" : "whiteAlpha.400"}
+                          noOfLines={1}
+                          transition="color 0.2s"
+                        >
+                          {layer.name}
+                        </Text>
+                        {(layer.user_name || layer.farm_name) && (
+                          <HStack spacing={1} fontSize="10px" color="whiteAlpha.500" noOfLines={1} maxW="100%">
+                            {layer.user_name && (
+                              <Text as="span" color="blue.300" fontWeight="medium" noOfLines={1}>
+                                {layer.user_name}
+                              </Text>
+                            )}
+                            {layer.user_name && layer.farm_name && (
+                              <Text as="span" color="whiteAlpha.400">•</Text>
+                            )}
+                            {layer.farm_name && (
+                              <Text as="span" color="whiteAlpha.500" noOfLines={1}>
+                                {layer.farm_name}
+                              </Text>
+                            )}
+                          </HStack>
+                        )}
+                      </VStack>
 
                       {/* Feature count badge */}
                       {features.length > 0 && (

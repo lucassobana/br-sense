@@ -1,0 +1,21 @@
+/** Paleta do módulo, baseada nos prints da plataforma. Alterável em um único lugar. */
+export const waterColors = {
+  page: '#0b1224',
+  rail: '#070d18',
+  panel: '#1b212c',
+  panelHead: '#242b36',
+  field: '#121a28',
+  border: '#343c49',
+  text: '#f1f5f9',
+  muted: '#abb8cc',
+  blue: '#3285cb',
+  blueBright: '#56b8fb',
+  blueActive: '#0e5d97',
+  orange: '#e7a761',
+  orangeSoft: '#392c20',
+  green: '#51c493',
+  greenSoft: '#173c30',
+  red: '#f07474',
+  redSoft: '#422329',
+  grid: '#36404d',
+} as const;

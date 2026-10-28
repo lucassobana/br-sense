@@ -26,6 +26,14 @@ import {
   useBreakpointValue,
   useDisclosure,
 } from "@chakra-ui/react";
+import {
+  computeProbeStatus,
+  getStoredMapDepthFilter,
+  setStoredMapDepthFilter,
+  getStoredSelectedDepthRefs,
+  setStoredSelectedDepthRefs,
+  DEPTH_CHANGE_EVENT,
+} from "../utils/probeStatus";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { MdArrowBack, MdArrowDropDown } from "react-icons/md";
 import { motion, AnimatePresence } from "framer-motion";
@@ -47,6 +55,7 @@ import {
 } from "../components/DeviceTable/DeviceTable";
 import { WeatherChart } from "../components/WeatherChart/WeatherChart";
 import { ManualProbeHistory } from "../components/ManualProbeHistory/ManualProbeHistory";
+import { PinBalanceFull } from "../modules/soil/PinBalanceFull";
 import { useWeatherForecast } from "../hooks/useWeatherForecast";
 import { ExportPdfButton } from "../components/ExportPdfButton/ExportPdfButton";
 import { CreateManualProbeModal } from "../components/ManualProbeModals/CreateManualProbeModal";
@@ -141,15 +150,37 @@ export function Dashboard() {
   const [selectedFarm] = useState<Farm | null>(null);
   const [selectedDepthRefs, setSelectedDepthRefs] = useState<
     Record<number, number | null>
-  >({});
-  const [mapDepthFilter, setMapDepthFilter] = useState<number>(20);
+  >(() => getStoredSelectedDepthRefs());
+  const [mapDepthFilter, setMapDepthFilter] = useState<number>(() => getStoredMapDepthFilter());
+
+  useEffect(() => {
+    const handleDepthSync = () => {
+      setSelectedDepthRefs(getStoredSelectedDepthRefs());
+      setMapDepthFilter(getStoredMapDepthFilter());
+    };
+    window.addEventListener(DEPTH_CHANGE_EVENT, handleDepthSync);
+    window.addEventListener("storage", handleDepthSync);
+    return () => {
+      window.removeEventListener(DEPTH_CHANGE_EVENT, handleDepthSync);
+      window.removeEventListener("storage", handleDepthSync);
+    };
+  }, []);
 
   const handleSelectDepthRef = useCallback(
     (probeId: number, depth: number | null) => {
-      setSelectedDepthRefs((prev) => ({ ...prev, [probeId]: depth }));
+      setSelectedDepthRefs((prev) => {
+        const next = { ...prev, [probeId]: depth };
+        setStoredSelectedDepthRefs(next);
+        return next;
+      });
     },
     [],
   );
+
+  const handleMapDepthFilterChange = useCallback((depth: number) => {
+    setMapDepthFilter(depth);
+    setStoredMapDepthFilter(depth);
+  }, []);
 
   const [manualProbes, setManualProbes] = useState<ManualProbe[]>([]);
   const [mapLayers, setMapLayers] = useState<MapLayer[]>([]);
@@ -210,6 +241,9 @@ export function Dashboard() {
           status: "Manual",
           isManualProbe: true,
           irrigation_value_mm: mp.irrigation_value_mm,
+          cultura: mp.cultura,
+          data_plantio: mp.data_plantio,
+          irrigation_records: mp.irrigation_records,
           readings: [],
           created_at: mp.created_at,
           updated_at: mp.updated_at
@@ -292,42 +326,12 @@ export function Dashboard() {
       const finalLat = hasLocation ? Number(probe.latitude) : -15.793889;
       const finalLng = hasLocation ? Number(probe.longitude) : -47.882778;
 
-      const v1 = probe.config_moisture_v1 ?? 30;
-      const v2 = probe.config_moisture_v2 ?? 45;
-      const v3 = probe.config_moisture_v3 ?? 60;
-
-      let currentStatusCode = "status_offline";
-      const readings = probe.readings || [];
-      const probeDepthRef = selectedDepthRefs[probe.id];
-      const activeDepth =
-        probeDepthRef !== undefined && probeDepthRef !== null
-          ? probeDepthRef
-          : mapDepthFilter;
-
-      let filteredReadings = readings;
-      if (activeDepth !== null && activeDepth !== undefined) {
-        filteredReadings = readings.filter((r) => r.depth_cm === activeDepth);
-      }
-
-      const validReading = [...filteredReadings]
-        .sort(
-          (a, b) =>
-            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-        )
-        .find((r) => r.moisture_pct !== null && r.moisture_pct !== undefined);
-
-      if (validReading) {
-        const val = Number(validReading.moisture_pct);
-        if (val < v1) {
-          currentStatusCode = "status_critical";
-        } else if (val < v2) {
-          currentStatusCode = "status_alert";
-        } else if (val <= v3) {
-          currentStatusCode = "status_ok";
-        } else {
-          currentStatusCode = "status_saturated";
-        }
-      }
+      const { statusCode } = computeProbeStatus(probe, selectedDepthRefs, mapDepthFilter);
+      const pLimits = probe as Probe & { config_min?: number; config_max?: number };
+      const v1 = pLimits.config_moisture_v1 ?? (pLimits.config_min ? pLimits.config_min - 10 : 30);
+      const v2 = pLimits.config_moisture_v2 ?? (pLimits.config_min ?? 45);
+      const v3 = pLimits.config_moisture_v3 ?? (pLimits.config_max ?? 60);
+      const currentStatusCode = statusCode;
 
       return {
         id: probe.id,
@@ -336,7 +340,7 @@ export function Dashboard() {
         lat: finalLat,
         lng: finalLng,
         statusCode: currentStatusCode,
-        readings: readings,
+        readings: probe.readings || [],
         last_communication: probe.last_communication,
         config_moisture_v1: v1,
         config_moisture_v2: v2,
@@ -380,6 +384,7 @@ export function Dashboard() {
         rain_15d: r15d,
         rain_30d: r30d,
         data_plantio: probe.data_plantio,
+        cultura: probe.cultura,
       };
     });
 
@@ -406,14 +411,12 @@ export function Dashboard() {
   }, [probes, viewMode]);
 
   const processedTableData = useMemo(() => {
-    const mapPointById = new Map(mapPoints.map((point) => [point.id, point]));
     const farmNameById = new Map<number | undefined, string>(
       farms.map((farm) => [farm.id, farm.name]),
     );
 
     const mapped: TableRowData[] = filteredProbes.map((probe) => {
-      const mapPoint = mapPointById.get(probe.id);
-      const status = mapPoint ? mapPoint.statusCode : "status_offline";
+      const statusInfo = computeProbeStatus(probe, selectedDepthRefs, mapDepthFilter);
       const farmName = farmNameById.get(probe.farm_id) ?? "-";
 
       const batteryReading = probe.readings
@@ -430,7 +433,9 @@ export function Dashboard() {
       return {
         ...probe,
         farmName,
-        status,
+        status: statusInfo.statusCode,
+        referenceDepth: statusInfo.activeDepth,
+        isCustomDepth: statusInfo.isCustomDepth,
         batteryLevel: batteryReading?.battery_status ?? undefined,
         batteryDate: batteryReading
           ? new Date(batteryReading.timestamp).toLocaleDateString()
@@ -525,7 +530,7 @@ export function Dashboard() {
       if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
       return 0;
     });
-  }, [filteredProbes, farms, mapPoints, manualProbes, sortConfig, deviceFilter]);
+  }, [filteredProbes, farms, manualProbes, sortConfig, deviceFilter, selectedDepthRefs, mapDepthFilter]);
 
   const loadData = useCallback(async () => {
     try {
@@ -808,7 +813,7 @@ export function Dashboard() {
                     selectedDepthRefs={selectedDepthRefs}
                     onSelectDepthRef={handleSelectDepthRef}
                     mapDepthFilter={mapDepthFilter}
-                    onMapDepthFilterChange={setMapDepthFilter}
+                    onMapDepthFilterChange={handleMapDepthFilterChange}
                     isAddingManualProbe={isAddingManualProbe}
                     onBatchUpdateClick={onBatchOpen}
                     onDeleteManualProbe={handleDeleteManualProbe}
@@ -819,15 +824,24 @@ export function Dashboard() {
                     }}
                     onManualProbeUpdated={refreshManualProbes}
                     mapLayers={mapLayers}
-                    onUploadMapLayer={async (file, name) => {
-                        if (farms.length === 0) return;
-                        const farmId = farms[0].id;
+                    farms={farms}
+                    isAdmin={userIsAdmin}
+                    onFarmCreated={(newFarm) => {
+                        setFarms(prev => [...prev, newFarm]);
+                    }}
+                    onUploadMapLayer={async (file, name, targetFarmId) => {
+                        const finalFarmId = targetFarmId || (farms.length > 0 ? farms[0].id : null);
+                        if (!finalFarmId) {
+                            toast({ title: "Nenhuma fazenda informada", status: "warning", duration: 3000 });
+                            return;
+                        }
                         try {
-                            const newLayer = await uploadMapLayer(farmId, file, name);
+                            const newLayer = await uploadMapLayer(finalFarmId, file, name);
                             setMapLayers(prev => [newLayer, ...prev]);
                             toast({ title: "Camada importada!", status: "success", duration: 3000 });
                         } catch {
                             toast({ title: "Erro ao importar camada", status: "error", duration: 3000 });
+                            throw new Error("Falha no upload");
                         }
                     }}
                     onDeleteMapLayer={async (id) => {
@@ -884,9 +898,8 @@ export function Dashboard() {
               </Box>
             </Box>
 
-            {/* CORREÇÃO 2: Removido o display="none" para dispositivos móveis 
-                Assim os cards mobile do DeviceTable renderizam na tela normalmente */}
-            <Container maxW="full" mt={8} mb={10} px={{ base: 4, lg: 12 }} display={{ base: "none", md: "block" }}>
+            {/* Cards e Tabela do Monitoramento Detalhado */}
+            <Container maxW="full" mt={8} mb={10} px={{ base: 4, lg: 12 }}>
               <Flex
                 justify="space-between"
                 align="center"
@@ -905,6 +918,7 @@ export function Dashboard() {
                   >
                     Monitoramento Detalhado
                   </Heading>
+
                   {userIsAdmin && (
                       <ButtonGroup size="sm" isAttached variant="outline" colorScheme="blue">
                           <Button 
@@ -1091,7 +1105,20 @@ export function Dashboard() {
                     mb={6}
                   >
                     {selectedProbe.isManualProbe ? (
-                      <ManualProbeHistory probeId={selectedProbe.id} />
+                      <VStack spacing={6} align="stretch">
+                        <PinBalanceFull
+                          pin={{
+                            id: selectedProbe.id,
+                            name: selectedProbe.name || selectedProbe.esn,
+                            latitude: Number(selectedProbe.latitude),
+                            longitude: Number(selectedProbe.longitude),
+                          }}
+                          cultura={(selectedProbe as TableRowData).cultura}
+                          dataPlantio={(selectedProbe as TableRowData).data_plantio}
+                          irrigationRecords={(selectedProbe as TableRowData).irrigation_records}
+                        />
+                        <ManualProbeHistory probeId={selectedProbe.id} />
+                      </VStack>
                     ) : (
                       <>
                         <RainAccumulationCard

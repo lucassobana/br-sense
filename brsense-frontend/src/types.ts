@@ -104,6 +104,9 @@ export interface ManualIrrigationRecord {
 export interface MapLayer {
   id: number;
   farm_id: number;
+  farm_name?: string | null;
+  user_id?: number | null;
+  user_name?: string | null;
   name: string;
   original_filename: string | null;
   geojson: GeoJSON.FeatureCollection;

@@ -50,10 +50,12 @@ export interface TableRowData extends Probe {
   lastCommunicationTimestamp: number;
   sugestao?: string;
   copiloto_acao?: string;
-  observacao?: string; // Novo campo adicionado
+  observacao?: string;
   isManualProbe?: boolean;
   irrigation_value_mm?: number;
   irrigation_records?: ManualIrrigationRecord[];
+  referenceDepth?: number;
+  isCustomDepth?: boolean;
 }
 
 export type SortKey =

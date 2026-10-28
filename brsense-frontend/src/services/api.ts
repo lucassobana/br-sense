@@ -57,6 +57,7 @@ api.interceptors.response.use(
 export interface User {
   id: number;
   username?: string;
+  login?: string;
   email?: string;
   firstName?: string;
   lastName?: string;

@@ -5,7 +5,7 @@ import { Box, VStack, Fade, IconButton, useToast, Tooltip, Select, Text, HStack,
 import { MdAdd, MdRemove, MdMyLocation, MdWaterDrop } from 'react-icons/md';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { Measurement, RadarFrame, MapLayer } from '../../types';
+import type { Measurement, RadarFrame, MapLayer, Farm } from '../../types';
 import { COLORS } from '../../colors/colors';
 import { PiAlignTopSimpleFill } from "react-icons/pi";
 import { ProbeCard } from '../ProbeCard/ProbeCard';
@@ -144,6 +144,7 @@ export interface MapPoint {
     isManualProbe?: boolean;
     irrigation_value_mm?: number;
     data_plantio?: string | null;
+    cultura?: string | null;
 }
 
 interface DisplayMapPoint extends MapPoint {
@@ -169,7 +170,10 @@ interface SatelliteMapProps {
     onEditManualProbe?: (id: number) => void;
     // KML layers
     mapLayers?: MapLayer[];
-    onUploadMapLayer?: (file: File, name?: string) => Promise<void>;
+    farms?: Farm[];
+    isAdmin?: boolean;
+    onFarmCreated?: (farm: Farm) => void;
+    onUploadMapLayer?: (file: File, name?: string, farmId?: number) => Promise<void>;
     onDeleteMapLayer?: (id: number) => void;
     /** Chamado após salvar com sucesso o estado de exibição das camadas no backend */
     onMapLayersVisibilitySaved?: (layers: MapLayer[]) => void;
@@ -470,6 +474,9 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     onDeleteManualProbe,
     onEditManualProbe,
     mapLayers = [],
+    farms = [],
+    isAdmin = false,
+    onFarmCreated,
     onUploadMapLayer,
     onDeleteMapLayer,
     onMapLayersVisibilitySaved,
@@ -991,9 +998,12 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
             <KmlUploadModal
                 isOpen={isKmlModalOpen}
                 onClose={() => setIsKmlModalOpen(false)}
-                onUpload={async (file, name) => {
+                farms={farms}
+                isAdmin={isAdmin}
+                onFarmCreated={onFarmCreated}
+                onUpload={async (file, name, farmId) => {
                     if (onUploadMapLayer) {
-                        await onUploadMapLayer(file, name);
+                        await onUploadMapLayer(file, name, farmId);
                         setIsKmlModalOpen(false);
                     }
                 }}
@@ -1024,6 +1034,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                                 }}
                                 onEditManualProbe={onEditManualProbe}
                                 onManualProbeUpdated={onManualProbeUpdated}
+                                onViewDetails={(id) => onViewGraph(`manual_${id}`)}
                             />
                         ) : (
                             <ProbeCard

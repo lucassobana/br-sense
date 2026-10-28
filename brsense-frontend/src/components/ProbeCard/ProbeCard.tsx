@@ -432,17 +432,28 @@ export const TabButton = ({ label, isActive, onClick, icon }: TabButtonProps) =>
   <Button
     size="xs"
     flex={1}
-    color="gray.300"
+    minW={0}
+    h="30px"
+    color={isActive ? "white" : "gray.300"}
     bg={isActive ? COLORS.primaryDark : "transparent"}
     borderColor={isActive ? "transparent" : "whiteAlpha.400"}
     variant={isActive ? "solid" : "outline"}
     _hover={{ bg: isActive ? COLORS.primaryDark : "whiteAlpha.200" }}
     onClick={onClick}
-    leftIcon={icon ? <Icon as={icon} boxSize={3.5} /> : undefined}
     px={1}
-    fontSize={{ base: "10px", sm: "11px" }}
   >
-    {label}
+    <Flex align="center" justify="center" gap="4px" w="100%">
+      {icon && <Icon as={icon} boxSize="12px" flexShrink={0} />}
+      <Text
+        fontSize={{ base: "10px", sm: "11px" }}
+        fontWeight="medium"
+        whiteSpace="nowrap"
+        overflow="hidden"
+        textOverflow="ellipsis"
+      >
+        {label}
+      </Text>
+    </Flex>
   </Button>
 );
 
