@@ -18,6 +18,7 @@ class ManualProbeCreate(ManualProbeBase):
 
 class ManualProbeUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=100)
+    farm_id: Optional[int] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     irrigation_value_mm: Optional[float] = None
