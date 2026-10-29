@@ -69,6 +69,17 @@ def create_manual_probe(probe: ManualProbeCreate, db: Session = Depends(get_db))
     db.add(new_probe)
     db.commit()
     db.refresh(new_probe)
+
+    if probe.irrigation_value_mm and probe.irrigation_value_mm > 0:
+        first_record = ManualIrrigationRecord(
+            manual_probe_id=new_probe.id,
+            irrigation_value_mm=probe.irrigation_value_mm,
+            date=probe.data_plantio or datetime.utcnow(),
+        )
+        db.add(first_record)
+        db.commit()
+        db.refresh(new_probe)
+
     return new_probe
 
 @router.get("/farm/{farm_id}", response_model=List[ManualProbeResponse])

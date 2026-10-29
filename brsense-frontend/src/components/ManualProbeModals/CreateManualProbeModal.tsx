@@ -12,9 +12,32 @@ import {
   FormLabel,
   Input,
   useToast,
-  Select
+  Select,
+  Text,
+  Grid,
+  Box,
+  Divider,
 } from '@chakra-ui/react';
 import { createManualProbe } from '../../services/api';
+
+const CROP_OPTIONS = [
+  'Soja',
+  'Milho',
+  'Feijão',
+  'Algodão',
+  'Trigo',
+  'Café',
+  'Pastagem',
+  'Sorgo',
+  'Tomate',
+  'Batata',
+  'Cenoura',
+  'Alho',
+  'Aveia',
+  'Mamona',
+  'Beterraba',
+  'Outra',
+];
 
 interface CreateManualProbeModalProps {
   isOpen: boolean;
@@ -35,18 +58,24 @@ export const CreateManualProbeModal: React.FC<CreateManualProbeModalProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [irrigationMm, setIrrigationMm] = useState<number>(0);
-  const [cultura, setCultura] = useState('');
+  const [selectedCrop, setSelectedCrop] = useState('Soja');
+  const [customCrop, setCustomCrop] = useState('');
   const [dataPlantio, setDataPlantio] = useState('');
+  const [efficiencyPct, setEfficiencyPct] = useState<number>(90);
+  const [rootDepthM, setRootDepthM] = useState<string>('');
+  const [soilProtocol, setSoilProtocol] = useState<'10kPa' | '33kPa'>('10kPa');
   const [potenciaCv, setPotenciaCv] = useState<number | ''>('');
   const [selectedFarmId, setSelectedFarmId] = useState<number>(farms.length > 0 ? farms[0].id : 0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const toast = useToast();
 
+  const finalCultura = selectedCrop === 'Outra' ? customCrop : selectedCrop;
+
   const handleSave = async () => {
     if (!name.trim()) {
       toast({
         title: 'Nome obrigatório',
-        description: 'Por favor, insira um nome para a sonda.',
+        description: 'Por favor, insira um nome para o pin.',
         status: 'warning',
         duration: 3000,
         isClosable: true,
@@ -56,32 +85,49 @@ export const CreateManualProbeModal: React.FC<CreateManualProbeModalProps> = ({
 
     try {
       setIsSubmitting(true);
-      await createManualProbe({
+      const newProbe = await createManualProbe({
         farm_id: selectedFarmId,
-        name,
+        name: name.trim(),
         latitude,
         longitude,
         irrigation_value_mm: irrigationMm,
-        cultura: cultura || undefined,
+        cultura: finalCultura.trim() || undefined,
         data_plantio: dataPlantio || undefined,
         potencia_cv: potenciaCv !== '' ? Number(potenciaCv) : undefined,
       });
 
+      // Salva os parâmetros de solo e eficiência configurados para o novo Pin
+      if (newProbe && newProbe.id) {
+        const soilSettings = {
+          coordinateKey: `${latitude},${longitude}`,
+          fieldCapacityReference: soilProtocol,
+          effectiveRootDepthM: rootDepthM ? Number(rootDepthM) : null,
+          irrigationEfficiency: (efficiencyPct || 90) / 100,
+          overrides: {},
+        };
+        localStorage.setItem(`brsense_soil_settings_${newProbe.id}`, JSON.stringify(soilSettings));
+      }
+
       toast({
         title: 'Sucesso',
-        description: 'Pin manual criada com sucesso.',
+        description: 'Pin manual criado com sucesso.',
         status: 'success',
         duration: 3000,
         isClosable: true,
       });
-      
+
       onCreated();
       onClose();
+
       // Reset form
       setName('');
       setIrrigationMm(0);
-      setCultura('');
+      setSelectedCrop('Soja');
+      setCustomCrop('');
       setDataPlantio('');
+      setEfficiencyPct(90);
+      setRootDepthM('');
+      setSoilProtocol('10kPa');
       setPotenciaCv('');
     } catch {
       toast({
@@ -97,24 +143,28 @@ export const CreateManualProbeModal: React.FC<CreateManualProbeModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} isCentered>
-      <ModalOverlay />
-      <ModalContent bg="gray.800" color="white">
-        <ModalHeader>Adicionar Pin Manual</ModalHeader>
+    <Modal isOpen={isOpen} onClose={onClose} isCentered size="lg">
+      <ModalOverlay backdropFilter="blur(4px)" />
+      <ModalContent bg="gray.800" color="white" borderRadius="xl" border="1px solid" borderColor="gray.700">
+        <ModalHeader borderBottom="1px solid" borderColor="gray.700">
+          Adicionar Pin Manual
+        </ModalHeader>
         <ModalCloseButton />
-        <ModalBody pb={6}>
+        <ModalBody pb={6} pt={4}>
           {farms.length > 1 && (
             <FormControl mb={4}>
-              <FormLabel>Fazenda</FormLabel>
+              <FormLabel fontSize="sm">Fazenda</FormLabel>
               <Select
                 value={selectedFarmId}
                 onChange={(e) => setSelectedFarmId(Number(e.target.value))}
                 bg="gray.700"
                 border="none"
                 _focus={{ ring: 2, ringColor: "blue.400" }}
+                size="sm"
+                borderRadius="md"
               >
-                {farms.map(f => (
-                  <option key={f.id} value={f.id} style={{ background: '#2d3748', color: 'white' }}>
+                {farms.map((f) => (
+                  <option key={f.id} value={f.id} style={{ background: '#2D3748', color: 'white' }}>
                     {f.name}
                   </option>
                 ))}
@@ -122,62 +172,183 @@ export const CreateManualProbeModal: React.FC<CreateManualProbeModalProps> = ({
             </FormControl>
           )}
 
-          <FormControl>
-            <FormLabel>Nome do Pin</FormLabel>
+          <FormControl isRequired mb={4}>
+            <FormLabel fontSize="sm">Nome do Pin</FormLabel>
             <Input
-              placeholder="Ex: Talhão 1"
+              placeholder="Ex: Talhão 1 - Pivô Central"
               value={name}
               onChange={(e) => setName(e.target.value)}
               bg="gray.700"
               border="none"
               _focus={{ ring: 2, ringColor: "blue.400" }}
+              size="sm"
+              borderRadius="md"
             />
           </FormControl>
 
-          <FormControl mt={4}>
-            <FormLabel>Cultura</FormLabel>
-            <Input
-              placeholder="Ex: Soja"
-              value={cultura}
-              onChange={(e) => setCultura(e.target.value)}
-              bg="gray.700"
-              border="none"
-              _focus={{ ring: 2, ringColor: "blue.400" }}
-            />
-          </FormControl>
+          {/* Dados Agronômicos para o Balanço Hídrico */}
+          <Box mb={4} p={3.5} bg="gray.900" borderRadius="lg" border="1px solid" borderColor="gray.700">
+            <Text fontSize="xs" fontWeight="bold" color="blue.300" textTransform="uppercase" letterSpacing="wider" mb={3}>
+              Parâmetros de Balanço Hídrico (FAO-56)
+            </Text>
 
-          <FormControl mt={4}>
-            <FormLabel>Data Plantio</FormLabel>
-            <Input
-              type="date"
-              value={dataPlantio}
-              onChange={(e) => setDataPlantio(e.target.value)}
-              bg="gray.700"
-              border="none"
-              _focus={{ ring: 2, ringColor: "blue.400" }}
-              css={{ '::-webkit-calendar-picker-indicator': { filter: 'invert(1)' } }}
-            />
-          </FormControl>
+            <Grid templateColumns={{ base: '1fr', sm: 'repeat(2, 1fr)' }} gap={3} mb={3}>
+              <FormControl isRequired>
+                <FormLabel fontSize="xs">Cultura</FormLabel>
+                <Select
+                  value={selectedCrop}
+                  onChange={(e) => setSelectedCrop(e.target.value)}
+                  bg="gray.700"
+                  border="none"
+                  _focus={{ ring: 2, ringColor: "blue.400" }}
+                  size="sm"
+                  borderRadius="md"
+                >
+                  {CROP_OPTIONS.map((c) => (
+                    <option key={c} value={c} style={{ background: '#2D3748', color: 'white' }}>
+                      {c}
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
 
-          <FormControl mt={4}>
-            <FormLabel>CV do Pivô</FormLabel>
-            <Input
-              type="number"
-              placeholder="Ex: 50"
-              value={potenciaCv}
-              onChange={(e) => setPotenciaCv(e.target.value ? Number(e.target.value) : '')}
-              bg="gray.700"
-              border="none"
-              _focus={{ ring: 2, ringColor: "blue.400" }}
-            />
-          </FormControl>
+              <FormControl>
+                <FormLabel fontSize="xs">Data de Plantio (DAP)</FormLabel>
+                <Input
+                  type="date"
+                  value={dataPlantio}
+                  onChange={(e) => setDataPlantio(e.target.value)}
+                  bg="gray.700"
+                  border="none"
+                  _focus={{ ring: 2, ringColor: "blue.400" }}
+                  size="sm"
+                  borderRadius="md"
+                  css={{ '::-webkit-calendar-picker-indicator': { filter: 'invert(1)' } }}
+                />
+              </FormControl>
+            </Grid>
+
+            {selectedCrop === 'Outra' && (
+              <FormControl mb={3}>
+                <FormLabel fontSize="xs">Nome da Cultura Personalizada</FormLabel>
+                <Input
+                  placeholder="Digite o nome da cultura"
+                  value={customCrop}
+                  onChange={(e) => setCustomCrop(e.target.value)}
+                  bg="gray.700"
+                  border="none"
+                  _focus={{ ring: 2, ringColor: "blue.400" }}
+                  size="sm"
+                  borderRadius="md"
+                />
+              </FormControl>
+            )}
+
+            <Grid templateColumns={{ base: '1fr', sm: 'repeat(2, 1fr)' }} gap={3}>
+              <FormControl>
+                <FormLabel fontSize="xs">Eficiência do Sistema (%)</FormLabel>
+                <Input
+                  type="number"
+                  min="50"
+                  max="100"
+                  value={efficiencyPct}
+                  onChange={(e) => setEfficiencyPct(Number(e.target.value))}
+                  bg="gray.700"
+                  border="none"
+                  _focus={{ ring: 2, ringColor: "blue.400" }}
+                  size="sm"
+                  borderRadius="md"
+                />
+                <Text fontSize="10px" color="gray.400" mt={1}>
+                  Padrão 90% (Pivô Central: 85-92%, Gotejamento: 95%)
+                </Text>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="xs">Profundidade das Raízes (m)</FormLabel>
+                <Input
+                  type="number"
+                  step="0.05"
+                  min="0.10"
+                  max="2.00"
+                  placeholder="Automático pela FAO"
+                  value={rootDepthM}
+                  onChange={(e) => setRootDepthM(e.target.value)}
+                  bg="gray.700"
+                  border="none"
+                  _focus={{ ring: 2, ringColor: "blue.400" }}
+                  size="sm"
+                  borderRadius="md"
+                />
+                <Text fontSize="10px" color="gray.400" mt={1}>
+                  Vazio = crescimento automático da cultura
+                </Text>
+              </FormControl>
+            </Grid>
+
+            <FormControl mt={3}>
+              <FormLabel fontSize="xs">Protocolo de Capacidade de Campo (CC)</FormLabel>
+              <Select
+                value={soilProtocol}
+                onChange={(e) => setSoilProtocol(e.target.value as '10kPa' | '33kPa')}
+                bg="gray.700"
+                border="none"
+                _focus={{ ring: 2, ringColor: "blue.400" }}
+                size="sm"
+                borderRadius="md"
+              >
+                <option value="10kPa" style={{ background: '#2D3748', color: 'white' }}>
+                  10 kPa (Padrão para solos arenosos e texturas médias)
+                </option>
+                <option value="33kPa" style={{ background: '#2D3748', color: 'white' }}>
+                  33 kPa (Solos muito argilosos)
+                </option>
+              </Select>
+            </FormControl>
+          </Box>
+
+          {/* Dados Adicionais */}
+          <Grid templateColumns={{ base: '1fr', sm: 'repeat(2, 1fr)' }} gap={3}>
+            <FormControl>
+              <FormLabel fontSize="xs">Potência do Pivô (CV)</FormLabel>
+              <Input
+                type="number"
+                placeholder="Ex: 50"
+                value={potenciaCv}
+                onChange={(e) => setPotenciaCv(e.target.value ? Number(e.target.value) : '')}
+                bg="gray.700"
+                border="none"
+                _focus={{ ring: 2, ringColor: "blue.400" }}
+                size="sm"
+                borderRadius="md"
+              />
+            </FormControl>
+
+            <FormControl>
+              <FormLabel fontSize="xs">Irrigação Inicial Acumulada (mm)</FormLabel>
+              <Input
+                type="number"
+                step="0.1"
+                placeholder="0"
+                value={irrigationMm}
+                onChange={(e) => setIrrigationMm(Number(e.target.value))}
+                bg="gray.700"
+                border="none"
+                _focus={{ ring: 2, ringColor: "blue.400" }}
+                size="sm"
+                borderRadius="md"
+              />
+            </FormControl>
+          </Grid>
         </ModalBody>
 
+        <Divider borderColor="gray.700" />
+
         <ModalFooter>
-          <Button colorScheme="blue" mr={3} onClick={handleSave} isLoading={isSubmitting}>
-            Salvar
+          <Button colorScheme="blue" mr={3} onClick={handleSave} isLoading={isSubmitting} size="sm">
+            Criar Pin
           </Button>
-          <Button onClick={onClose} colorScheme="red" _hover={{ bg: "gray.700" }}>
+          <Button onClick={onClose} variant="ghost" colorScheme="red" size="sm">
             Cancelar
           </Button>
         </ModalFooter>

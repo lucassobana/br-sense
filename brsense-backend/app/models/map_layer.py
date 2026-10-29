@@ -1,5 +1,5 @@
 # app/models/map_layer.py
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
@@ -19,6 +19,10 @@ class MapLayer(Base):
     original_filename: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     geojson: Mapped[str] = mapped_column(Text, nullable=False)  # GeoJSON as string
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Estado persistido de exibição da camada (toggle da camada)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    # Índices (JSON list) das features ocultas dentro do GeoJSON (toggle de cada feature)
+    hidden_feature_indices: Mapped[str] = mapped_column(Text, nullable=False, default="[]", server_default=text("'[]'"))
 
     # Relacionamento com a fazenda
     farm = relationship("Farm", back_populates="map_layers")

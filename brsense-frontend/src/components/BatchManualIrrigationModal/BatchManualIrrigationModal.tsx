@@ -248,7 +248,7 @@ export function BatchManualIrrigationModal({
                     Nenhum pin manual encontrado na fazenda.
                   </Text>
                 ) : (
-                  manualProbes.map((probe) => (
+                  [...manualProbes].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "", "pt-BR", { sensitivity: "base" })).map((probe) => (
                     <Flex
                       key={probe.id}
                       p={3}

@@ -1,0 +1,1421 @@
+{
+  "schemaVersion": 1,
+  "title": "BR Sense — catálogo de referência de 15 culturas para balanço hídrico",
+  "reviewedOn": "2026-10-11",
+  "referenceEdition": "FAO Irrigation and Drainage Paper 56 Rev.1 — Second edition, revised 2025",
+  "referenceDOI": "10.4060/cd6621en",
+  "referenceISBN": "978-92-5-140060-9",
+  "referenceURL": "https://doi.org/10.4060/cd6621en",
+  "consultedPDF": "https://agrhysmo.agr.unipi.it/wp-content/uploads/2025/09/FAO56%202025.pdf",
+  "fao2026Announcement": "https://www.fao.org/land-water/news/detail/Join-webinar-Main-Innovations-in-the-Revised-FAO-Irrigation-and-Drainage-Paper-56-Guidelines-for-Computing-Crop-Water-Requirements-13-April-2026/en",
+  "scope": "Extração estruturada das culturas solicitadas e de perfis selecionados, não de todos os cultivos ou estudos regionais.",
+  "units": {
+    "kcSingle": "dimensionless",
+    "kcbBasal": "dimensionless",
+    "depletionFractionAtETc5MmPerDay": "fraction 0–1",
+    "rootDepth": "m",
+    "plantHeight": "m",
+    "temperature": "°C",
+    "degreeDays": "°C·day"
+  },
+  "referenceConditions": {
+    "minimumRelativeHumidityPercent": 45,
+    "windAt2mMps": 2,
+    "referenceET": "FAO Penman–Monteith, short grass reference",
+    "cropCondition": "Sem estresse, bom manejo e elevada produtividade"
+  },
+  "interpretation": [
+    "Kc single representa efeitos médios de transpiração e evaporação; não somar Ke a esse Kc.",
+    "No modo dual usar ETa = (Ks × Kcb + Ke) × ETo. Ke e Ks são calculados pelo balanço; não são coeficientes fixos por cultura.",
+    "Interpolar a curva entre os pontos inicial, médio e final nas quatro fases; Kc inicial varia com frequência de molhamento.",
+    "Ajustar Kc/Kcb às condições climáticas, à cobertura e ao manejo conforme a publicação.",
+    "Profundidades tabuladas são faixas MÁXIMAS de referência, não a profundidade atual nem uma curva de crescimento das raízes.",
+    "O fator p é para ETc ≈ 5 mm/dia; ajuste indicativo: limitar pTable + 0.04 × (5 − ETc) entre 0.1 e 0.8.",
+    "GDD de cada fase é uma duração térmica, não uma fronteira acumulada desde o plantio; somar as fases para construir as fronteiras.",
+    "Não escolher perfil térmico pelo total de dias sem validar cultivar e região.",
+    "null indica parâmetro não extraído ou que exige cadastro/calibração local; nunca significa zero."
+  ],
+  "requiredFieldInputsForWaterBalance": [
+    "Solo: capacidade de campo, ponto de murcha e profundidade efetiva atual, ou CAD previamente determinada.",
+    "Estado inicial: depleção/armazenamento inicial e data; não assumir solo cheio sem confirmação.",
+    "Cultivar/ciclo e fase observada para ajustar a estimativa por data e, quando aplicável, graus-dia.",
+    "Chuva e irrigação realizadas com data, unidade, origem e confirmação de dias sem eventos.",
+    "Eficiência de aplicação e definição explícita de lâmina bruta versus líquida.",
+    "Clima histórico e previsto separados, método e superfície de referência da ETo, fuso horário e emissão da previsão."
+  ],
+  "crops": [
+    {
+      "id": "soja",
+      "name": "Soja",
+      "lifecycle": "annual",
+      "referenceProfiles": [
+        {
+          "id": "soybean",
+          "label": "Glycine max",
+          "kcSingle": {
+            "initial": 0.4,
+            "midSeason": 1.1,
+            "lateSeasonEnd": 0.5
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.35
+          },
+          "maximumEffectiveRootDepthRangeM": [0.6, 1.4],
+          "maximumHeightRangeM": [0.8, 0.8],
+          "maximumGroundCoverFraction": 0.98,
+          "depletionFractionAtETc5MmPerDay": 0.5,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [168],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        }
+      ],
+      "thermalReference": {
+        "baseTemperatureC": 10,
+        "upperTemperatureC": 40,
+        "sourceTable": "6.10",
+        "sourcePrintedPages": [204, 205]
+      },
+      "indicativePhenologyProfiles": [
+        {
+          "id": "short-season",
+          "stageDurationsDegreeDays": {
+            "initial": 300,
+            "development": 350,
+            "midSeason": 650,
+            "lateSeason": 350
+          },
+          "computedSeasonTotalDegreeDays": 1650,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1660,
+          "qualityNote": "Total impresso difere da soma das quatro fases; conferir antes de homologar. A soma foi preservada como cálculo, sem alterar as fases publicadas."
+        },
+        {
+          "id": "long-season",
+          "stageDurationsDegreeDays": {
+            "initial": 310,
+            "development": 410,
+            "midSeason": 680,
+            "lateSeason": 560
+          },
+          "computedSeasonTotalDegreeDays": 1960,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1960
+        }
+      ],
+      "notes": ["Não vincular automaticamente um estádio R/V a um DAP fixo."]
+    },
+    {
+      "id": "milho",
+      "name": "Milho",
+      "lifecycle": "annual",
+      "referenceProfiles": [
+        {
+          "id": "grain-low-moisture",
+          "label": "Grão, baixa umidade na colheita",
+          "kcSingle": {
+            "initial": 0.3,
+            "midSeason": 1.2,
+            "lateSeasonEnd": 0.3
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.15,
+            "lateSeasonEnd": 0.25
+          },
+          "maximumEffectiveRootDepthRangeM": [0.6, 1.5],
+          "maximumHeightRangeM": [2.5, 3.5],
+          "maximumGroundCoverFraction": 0.95,
+          "depletionFractionAtETc5MmPerDay": 0.5,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [169],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        },
+        {
+          "id": "grain-high-moisture",
+          "label": "Grão, alta umidade na colheita",
+          "kcSingle": {
+            "initial": 0.3,
+            "midSeason": 1.2,
+            "lateSeasonEnd": 0.65
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.15,
+            "lateSeasonEnd": 0.55
+          },
+          "maximumEffectiveRootDepthRangeM": [0.6, 1.5],
+          "maximumHeightRangeM": [2.5, 3.5],
+          "maximumGroundCoverFraction": 0.95,
+          "depletionFractionAtETc5MmPerDay": 0.5,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [169],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        },
+        {
+          "id": "silage",
+          "label": "Silagem",
+          "kcSingle": {
+            "initial": 0.3,
+            "midSeason": 1.15,
+            "lateSeasonEnd": 0.95
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.1,
+            "lateSeasonEnd": 0.8
+          },
+          "maximumEffectiveRootDepthRangeM": [0.6, 1.5],
+          "maximumHeightRangeM": [2.5, 3.2],
+          "maximumGroundCoverFraction": 0.9,
+          "depletionFractionAtETc5MmPerDay": 0.5,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [169],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        },
+        {
+          "id": "sweet",
+          "label": "Milho-doce",
+          "kcSingle": {
+            "initial": 0.3,
+            "midSeason": 1.15,
+            "lateSeasonEnd": 1.05
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.1,
+            "lateSeasonEnd": 1.0
+          },
+          "maximumEffectiveRootDepthRangeM": [0.6, 1.5],
+          "maximumHeightRangeM": [1.5, 2.5],
+          "maximumGroundCoverFraction": 0.85,
+          "depletionFractionAtETc5MmPerDay": 0.5,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [169],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        }
+      ],
+      "thermalReference": {
+        "baseTemperatureC": 10,
+        "upperTemperatureC": 32,
+        "sourceTable": "6.10",
+        "sourcePrintedPages": [204, 205]
+      },
+      "indicativePhenologyProfiles": [
+        {
+          "id": "grain-short",
+          "stageDurationsDegreeDays": {
+            "initial": 200,
+            "development": 380,
+            "midSeason": 500,
+            "lateSeason": 340
+          },
+          "computedSeasonTotalDegreeDays": 1420,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1420
+        },
+        {
+          "id": "grain-long",
+          "stageDurationsDegreeDays": {
+            "initial": 295,
+            "development": 420,
+            "midSeason": 775,
+            "lateSeason": 465
+          },
+          "computedSeasonTotalDegreeDays": 1955,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1955
+        },
+        {
+          "id": "silage-short",
+          "stageDurationsDegreeDays": {
+            "initial": 200,
+            "development": 380,
+            "midSeason": 430,
+            "lateSeason": 120
+          },
+          "computedSeasonTotalDegreeDays": 1130,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1130
+        },
+        {
+          "id": "silage-long",
+          "stageDurationsDegreeDays": {
+            "initial": 250,
+            "development": 500,
+            "midSeason": 600,
+            "lateSeason": 200
+          },
+          "computedSeasonTotalDegreeDays": 1550,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1550
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "feijao",
+      "name": "Feijão",
+      "lifecycle": "annual",
+      "referenceProfiles": [
+        {
+          "id": "common-dry",
+          "label": "Feijão-comum seco; Phaseolus vulgaris",
+          "kcSingle": {
+            "initial": 0.4,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.4
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.0,
+            "lateSeasonEnd": 0.3
+          },
+          "maximumEffectiveRootDepthRangeM": [0.5, 0.9],
+          "maximumHeightRangeM": [0.5, 0.7],
+          "maximumGroundCoverFraction": 0.8,
+          "depletionFractionAtETc5MmPerDay": 0.45,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [168],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        },
+        {
+          "id": "common-green",
+          "label": "Feijão-comum verde; Phaseolus vulgaris",
+          "kcSingle": {
+            "initial": 0.5,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.95
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.0,
+            "lateSeasonEnd": 0.85
+          },
+          "maximumEffectiveRootDepthRangeM": [0.5, 0.9],
+          "maximumHeightRangeM": [0.5, 0.7],
+          "maximumGroundCoverFraction": 0.8,
+          "depletionFractionAtETc5MmPerDay": 0.45,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [168],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        },
+        {
+          "id": "cowpea-dry",
+          "label": "Feijão-caupi seco; Vigna unguiculata",
+          "kcSingle": {
+            "initial": 0.4,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.35
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.0,
+            "lateSeasonEnd": 0.25
+          },
+          "maximumEffectiveRootDepthRangeM": [0.6, 1.3],
+          "maximumHeightRangeM": [0.6, 0.8],
+          "maximumGroundCoverFraction": 0.8,
+          "depletionFractionAtETc5MmPerDay": 0.5,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [168],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        }
+      ],
+      "thermalReference": {
+        "baseTemperatureC": 10,
+        "upperTemperatureC": 32,
+        "sourceTable": "6.10",
+        "sourcePrintedPages": [204, 205]
+      },
+      "indicativePhenologyProfiles": [
+        {
+          "id": "common-seed-short",
+          "stageDurationsDegreeDays": {
+            "initial": 160,
+            "development": 260,
+            "midSeason": 360,
+            "lateSeason": 180
+          },
+          "computedSeasonTotalDegreeDays": 960,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 960
+        },
+        {
+          "id": "common-seed-long",
+          "stageDurationsDegreeDays": {
+            "initial": 320,
+            "development": 410,
+            "midSeason": 400,
+            "lateSeason": 220
+          },
+          "computedSeasonTotalDegreeDays": 1350,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1350
+        }
+      ],
+      "notes": [
+        "Temperaturas e GDD deste grupo referem-se a Phaseolus vulgaris. Para caupi: Tbase 10°C e Tupper 35°C, tabela 6.10."
+      ]
+    },
+    {
+      "id": "algodao",
+      "name": "Algodão",
+      "lifecycle": "annual",
+      "referenceProfiles": [
+        {
+          "id": "cotton",
+          "label": "Gossypium hirsutum",
+          "kcSingle": {
+            "initial": 0.4,
+            "midSeason": 1.1,
+            "lateSeasonEnd": 0.5
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.4
+          },
+          "maximumEffectiveRootDepthRangeM": [1.0, 1.7],
+          "maximumHeightRangeM": [1.2, 1.2],
+          "maximumGroundCoverFraction": 0.9,
+          "depletionFractionAtETc5MmPerDay": 0.6,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [168],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        }
+      ],
+      "thermalReference": {
+        "baseTemperatureC": 12.5,
+        "upperTemperatureC": 35,
+        "sourceTable": "6.10",
+        "sourcePrintedPages": [204, 205]
+      },
+      "indicativePhenologyProfiles": [
+        {
+          "id": "short-season",
+          "stageDurationsDegreeDays": {
+            "initial": 280,
+            "development": 520,
+            "midSeason": 800,
+            "lateSeason": 350
+          },
+          "computedSeasonTotalDegreeDays": 1950,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1950
+        },
+        {
+          "id": "long-season",
+          "stageDurationsDegreeDays": {
+            "initial": 345,
+            "development": 905,
+            "midSeason": 615,
+            "lateSeason": 285
+          },
+          "computedSeasonTotalDegreeDays": 2150,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 2150
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "batata",
+      "name": "Batata",
+      "lifecycle": "annual",
+      "referenceProfiles": [
+        {
+          "id": "long-season",
+          "label": "Ciclo longo",
+          "kcSingle": {
+            "initial": 0.5,
+            "midSeason": 1.1,
+            "lateSeasonEnd": 0.4
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.3
+          },
+          "maximumEffectiveRootDepthRangeM": [0.4, 0.6],
+          "maximumHeightRangeM": [0.6, 0.6],
+          "maximumGroundCoverFraction": 0.9,
+          "depletionFractionAtETc5MmPerDay": 0.4,
+          "source": {
+            "kcTable": "6.1",
+            "kcPrintedPages": [165],
+            "kcbTable": "7.1",
+            "pTable": "8.1"
+          },
+          "conditions": []
+        },
+        {
+          "id": "short-season",
+          "label": "Ciclo curto",
+          "kcSingle": {
+            "initial": 0.5,
+            "midSeason": 1.1,
+            "lateSeasonEnd": 0.6
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.5
+          },
+          "maximumEffectiveRootDepthRangeM": [0.4, 0.6],
+          "maximumHeightRangeM": [0.6, 0.6],
+          "maximumGroundCoverFraction": 0.9,
+          "depletionFractionAtETc5MmPerDay": 0.4,
+          "source": {
+            "kcTable": "6.1",
+            "kcPrintedPages": [165],
+            "kcbTable": "7.1",
+            "pTable": "8.1"
+          },
+          "conditions": []
+        }
+      ],
+      "thermalReference": {
+        "baseTemperatureC": 2,
+        "upperTemperatureC": 30,
+        "sourceTable": "6.10",
+        "sourcePrintedPages": [204, 205]
+      },
+      "indicativePhenologyProfiles": [
+        {
+          "id": "short-season",
+          "stageDurationsDegreeDays": {
+            "initial": 260,
+            "development": 490,
+            "midSeason": 525,
+            "lateSeason": 325
+          },
+          "computedSeasonTotalDegreeDays": 1600,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1600
+        },
+        {
+          "id": "long-season",
+          "stageDurationsDegreeDays": {
+            "initial": 405,
+            "development": 530,
+            "midSeason": 490,
+            "lateSeason": 835
+          },
+          "computedSeasonTotalDegreeDays": 2260,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 2260
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "cenoura",
+      "name": "Cenoura",
+      "lifecycle": "annual",
+      "referenceProfiles": [
+        {
+          "id": "carrot",
+          "label": "Daucus carota",
+          "kcSingle": {
+            "initial": 0.7,
+            "midSeason": 1.0,
+            "lateSeasonEnd": 0.85
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 0.9,
+            "lateSeasonEnd": 0.75
+          },
+          "maximumEffectiveRootDepthRangeM": [0.3, 0.5],
+          "maximumHeightRangeM": [0.3, 0.3],
+          "maximumGroundCoverFraction": 0.9,
+          "depletionFractionAtETc5MmPerDay": 0.3,
+          "source": {
+            "kcTable": "6.1",
+            "kcPrintedPages": [165],
+            "kcbTable": "7.1",
+            "pTable": "8.1"
+          },
+          "conditions": []
+        }
+      ],
+      "thermalReference": {
+        "baseTemperatureC": 6,
+        "upperTemperatureC": 30,
+        "sourceTable": "6.10",
+        "sourcePrintedPages": [204, 205]
+      },
+      "indicativePhenologyProfiles": [
+        {
+          "id": "common",
+          "stageDurationsDegreeDays": {
+            "initial": 320,
+            "development": 465,
+            "midSeason": 500,
+            "lateSeason": 290
+          },
+          "computedSeasonTotalDegreeDays": 1575,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1575
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "alho",
+      "name": "Alho",
+      "lifecycle": "annual",
+      "referenceProfiles": [
+        {
+          "id": "garlic",
+          "label": "Allium sativum",
+          "kcSingle": {
+            "initial": 0.7,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.7
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.0,
+            "lateSeasonEnd": 0.5
+          },
+          "maximumEffectiveRootDepthRangeM": [0.3, 0.5],
+          "maximumHeightRangeM": [0.5, 0.5],
+          "maximumGroundCoverFraction": 0.85,
+          "depletionFractionAtETc5MmPerDay": 0.3,
+          "source": {
+            "kcTable": "6.1",
+            "kcPrintedPages": [165],
+            "kcbTable": "7.1",
+            "pTable": "8.1"
+          },
+          "conditions": []
+        }
+      ],
+      "thermalReference": {
+        "baseTemperatureC": 4,
+        "upperTemperatureC": 30,
+        "sourceTable": "6.10",
+        "sourcePrintedPages": [204, 205]
+      },
+      "indicativePhenologyProfiles": [
+        {
+          "id": "short-season",
+          "stageDurationsDegreeDays": {
+            "initial": 150,
+            "development": 340,
+            "midSeason": 335,
+            "lateSeason": 315
+          },
+          "computedSeasonTotalDegreeDays": 1140,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1140
+        },
+        {
+          "id": "long-season",
+          "stageDurationsDegreeDays": {
+            "initial": 580,
+            "development": 615,
+            "midSeason": 315,
+            "lateSeason": 240
+          },
+          "computedSeasonTotalDegreeDays": 1750,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1750
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "sorgo",
+      "name": "Sorgo",
+      "lifecycle": "annual",
+      "referenceProfiles": [
+        {
+          "id": "grain",
+          "label": "Grão",
+          "kcSingle": {
+            "initial": 0.3,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.45
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.0,
+            "lateSeasonEnd": 0.35
+          },
+          "maximumEffectiveRootDepthRangeM": [1.0, 1.5],
+          "maximumHeightRangeM": [1.5, 2.0],
+          "maximumGroundCoverFraction": 0.85,
+          "depletionFractionAtETc5MmPerDay": 0.55,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [169],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        },
+        {
+          "id": "silage",
+          "label": "Silagem",
+          "kcSingle": {
+            "initial": 0.3,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.9
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 0.95,
+            "lateSeasonEnd": 0.85
+          },
+          "maximumEffectiveRootDepthRangeM": [1.0, 1.5],
+          "maximumHeightRangeM": [2.0, 3.0],
+          "maximumGroundCoverFraction": 0.8,
+          "depletionFractionAtETc5MmPerDay": 0.55,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [169],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        },
+        {
+          "id": "sweet",
+          "label": "Sorgo sacarino",
+          "kcSingle": {
+            "initial": 0.3,
+            "midSeason": 1.1,
+            "lateSeasonEnd": 0.95
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.9
+          },
+          "maximumEffectiveRootDepthRangeM": [0.6, 1.5],
+          "maximumHeightRangeM": [3.0, 4.0],
+          "maximumGroundCoverFraction": 0.95,
+          "depletionFractionAtETc5MmPerDay": 0.55,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [169],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        }
+      ],
+      "thermalReference": {
+        "baseTemperatureC": 10,
+        "upperTemperatureC": 30,
+        "sourceTable": "6.10",
+        "sourcePrintedPages": [204, 205]
+      },
+      "indicativePhenologyProfiles": [
+        {
+          "id": "short-season",
+          "stageDurationsDegreeDays": {
+            "initial": 280,
+            "development": 300,
+            "midSeason": 570,
+            "lateSeason": 230
+          },
+          "computedSeasonTotalDegreeDays": 1380,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1380
+        },
+        {
+          "id": "long-season",
+          "stageDurationsDegreeDays": {
+            "initial": 280,
+            "development": 310,
+            "midSeason": 650,
+            "lateSeason": 280
+          },
+          "computedSeasonTotalDegreeDays": 1520,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1520
+        }
+      ],
+      "notes": [
+        "Perfis térmicos indicativos para Sorghum bicolor; confirmar finalidade e cultivar."
+      ]
+    },
+    {
+      "id": "trigo",
+      "name": "Trigo",
+      "lifecycle": "annual",
+      "referenceProfiles": [
+        {
+          "id": "spring-low-moisture",
+          "label": "Triticum aestivum, spring, baixa umidade na colheita",
+          "kcSingle": {
+            "initial": 0.3,
+            "midSeason": 1.15,
+            "lateSeasonEnd": 0.25
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.1,
+            "lateSeasonEnd": 0.2
+          },
+          "maximumEffectiveRootDepthRangeM": [1.0, 1.5],
+          "maximumHeightRangeM": [0.7, 1.1],
+          "maximumGroundCoverFraction": 0.95,
+          "depletionFractionAtETc5MmPerDay": 0.5,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [170],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        },
+        {
+          "id": "spring-high-moisture",
+          "label": "Triticum aestivum, spring, alta umidade na colheita",
+          "kcSingle": {
+            "initial": 0.3,
+            "midSeason": 1.15,
+            "lateSeasonEnd": 0.45
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.1,
+            "lateSeasonEnd": 0.4
+          },
+          "maximumEffectiveRootDepthRangeM": [1.0, 1.5],
+          "maximumHeightRangeM": [0.7, 1.1],
+          "maximumGroundCoverFraction": 0.95,
+          "depletionFractionAtETc5MmPerDay": 0.5,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [170],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        },
+        {
+          "id": "winter-low-moisture",
+          "label": "Triticum aestivum, winter, baixa umidade na colheita",
+          "kcSingle": {
+            "initial": 0.7,
+            "midSeason": 1.15,
+            "lateSeasonEnd": 0.25
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.1,
+            "lateSeasonEnd": 0.2
+          },
+          "maximumEffectiveRootDepthRangeM": [1.0, 1.5],
+          "maximumHeightRangeM": [0.7, 1.1],
+          "maximumGroundCoverFraction": 0.95,
+          "depletionFractionAtETc5MmPerDay": 0.5,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [170],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        },
+        {
+          "id": "winter-high-moisture",
+          "label": "Triticum aestivum, winter, alta umidade na colheita",
+          "kcSingle": {
+            "initial": 0.7,
+            "midSeason": 1.15,
+            "lateSeasonEnd": 0.55
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.1,
+            "lateSeasonEnd": 0.45
+          },
+          "maximumEffectiveRootDepthRangeM": [1.0, 1.5],
+          "maximumHeightRangeM": [0.7, 1.1],
+          "maximumGroundCoverFraction": 0.95,
+          "depletionFractionAtETc5MmPerDay": 0.5,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [170],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        }
+      ],
+      "thermalReference": {
+        "baseTemperatureC": 0,
+        "upperTemperatureC": 35,
+        "sourceTable": "6.10",
+        "sourcePrintedPages": [204, 205]
+      },
+      "indicativePhenologyProfiles": [
+        {
+          "id": "spring-short",
+          "stageDurationsDegreeDays": {
+            "initial": 360,
+            "development": 480,
+            "midSeason": 590,
+            "lateSeason": 190
+          },
+          "computedSeasonTotalDegreeDays": 1620,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1620
+        },
+        {
+          "id": "spring-long",
+          "stageDurationsDegreeDays": {
+            "initial": 360,
+            "development": 680,
+            "midSeason": 720,
+            "lateSeason": 540
+          },
+          "computedSeasonTotalDegreeDays": 2300,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 2300
+        },
+        {
+          "id": "winter-short",
+          "stageDurationsDegreeDays": {
+            "initial": 395,
+            "development": 445,
+            "midSeason": 440,
+            "lateSeason": 365
+          },
+          "computedSeasonTotalDegreeDays": 1645,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1645
+        },
+        {
+          "id": "winter-long",
+          "stageDurationsDegreeDays": {
+            "initial": 560,
+            "development": 405,
+            "midSeason": 730,
+            "lateSeason": 410
+          },
+          "computedSeasonTotalDegreeDays": 2105,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 2105
+        }
+      ],
+      "notes": [
+        "Spring/winter são os tipos agronômicos do trigo, não apenas a estação do plantio no calendário brasileiro."
+      ]
+    },
+    {
+      "id": "aveia",
+      "name": "Aveia",
+      "lifecycle": "annual",
+      "referenceProfiles": [
+        {
+          "id": "oats",
+          "label": "Avena sativa",
+          "kcSingle": {
+            "initial": 0.3,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.25
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.0,
+            "lateSeasonEnd": 0.2
+          },
+          "maximumEffectiveRootDepthRangeM": [1.0, 1.5],
+          "maximumHeightRangeM": [0.8, 1.1],
+          "maximumGroundCoverFraction": 0.9,
+          "depletionFractionAtETc5MmPerDay": 0.55,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [169],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        }
+      ],
+      "thermalReference": {
+        "baseTemperatureC": 0,
+        "upperTemperatureC": 30,
+        "sourceTable": "6.10",
+        "sourcePrintedPages": [204, 205]
+      },
+      "indicativePhenologyProfiles": [
+        {
+          "id": "common",
+          "stageDurationsDegreeDays": {
+            "initial": 450,
+            "development": 595,
+            "midSeason": 550,
+            "lateSeason": 255
+          },
+          "computedSeasonTotalDegreeDays": 1850,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1850
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "mamona",
+      "name": "Mamona",
+      "lifecycle": "annual-or-perennial",
+      "referenceProfiles": [
+        {
+          "id": "castorbean",
+          "label": "Ricinus communis",
+          "kcSingle": {
+            "initial": 0.35,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.4
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.0,
+            "lateSeasonEnd": 0.3
+          },
+          "maximumEffectiveRootDepthRangeM": [0.8, 1.3],
+          "maximumHeightRangeM": [1.0, 1.5],
+          "maximumGroundCoverFraction": 0.95,
+          "depletionFractionAtETc5MmPerDay": 0.6,
+          "source": {
+            "kcTable": "6.2",
+            "kcPrintedPages": [169],
+            "kcbTable": "7.2",
+            "pTable": "8.2"
+          },
+          "conditions": []
+        }
+      ],
+      "thermalReference": {
+        "baseTemperatureC": 10,
+        "upperTemperatureC": 30,
+        "sourceTable": "6.10",
+        "sourcePrintedPages": [204, 205]
+      },
+      "indicativePhenologyProfiles": [],
+      "notes": [
+        "Calibrar duração das fases regionalmente; sem perfil GDD observado da tabela 6.11 nesta extração."
+      ]
+    },
+    {
+      "id": "pastagem",
+      "name": "Pastagem",
+      "lifecycle": "perennial-cut-or-grazing-cycles",
+      "referenceProfiles": [
+        {
+          "id": "irrigated-grazing",
+          "label": "Pastagem irrigada para pastejo",
+          "kcSingle": {
+            "initial": 0.55,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.55
+          },
+          "kcbBasal": null,
+          "maximumEffectiveRootDepthRangeM": null,
+          "maximumHeightRangeM": null,
+          "maximumGroundCoverFraction": null,
+          "depletionFractionAtETc5MmPerDay": 0.6,
+          "source": {
+            "kcTable": "6.4",
+            "kcPrintedPages": [176],
+            "kcbTable": null,
+            "pTable": "8.4"
+          },
+          "conditions": []
+        },
+        {
+          "id": "grazing-high-residual",
+          "label": "Gramíneas para pastejo com resíduo alto",
+          "kcSingle": {
+            "initial": 0.9,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.9
+          },
+          "kcbBasal": null,
+          "maximumEffectiveRootDepthRangeM": null,
+          "maximumHeightRangeM": null,
+          "maximumGroundCoverFraction": null,
+          "depletionFractionAtETc5MmPerDay": 0.6,
+          "source": {
+            "kcTable": "6.4",
+            "kcPrintedPages": [176],
+            "kcbTable": null,
+            "pTable": "8.4"
+          },
+          "conditions": []
+        },
+        {
+          "id": "grazing-short-residual",
+          "label": "Gramíneas para pastejo com resíduo baixo",
+          "kcSingle": {
+            "initial": 0.85,
+            "midSeason": 0.95,
+            "lateSeasonEnd": 0.85
+          },
+          "kcbBasal": null,
+          "maximumEffectiveRootDepthRangeM": null,
+          "maximumHeightRangeM": null,
+          "maximumGroundCoverFraction": null,
+          "depletionFractionAtETc5MmPerDay": 0.6,
+          "source": {
+            "kcTable": "6.4",
+            "kcPrintedPages": [176],
+            "kcbTable": null,
+            "pTable": "8.4"
+          },
+          "conditions": []
+        }
+      ],
+      "thermalReference": null,
+      "indicativePhenologyProfiles": [],
+      "notes": [
+        "Não usar uma curva única desde a data de plantio: considerar espécie, cobertura, último corte/pastejo e rebrota.",
+        "Kcb não foi preenchido porque não há um trio específico tabulado para estes perfis nas tabelas 7.1–7.3.",
+        "Profundidade efetiva deve ser cadastrada; não foi substituída automaticamente por referência de outro ano."
+      ]
+    },
+    {
+      "id": "cafe",
+      "name": "Café",
+      "lifecycle": "perennial",
+      "referenceProfiles": [
+        {
+          "id": "arabica-young",
+          "label": "Arábica jovem, menos de 4 anos",
+          "kcSingle": {
+            "initial": 0.4,
+            "midSeason": 0.55,
+            "lateSeasonEnd": 0.5
+          },
+          "kcbBasal": {
+            "initial": 0.3,
+            "midSeason": 0.35,
+            "lateSeasonEnd": 0.35
+          },
+          "maximumEffectiveRootDepthRangeM": null,
+          "maximumHeightRangeM": null,
+          "maximumGroundCoverFraction": null,
+          "depletionFractionAtETc5MmPerDay": 0.4,
+          "source": {
+            "kcTable": "6.3",
+            "kcPrintedPages": [174],
+            "kcbTable": "7.3",
+            "pTable": "8.3"
+          },
+          "conditions": ["Coffea arabica; cobertura do solo <20%; altura <2 m."]
+        },
+        {
+          "id": "arabica-low-medium",
+          "label": "Arábica, cobertura baixa a média",
+          "kcSingle": {
+            "initial": 0.65,
+            "midSeason": 0.8,
+            "lateSeasonEnd": 0.8
+          },
+          "kcbBasal": {
+            "initial": 0.6,
+            "midSeason": 0.7,
+            "lateSeasonEnd": 0.7
+          },
+          "maximumEffectiveRootDepthRangeM": null,
+          "maximumHeightRangeM": [1.5, 3.0],
+          "maximumGroundCoverFraction": null,
+          "depletionFractionAtETc5MmPerDay": 0.4,
+          "source": {
+            "kcTable": "6.3",
+            "kcPrintedPages": [174],
+            "kcbTable": "7.3",
+            "pTable": "8.3"
+          },
+          "conditions": [
+            "Cobertura 20–50%; tabela Kc: densidade <5500 plantas/ha; tabela Kcb: <6000 plantas/ha. Preferir o enquadramento por cobertura e confirmar o perfil."
+          ]
+        },
+        {
+          "id": "arabica-high",
+          "label": "Arábica, cobertura alta",
+          "kcSingle": {
+            "initial": 0.9,
+            "midSeason": 1.0,
+            "lateSeasonEnd": 1.0
+          },
+          "kcbBasal": {
+            "initial": 0.85,
+            "midSeason": 0.9,
+            "lateSeasonEnd": 0.9
+          },
+          "maximumEffectiveRootDepthRangeM": null,
+          "maximumHeightRangeM": null,
+          "maximumGroundCoverFraction": null,
+          "depletionFractionAtETc5MmPerDay": 0.4,
+          "source": {
+            "kcTable": "6.3",
+            "kcPrintedPages": [174],
+            "kcbTable": "7.3",
+            "pTable": "8.3"
+          },
+          "conditions": [
+            "Cobertura >50%; altura >2 m; tabela Kc: >5500 plantas/ha; tabela Kcb: >6000 plantas/ha."
+          ]
+        }
+      ],
+      "thermalReference": null,
+      "indicativePhenologyProfiles": [],
+      "notes": [
+        "Perfis para Coffea arabica; não aplicar automaticamente ao café conilon/robusta.",
+        "Cadastrar profundidade radicular efetiva, cobertura entre linhas, poda e fase produtiva."
+      ]
+    },
+    {
+      "id": "tomate",
+      "name": "Tomate",
+      "lifecycle": "annual",
+      "referenceProfiles": [
+        {
+          "id": "processing",
+          "label": "Tomate para processamento",
+          "kcSingle": {
+            "initial": 0.6,
+            "midSeason": 1.1,
+            "lateSeasonEnd": 0.85
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.75
+          },
+          "maximumEffectiveRootDepthRangeM": [0.6, 1.2],
+          "maximumHeightRangeM": [0.6, 0.6],
+          "maximumGroundCoverFraction": 0.9,
+          "depletionFractionAtETc5MmPerDay": 0.4,
+          "source": {
+            "kcTable": "6.1",
+            "kcPrintedPages": [167],
+            "kcbTable": "7.1",
+            "pTable": "8.1"
+          },
+          "conditions": []
+        },
+        {
+          "id": "fresh-market",
+          "label": "Tomate de mesa",
+          "kcSingle": {
+            "initial": 0.6,
+            "midSeason": 1.1,
+            "lateSeasonEnd": 1.0
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 0.9
+          },
+          "maximumEffectiveRootDepthRangeM": [0.6, 1.2],
+          "maximumHeightRangeM": [0.6, 0.6],
+          "maximumGroundCoverFraction": 0.9,
+          "depletionFractionAtETc5MmPerDay": 0.4,
+          "source": {
+            "kcTable": "6.1",
+            "kcPrintedPages": [167],
+            "kcbTable": "7.1",
+            "pTable": "8.1"
+          },
+          "conditions": []
+        },
+        {
+          "id": "fresh-trellis",
+          "label": "Tomate de mesa tutorado",
+          "kcSingle": {
+            "initial": 0.6,
+            "midSeason": 1.15,
+            "lateSeasonEnd": 0.9
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.1,
+            "lateSeasonEnd": 0.8
+          },
+          "maximumEffectiveRootDepthRangeM": [0.6, 1.2],
+          "maximumHeightRangeM": [1.5, 1.5],
+          "maximumGroundCoverFraction": 0.9,
+          "depletionFractionAtETc5MmPerDay": 0.4,
+          "source": {
+            "kcTable": "6.1",
+            "kcPrintedPages": [167],
+            "kcbTable": "7.1",
+            "pTable": "8.1"
+          },
+          "conditions": []
+        }
+      ],
+      "thermalReference": {
+        "baseTemperatureC": 7,
+        "upperTemperatureC": 28,
+        "sourceTable": "6.10",
+        "sourcePrintedPages": [204, 205]
+      },
+      "indicativePhenologyProfiles": [
+        {
+          "id": "processing",
+          "stageDurationsDegreeDays": {
+            "initial": 280,
+            "development": 520,
+            "midSeason": 880,
+            "lateSeason": 220
+          },
+          "computedSeasonTotalDegreeDays": 1900,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 1900
+        },
+        {
+          "id": "market",
+          "stageDurationsDegreeDays": {
+            "initial": 325,
+            "development": 660,
+            "midSeason": 880,
+            "lateSeason": 200
+          },
+          "computedSeasonTotalDegreeDays": 2065,
+          "sourceTable": "6.11",
+          "sourcePrintedPages": [209, 210],
+          "use": "Indicativo: confirmar cultivar, ambiente, fotoperíodo e fase no campo.",
+          "printedSeasonTotalDegreeDays": 2065
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "beterraba",
+      "name": "Beterraba de mesa",
+      "lifecycle": "annual",
+      "referenceProfiles": [
+        {
+          "id": "table-beet",
+          "label": "Beta vulgaris, table beet",
+          "kcSingle": {
+            "initial": 0.5,
+            "midSeason": 1.05,
+            "lateSeasonEnd": 1.0
+          },
+          "kcbBasal": {
+            "initial": 0.15,
+            "midSeason": 1.0,
+            "lateSeasonEnd": 0.9
+          },
+          "maximumEffectiveRootDepthRangeM": [0.45, 1.0],
+          "maximumHeightRangeM": [0.4, 0.4],
+          "maximumGroundCoverFraction": 0.85,
+          "depletionFractionAtETc5MmPerDay": 0.45,
+          "source": {
+            "kcTable": "6.1",
+            "kcPrintedPages": [165],
+            "kcbTable": "7.1",
+            "pTable": "8.1"
+          },
+          "conditions": []
+        }
+      ],
+      "thermalReference": {
+        "baseTemperatureC": 4.5,
+        "upperTemperatureC": 30,
+        "sourceTable": "6.10",
+        "sourcePrintedPages": [204, 205]
+      },
+      "indicativePhenologyProfiles": [],
+      "notes": [
+        "Perfil para beterraba de mesa, distinto da beterraba açucareira.",
+        "Calibrar duração das fases regionalmente; sem perfil GDD observado da tabela 6.11 nesta extração."
+      ]
+    }
+  ]
+}

@@ -5,8 +5,7 @@ from app.settings import settings
 from app.db.session import SessionLocal
 from app.models.request_log import RequestLog
 
-# Importando as rotas
-from app.routers import uplink, auth, devices, readings, farms, manual_probes, map_layers
+from app.routers import uplink, auth, devices, readings, farms, manual_probes, map_layers, soil_balance
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -67,6 +66,14 @@ async def log_uplink_requests(request: Request, call_next):
     response = await call_next(request)
     return response
 
+@app.middleware("http")
+async def normalize_path_slashes(request: Request, call_next):
+    raw_path = request.scope.get("path", "")
+    if "//" in raw_path:
+        import re
+        request.scope["path"] = re.sub(r"/+", "/", raw_path)
+    return await call_next(request)
+
 # Configuração de CORS
 origins = [
     "http://localhost:5173",
@@ -90,6 +97,7 @@ app.include_router(readings.router, prefix="/api", tags=["Readings"]) # <--- Nov
 app.include_router(farms.router, prefix="/api", tags=["Farms"]) # <--- Nova rota do gráfico
 app.include_router(manual_probes.router, prefix="/api/manual-probes", tags=["Manual Probes"])
 app.include_router(map_layers.router, prefix="/api/map-layers", tags=["Map Layers"])
+app.include_router(soil_balance.router, prefix="/api", tags=["Soil Balance"])
 
 # Rota de teste simples
 @app.get("/")

@@ -9,8 +9,15 @@ import {
     Button,
     Icon,
     useDisclosure,
-    useToast
+    useToast,
+    ButtonGroup
 } from "@chakra-ui/react";
+import {
+    computeProbeStatus,
+    getStoredMapDepthFilter,
+    getStoredSelectedDepthRefs,
+    DEPTH_CHANGE_EVENT,
+} from "../utils/probeStatus";
 import { FaTint } from "react-icons/fa";
 import { BatchManualIrrigationModal } from "../components/BatchManualIrrigationModal/BatchManualIrrigationModal";
 import { getProbes, getFarms, getManualProbes } from '../services/api'; 
@@ -78,6 +85,24 @@ export function MyProbes() {
     const toast = useToast();
     const userIsAdmin = isUserAdmin();
 
+    const [deviceFilter, setDeviceFilter] = useState<"sondas" | "manuais" | null>(null);
+
+    const [selectedDepthRefs, setSelectedDepthRefs] = useState<Record<number, number | null>>(() => getStoredSelectedDepthRefs());
+    const [mapDepthFilter, setMapDepthFilter] = useState<number>(() => getStoredMapDepthFilter());
+
+    useEffect(() => {
+        const handleDepthSync = () => {
+            setSelectedDepthRefs(getStoredSelectedDepthRefs());
+            setMapDepthFilter(getStoredMapDepthFilter());
+        };
+        window.addEventListener(DEPTH_CHANGE_EVENT, handleDepthSync);
+        window.addEventListener("storage", handleDepthSync);
+        return () => {
+            window.removeEventListener(DEPTH_CHANGE_EVENT, handleDepthSync);
+            window.removeEventListener("storage", handleDepthSync);
+        };
+    }, []);
+
     const [sortConfig, setSortConfig] = useState<{
         key: SortKey;
         direction: "asc" | "desc";
@@ -125,25 +150,7 @@ export function MyProbes() {
 
     const processedTableData = useMemo(() => {
         const mapped: TableRowData[] = probes.map((probe) => {
-            const v1 = probe.config_moisture_v1 ?? 30;
-            const v2 = probe.config_moisture_v2 ?? 45;
-            const v3 = probe.config_moisture_v3 ?? 60;
-            
-            let currentStatusCode = "status_offline";
-            const readings = probe.readings || [];
-            
-            const validReading = [...readings]
-                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                .find((r) => r.moisture_pct !== null && r.moisture_pct !== undefined);
-
-            if (validReading) {
-                const val = Number(validReading.moisture_pct);
-                if (val < v1) currentStatusCode = "status_critical";
-                else if (val < v2) currentStatusCode = "status_alert";
-                else if (val <= v3) currentStatusCode = "status_ok";
-                else currentStatusCode = "status_saturated";
-            }
-
+            const statusInfo = computeProbeStatus(probe, selectedDepthRefs, mapDepthFilter);
             const farmName = farms.find(f => f.id === probe.farm_id)?.name ?? "-";
 
             const batteryReading = probe.readings
@@ -155,7 +162,9 @@ export function MyProbes() {
             return {
                 ...probe,
                 farmName,
-                status: currentStatusCode,
+                status: statusInfo.statusCode,
+                referenceDepth: statusInfo.activeDepth,
+                isCustomDepth: statusInfo.isCustomDepth,
                 batteryLevel: batteryReading?.battery_status ?? undefined,
                 batteryDate: batteryReading ? new Date(batteryReading.timestamp).toLocaleDateString() : "",
                 lastCommunicationFormatted: lastCommunicationTimestamp
@@ -165,7 +174,11 @@ export function MyProbes() {
             };
         });
 
-        const mappedManuals = manualProbes.map((mp) => {
+        const sortedManualProbes = [...manualProbes].sort((a, b) => 
+            (a.name ?? "").localeCompare(b.name ?? "", "pt-BR", { sensitivity: "base" })
+        );
+
+        const mappedManuals = sortedManualProbes.map((mp) => {
             const farmName = farms.find(f => f.id === mp.farm_id)?.name ?? "-";
             
             let lastTimestamp = 0;
@@ -208,7 +221,12 @@ export function MyProbes() {
             } as unknown as TableRowData;
         });
 
-        const combined = [...mapped, ...mappedManuals];
+        let combined = [...mapped, ...mappedManuals];
+        if (deviceFilter === "sondas") {
+            combined = combined.filter(item => !item.isManualProbe);
+        } else if (deviceFilter === "manuais") {
+            combined = combined.filter(item => item.isManualProbe);
+        }
 
         const statusWeight: Record<string, number> = {
             status_critical: 1,
@@ -237,7 +255,7 @@ export function MyProbes() {
             if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
             return 0;
         });
-    }, [probes, manualProbes, farms, sortConfig]);
+    }, [probes, manualProbes, farms, sortConfig, deviceFilter, selectedDepthRefs, mapDepthFilter]);
 
     const handleSort = (key: SortKey) => {
         setSortConfig((current) => ({
@@ -255,9 +273,31 @@ export function MyProbes() {
         <Box minH="100vh" bg={COLORS.background} p={{ base: 2, md: 8 }} pb={{ base: "100px", md: 8 }}>
             <Container maxW="full">
                 <Flex justify="space-between" align="center" mb={6} wrap="wrap" gap={4}>
-                    <Box>
+                    <Flex align="center" gap={4} wrap="wrap">
                         <Heading color={COLORS.textPrimary} size={{ base: "md", md: "lg" }}>Monitoramento Detalhado</Heading>
-                    </Box>
+                        {userIsAdmin && (
+                            <ButtonGroup size="sm" isAttached variant="outline" colorScheme="blue">
+                                <Button 
+                                    onClick={() => setDeviceFilter(prev => prev === "sondas" ? null : "sondas")}
+                                    bg={deviceFilter === "sondas" ? "blue.600" : "transparent"}
+                                    color="white"
+                                    _hover={{ bg: deviceFilter === "sondas" ? "blue.700" : "blue.500" }}
+                                    _active={{ bg: "blue.700" }}
+                                >
+                                    Sondas
+                                </Button>
+                                <Button 
+                                    onClick={() => setDeviceFilter(prev => prev === "manuais" ? null : "manuais")}
+                                    bg={deviceFilter === "manuais" ? "blue.600" : "transparent"}
+                                    color="white"
+                                    _hover={{ bg: deviceFilter === "manuais" ? "blue.700" : "blue.500" }}
+                                    _active={{ bg: "blue.700" }}
+                                >
+                                    Pins Manuais
+                                </Button>
+                            </ButtonGroup>
+                        )}
+                    </Flex>
                     
                     <Flex align="center" gap={3}>
                         {manualProbes.length > 0 && (

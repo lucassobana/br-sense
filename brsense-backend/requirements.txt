@@ -42,3 +42,5 @@ typing_extensions==4.15.0
 urllib3==2.6.3
 uvicorn==0.40.0
 xmltodict==1.0.2
+numpy==2.0.2
+tifffile==2024.8.30

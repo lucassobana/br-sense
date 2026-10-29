@@ -57,6 +57,7 @@ api.interceptors.response.use(
 export interface User {
   id: number;
   username?: string;
+  login?: string;
   email?: string;
   firstName?: string;
   lastName?: string;
@@ -285,13 +286,12 @@ export const deleteMapLayer = async (layerId: number) => {
   await api.delete(`/api/map-layers/${layerId}`);
 };
 
-export const updateMapLayerGeoJSON = async (
-  layerId: number,
-  geojson: GeoJSON.FeatureCollection
-): Promise<import("../types").MapLayer> => {
-  const response = await api.patch<import("../types").MapLayer>(
-    `/api/map-layers/${layerId}`,
-    { geojson }
+export const saveMapLayersVisibility = async (
+  layers: import("../types").MapLayerVisibilityItem[]
+): Promise<import("../types").MapLayer[]> => {
+  const response = await api.put<import("../types").MapLayer[]>(
+    `/api/map-layers/visibility`,
+    { layers }
   );
   return response.data;
 };
