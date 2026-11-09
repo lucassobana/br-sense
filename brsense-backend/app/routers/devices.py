@@ -72,11 +72,19 @@ def populate_rain_metrics(db: Session, devices: List[Device]) -> List[Device]:
 @router.get("/devices", response_model=List[DeviceRead])
 def read_devices(
     skip: int = 0, 
-    limit: int = 25, 
+    limit: int = 500, 
     token_payload: dict = Depends(get_current_user_token),
     db: Session = Depends(get_db)
 ):
     user, is_admin = get_user_and_roles(db, token_payload)
+
+    unassigned = db.query(Device).filter(Device.farm_id.is_(None)).all()
+    if unassigned:
+        default_farm = db.query(Farm).filter(Farm.id == 18).first()
+        if default_farm:
+            for d in unassigned:
+                d.farm_id = default_farm.id
+            db.commit()
     
     query = db.query(Device)
     if not is_admin:
@@ -176,8 +184,9 @@ def create_or_associate_device(
 ):
     user, is_admin = get_user_and_roles(db, token_payload)
 
-    if device_data.farm_id is not None:
-        farm = db.query(Farm).filter(Farm.id == device_data.farm_id).first()
+    target_farm_id = device_data.farm_id
+    if target_farm_id is not None:
+        farm = db.query(Farm).filter(Farm.id == target_farm_id).first()
         if not farm:
             raise HTTPException(status_code=404, detail="Fazenda não encontrada")
 
@@ -186,13 +195,17 @@ def create_or_associate_device(
                 status_code=status.HTTP_403_FORBIDDEN, 
                 detail="Você não tem permissão para adicionar sondas nesta fazenda."
             )
+    else:
+        default_farm = db.query(Farm).filter(Farm.id == 18).first()
+        if default_farm:
+            target_farm_id = default_farm.id
 
     clean_esn = device_data.esn.strip()
     db_device = db.query(Device).filter(Device.esn == clean_esn).first()
 
     if db_device:
         # Atualiza dados existentes
-        db_device.farm_id = device_data.farm_id
+        db_device.farm_id = target_farm_id if target_farm_id is not None else db_device.farm_id
         db_device.name = device_data.name or f"Sonda {clean_esn}"
         if device_data.latitude is not None:
             db_device.latitude = device_data.latitude
@@ -210,7 +223,7 @@ def create_or_associate_device(
         # Cria nova sonda
         db_device = Device(
             esn=clean_esn,
-            farm_id=device_data.farm_id,
+            farm_id=target_farm_id,
             name=device_data.name or f"Sonda {clean_esn}",
             latitude=device_data.latitude,
             longitude=device_data.longitude,

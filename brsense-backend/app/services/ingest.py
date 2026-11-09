@@ -5,19 +5,32 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from app.models.device import Device
+from app.models.farm import Farm
 from app.models.reading import Reading
 from app.decoders.smartone_c import decode_soil_payload
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+DEFAULT_UNASSIGNED_FARM_ID = 18
+
+def _get_default_farm_id(db: Session) -> int | None:
+    farm = db.query(Farm.id).filter(Farm.id == DEFAULT_UNASSIGNED_FARM_ID).first()
+    return farm[0] if farm else None
+
 def _ensure_device(db: Session, esn: str) -> Device:
     device = db.query(Device).filter(Device.esn == esn).first()
     if not device:
         logger.info(f"Novo dispositivo detectado: {esn}")
-        device = Device(esn=esn, name=f"Sonda {esn}")
+        default_farm_id = _get_default_farm_id(db)
+        device = Device(esn=esn, name=f"Sonda {esn}", farm_id=default_farm_id)
         db.add(device)
         db.flush()
+    elif device.farm_id is None:
+        default_farm_id = _get_default_farm_id(db)
+        if default_farm_id is not None:
+            device.farm_id = default_farm_id
+            db.flush()
     return device
 
 def _extract_messages_from_dict(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
