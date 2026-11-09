@@ -41,8 +41,8 @@ interface WeatherChartProps {
   data: DailyForecast[];
   isLoading?: boolean;
   error?: string | null;
-  lat?: number;
-  lng?: number;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 const MotionBox = motion(Box);

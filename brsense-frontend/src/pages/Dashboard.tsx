@@ -273,7 +273,7 @@ export function Dashboard() {
 
   const filteredProbes = useMemo(() => {
     if (!selectedFarm) return probes;
-    return probes.filter((probe) => probe.farm_id === selectedFarm.id);
+    return probes.filter((probe) => (probe.farm_id ?? 18) === selectedFarm.id);
   }, [selectedFarm, probes]);
 
   const handleMapGraphClick = (deviceId: number | string) => {
@@ -318,10 +318,11 @@ export function Dashboard() {
   const mapPoints: MapPoint[] = useMemo(() => {
     const realPoints = filteredProbes.map((probe) => {
       const hasLocation =
-        probe.latitude !== undefined &&
-        probe.latitude !== null &&
-        probe.longitude !== undefined &&
-        probe.longitude !== null;
+        probe.latitude != null &&
+        probe.longitude != null &&
+        Number.isFinite(Number(probe.latitude)) &&
+        Number.isFinite(Number(probe.longitude)) &&
+        !(Number(probe.latitude) === 0 && Number(probe.longitude) === 0);
 
       const finalLat = hasLocation ? Number(probe.latitude) : -15.793889;
       const finalLng = hasLocation ? Number(probe.longitude) : -47.882778;
@@ -368,12 +369,19 @@ export function Dashboard() {
         });
       }
 
+      const hasLocation =
+        probe.latitude != null &&
+        probe.longitude != null &&
+        Number.isFinite(Number(probe.latitude)) &&
+        Number.isFinite(Number(probe.longitude)) &&
+        !(Number(probe.latitude) === 0 && Number(probe.longitude) === 0);
+
       return {
         id: probe.id,
         esn: `manual_${probe.id}`,
         name: probe.name,
-        lat: probe.latitude,
-        lng: probe.longitude,
+        lat: hasLocation ? Number(probe.latitude) : -15.793889,
+        lng: hasLocation ? Number(probe.longitude) : -47.882778,
         statusCode: "status_ok",
         readings: [],
         isManualProbe: true,
@@ -1110,8 +1118,8 @@ export function Dashboard() {
                           pin={{
                             id: selectedProbe.id,
                             name: selectedProbe.name || selectedProbe.esn,
-                            latitude: Number(selectedProbe.latitude),
-                            longitude: Number(selectedProbe.longitude),
+                            latitude: selectedProbe.latitude != null ? Number(selectedProbe.latitude) : NaN,
+                            longitude: selectedProbe.longitude != null ? Number(selectedProbe.longitude) : NaN,
                           }}
                           cultura={(selectedProbe as TableRowData).cultura}
                           dataPlantio={(selectedProbe as TableRowData).data_plantio}

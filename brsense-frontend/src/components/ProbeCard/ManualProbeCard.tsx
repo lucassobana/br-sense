@@ -168,7 +168,7 @@ export function ManualProbeCard({
                     <HStack mr={2}>
                       <Icon as={MdWaterDrop} color="blue.400" />
                       <Text color="blue.300" fontWeight="bold" fontSize="sm">
-                        {r.irrigation_value_mm.toFixed(1)} mm
+                        {Number(r.irrigation_value_mm ?? 0).toFixed(1)} mm
                       </Text>
                     </HStack>
 

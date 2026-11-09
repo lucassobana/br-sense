@@ -14,6 +14,11 @@ import {
   Divider,
   Badge,
   Flex,
+  Tabs,
+  TabList,
+  Tab,
+  TabPanels,
+  TabPanel,
 } from "@chakra-ui/react";
 import {
   MdShowChart,
@@ -27,8 +32,8 @@ import type { MapPoint } from "../SatelliteMap/SatelliteMap";
 import { COLORS } from "../../colors/colors";
 import { useProbeStats } from "../../hooks/useProbeStats";
 import { ForecastTab } from "../ForecastTab/ForecastTab";
-// Importação do DecisionCard. Ajuste o caminho se necessário de acordo com o seu projeto.
 import { DecisionCard } from "../DecisionCard/DecisionCard";
+import { AguaNoSolo, useProbeWaterEvents } from "../../modules/copiloto-agua";
 
 const getStatusLabel = (code: string) => {
   switch (code) {
@@ -98,6 +103,8 @@ export function ProbeCard({
   const { profileData, lastCommunicationDate, rainStats } =
     useProbeStats(point);
 
+  const waterEvents = useProbeWaterEvents(point);
+
   const handleTabChange = (tab: TabType) => {
     const nextTab =
       tab === "copiloto" && activeTab === "copiloto" ? "grafico" : tab;
@@ -125,7 +132,7 @@ export function ProbeCard({
           h="100%"
           w="100%"
           overflowY="auto"
-          pb={2}
+          pb={0}
           sx={{
             "&::-webkit-scrollbar": { width: "4px" },
             "&::-webkit-scrollbar-track": { width: "6px" },
@@ -135,7 +142,31 @@ export function ProbeCard({
             },
           }}
         >
-          <DecisionCard esn={point.esn} />
+          <Tabs
+            variant="soft-rounded"
+            colorScheme="blue"
+            size="xs"
+            defaultIndex={0}
+            isLazy
+            lazyBehavior="unmount"
+          >
+            <TabList bg="gray.900" p={1} borderRadius="lg" justifyContent="center" border="1px solid" borderColor="gray.700">
+              <Tab color="gray.400" _selected={{ color: "white", bg: "blue.600" }} px={4} py={1} fontSize="xs" fontWeight="semibold">
+                Resumo
+              </Tab>
+              <Tab color="gray.400" _selected={{ color: "white", bg: "blue.600" }} px={4} py={1} fontSize="xs" fontWeight="semibold">
+                Água no Solo
+              </Tab>
+            </TabList>
+            <TabPanels mt={2} pb={0}>
+              <TabPanel p={0}>
+                <DecisionCard esn={point.esn} />
+              </TabPanel>
+              <TabPanel p={0} pt={1}>
+                <AguaNoSolo eventos={waterEvents.eventos} faixas={waterEvents.faixas} carregando={waterEvents.loading} />
+              </TabPanel>
+            </TabPanels>
+          </Tabs>
         </Box>
       );
     }

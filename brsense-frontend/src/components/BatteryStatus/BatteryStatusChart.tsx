@@ -707,13 +707,13 @@ export function BatteryStatusChart({
         </Flex>
       </Flex>
 
-      <Box h={{ base: "260px", md: "300px" }}>
+      <Box w="100%" h={{ base: "260px", md: "300px" }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={chartData}
             margin={{
               top: 20,
-              right: isMobileViewport ? 40 : 55,
+              right: 0,
               left: 0,
               bottom: 0,
             }}
@@ -749,7 +749,7 @@ export function BatteryStatusChart({
               axisLine={{ stroke: "rgba(255,255,255,0.35)" }}
               tickLine={{ stroke: "rgba(255,255,255,0.35)" }}
               domain={yDomain}
-              width={isMobileViewport ? 35 : 45}
+              width={isMobileViewport ? 38 : 46}
             />
 
             <YAxis yAxisId="loc" orientation="right" hide domain={[0, 1.05]} width={0} />
@@ -766,7 +766,7 @@ export function BatteryStatusChart({
               tick={{ fill: "#FFFFFF", fontSize: isMobileViewport ? 9 : 11 }}
               axisLine={{ stroke: "rgba(255,255,255,0.35)" }}
               tickLine={{ stroke: "rgba(255,255,255,0.35)" }}
-              width={isMobileViewport ? 35 : 45}
+              width={isMobileViewport ? 26 : 32}
             />
 
             <ChartTooltip
