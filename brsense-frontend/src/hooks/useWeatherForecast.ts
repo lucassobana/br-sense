@@ -8,18 +8,25 @@ const pendingRequests = new Map<string, Promise<DailyForecast[]>>();
 
 const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hora de cache (limite da Open-Meteo)
 
-export const useWeatherForecast = (lat?: number, lng?: number) => {
+export const useWeatherForecast = (lat?: number | null, lng?: number | null) => {
     const [forecast, setForecast] = useState<DailyForecast[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const hasValidCoords =
+        lat != null &&
+        lng != null &&
+        Number.isFinite(Number(lat)) &&
+        Number.isFinite(Number(lng)) &&
+        !(Number(lat) === 0 && Number(lng) === 0);
+
     useEffect(() => {
-        if (lat === undefined || lng === undefined) return;
+        if (!hasValidCoords) return;
 
         // 1. Agrupamento geográfico: Arredonda para 2 casas decimais (~1.1km de resolução)
         // Faz com que sondas da mesma fazenda compartilhem a exata mesma requisição.
-        const roundedLat = Number(lat.toFixed(2));
-        const roundedLng = Number(lng.toFixed(2));
+        const roundedLat = Number(Number(lat).toFixed(2));
+        const roundedLng = Number(Number(lng).toFixed(2));
         const cacheKey = `weather_${roundedLat}_${roundedLng}`;
 
         const loadForecast = async () => {
@@ -77,7 +84,11 @@ export const useWeatherForecast = (lat?: number, lng?: number) => {
         };
 
         loadForecast();
-    }, [lat, lng]);
+    }, [hasValidCoords, lat, lng]);
 
-    return { forecast, loading, error };
+    return {
+        forecast: hasValidCoords ? forecast : [],
+        loading: hasValidCoords ? loading : false,
+        error: hasValidCoords ? error : null,
+    };
 };

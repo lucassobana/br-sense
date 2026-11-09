@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Box,
   Button,
@@ -41,6 +41,21 @@ import type { CropRegistration, ManualWaterEvent } from './weather-types.ts';
 
 const mm = (value: number) => `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mm`;
 const percent = (value: number) => `${(value * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+
+function loadPinSoilSettings(
+  pin: { id: string | number; latitude: number; longitude: number },
+  storageKey: string,
+): SoilSettings {
+  const saved = localStorage.getItem(storageKey);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      // Ignora
+    }
+  }
+  return createSoilSettings(pin);
+}
 
 export interface PinBalanceFullProps {
   pin: {
@@ -119,31 +134,22 @@ export function PinBalanceFull({
 
   // Settings de solo com persistência em localStorage
   const storageKey = `brsense_soil_settings_${pin.id}`;
-  const [settings, setSettings] = useState<SoilSettings>(() => {
-    const saved = localStorage.getItem(storageKey);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // Ignora
-      }
-    }
-    return createSoilSettings(pin);
-  });
+  const [settingsMap, setSettingsMap] = useState<Record<string, SoilSettings>>({});
+  const settings = useMemo(
+    () => settingsMap[storageKey] ?? loadPinSoilSettings(pin, storageKey),
+    [settingsMap, storageKey, pin]
+  );
 
-  // Atualiza configurações se o pin mudar
-  useEffect(() => {
-    const saved = localStorage.getItem(`brsense_soil_settings_${pin.id}`);
-    if (saved) {
-      try {
-        setSettings(JSON.parse(saved));
-        return;
-      } catch {
-        // Ignora
-      }
-    }
-    setSettings(createSoilSettings(pin));
-  }, [pin.id, pin.latitude, pin.longitude]);
+  const setSettings = useCallback(
+    (updater: SoilSettings | ((prev: SoilSettings) => SoilSettings)) => {
+      setSettingsMap((prevMap) => {
+        const current = prevMap[storageKey] ?? loadPinSoilSettings(pin, storageKey);
+        const next = typeof updater === 'function' ? updater(current) : updater;
+        return { ...prevMap, [storageKey]: next };
+      });
+    },
+    [storageKey, pin]
+  );
 
   const saveSettings = useCallback(
     (newSettings: SoilSettings) => {
@@ -156,7 +162,7 @@ export function PinBalanceFull({
         isClosable: true,
       });
     },
-    [storageKey, toast]
+    [setSettings, storageKey, toast]
   );
 
   // Consultas de Solo e Clima
@@ -265,7 +271,7 @@ export function PinBalanceFull({
             </Badge>
           </Flex>
           <Text fontSize="xs" color="gray.400">
-            Coordenadas: {pin.latitude.toFixed(4)}, {pin.longitude.toFixed(4)} · Cultura: {cropProfile.name} (DAP: {dap} dias)
+            Coordenadas: {Number(pin.latitude || 0).toFixed(4)}, {Number(pin.longitude || 0).toFixed(4)} · Cultura: {cropProfile.name} (DAP: {dap} dias)
           </Text>
         </Box>
 

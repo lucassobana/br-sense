@@ -11,10 +11,13 @@ export const STANDARD_DEPTHS = [
 
 export function validCoordinates(c: Coordinates): boolean {
   return (
+    c.latitude != null &&
+    c.longitude != null &&
     Number.isFinite(c.latitude) &&
     Math.abs(c.latitude) <= 90 &&
     Number.isFinite(c.longitude) &&
-    Math.abs(c.longitude) <= 180
+    Math.abs(c.longitude) <= 180 &&
+    !(c.latitude === 0 && c.longitude === 0)
   );
 }
 
