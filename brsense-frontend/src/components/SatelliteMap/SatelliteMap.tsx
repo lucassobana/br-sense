@@ -82,7 +82,7 @@ const createCustomIcon = (color: string, rainValue: number | null, showRain: boo
                     border: '1px solid rgba(255,255,255,0.4)',
                     zIndex: 1000
                 }}>
-                    {rainValue !== null ? `${rainValue.toFixed(1)} mm` : '--'}
+                    {rainValue != null && Number.isFinite(Number(rainValue)) ? `${Number(rainValue).toFixed(1)} mm` : '--'}
                     {/* Seta/triângulo apontando para baixo */}
                     <div style={{
                         position: 'absolute',
@@ -624,9 +624,12 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     const processedPoints = useMemo(() => {
         const grouped: Record<string, MapPoint[]> = {};
         points.forEach(p => {
-            const key = `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
+            const safeLat = p.lat != null && Number.isFinite(Number(p.lat)) ? Number(p.lat) : -15.793889;
+            const safeLng = p.lng != null && Number.isFinite(Number(p.lng)) ? Number(p.lng) : -47.882778;
+            const normalizedPoint = { ...p, lat: safeLat, lng: safeLng };
+            const key = `${safeLat.toFixed(5)},${safeLng.toFixed(5)}`;
             if (!grouped[key]) grouped[key] = [];
-            grouped[key].push(p);
+            grouped[key].push(normalizedPoint);
         });
 
         const result: DisplayMapPoint[] = [];

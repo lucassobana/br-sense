@@ -47,6 +47,7 @@ export function usePinWeather(
   const [loading, setLoading] = useState(false);
   const [revision, setRevision] = useState(0);
   const { latitude, longitude } = c;
+  const isValid = validCoordinates({ latitude, longitude });
   useEffect(() => {
     // Atualiza o dia local e a ETo enquanto o card permanece aberto.
     const update = () => setRevision((v) => v + 1);
@@ -58,14 +59,14 @@ export function usePinWeather(
     };
   }, []);
   useEffect(() => {
+    if (!isValid) return;
     const cancel = new AbortController();
-    setLoading(true);
-    setError(null);
-    if (!validCoordinates(c)) {
-      setError('Coordenada inválida.');
-      setLoading(false);
-      return;
-    }
+    Promise.resolve().then(() => {
+      if (!cancel.signal.aborted) {
+        setLoading(true);
+        setError(null);
+      }
+    });
     loader({ latitude, longitude }, startDate, timezone, cancel.signal)
       .then((value) => {
         if (!cancel.signal.aborted) setData(value);
@@ -78,15 +79,18 @@ export function usePinWeather(
         if (!cancel.signal.aborted) setLoading(false);
       });
     return () => cancel.abort();
-  }, [latitude, longitude, startDate, timezone, loader, revision]);
+  }, [isValid, latitude, longitude, startDate, timezone, loader, revision]);
   const refresh = useCallback(() => setRevision((v) => v + 1), []);
   return {
     data:
-      data && coordinateKey(data.coordinates) === coordinateKey(c) && data.timezone === timezone
+      isValid &&
+      data &&
+      coordinateKey(data.coordinates) === coordinateKey({ latitude, longitude }) &&
+      data.timezone === timezone
         ? data
         : null,
-    error,
-    loading,
+    error: !isValid ? 'Coordenada inválida.' : error,
+    loading: isValid ? loading : false,
     refresh,
   };
 }

@@ -31,15 +31,27 @@ import {
   MdWaterDrop,
   MdAutoAwesome,
   MdVerified,
+  MdChevronLeft,
+  MdChevronRight,
 } from "react-icons/md";
 import type { Probe, ManualIrrigationRecord } from "../../types";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getDeviceAnalysis } from "../../services/api";
 import { useWeatherForecast } from "../../hooks/useWeatherForecast";
 import { WiHot } from "react-icons/wi";
 import { FaTint } from "react-icons/fa";
 import { LuRadioTower, LuChartColumn } from "react-icons/lu";
 import { HiOutlineCloud } from "react-icons/hi2";
+import { CROP_PROFILES, SOYBEAN } from "../../modules/soil/crops";
+import { localDate } from "../../modules/soil/dates";
+import { balanceKcOnDate, rootDepthReference, rootsOnDate } from "../../modules/soil/roots";
+import { usePinWeather } from "../../modules/soil/weather-client";
+import { usePinSoil } from "../../modules/soil/usePinSoil";
+import { calculateSoilLimits, createSoilSettings, waterAvailability } from "../../modules/soil/calculations";
+import { estimateWaterBalance, weatherStartDate } from "../../modules/soil/automatic-balance";
+import { DEFAULT_IRRIGATION_EFFICIENCY } from "../../modules/soil/model-defaults";
+import type { CropProfile, SoilLimits } from "../../modules/soil/types";
+import type { CropRegistration, ManualWaterEvent } from "../../modules/soil/weather-types";
 
 export interface TableRowData extends Probe {
   farmName: string;
@@ -240,7 +252,7 @@ const CopilotoText = ({
   );
 };
 
-const ForecastCell = ({ lat, lng }: { lat?: number; lng?: number }) => {
+const ForecastCell = ({ lat, lng }: { lat?: number | null; lng?: number | null }) => {
   const { forecast, loading } = useWeatherForecast(lat, lng);
 
   if (loading) {
@@ -301,7 +313,7 @@ const ForecastCell = ({ lat, lng }: { lat?: number; lng?: number }) => {
   );
 };
 
-const MobileForecastCard = ({ lat, lng }: { lat?: number; lng?: number }) => {
+const MobileForecastCard = ({ lat, lng }: { lat?: number | null; lng?: number | null }) => {
   const { forecast, loading } = useWeatherForecast(lat, lng);
 
   return (
@@ -370,6 +382,284 @@ const MobileForecastCard = ({ lat, lng }: { lat?: number; lng?: number }) => {
   );
 };
 
+function loadPinSoilSettings(pin: {
+  id: number | string;
+  latitude: number;
+  longitude: number;
+}) {
+  const key = `brsense_soil_settings_${pin.id}`;
+  const saved = localStorage.getItem(key);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      // Ignora
+    }
+  }
+  return createSoilSettings(pin);
+}
+
+const RootZoneWaterCard = ({
+  row,
+  compactMobile = false,
+}: {
+  row: TableRowData;
+  compactMobile?: boolean;
+}) => {
+  const timezone = "America/Sao_Paulo";
+  const today = localDate(timezone);
+
+  const pin = useMemo(
+    () => ({
+      id: row.id,
+      name: row.name || row.esn,
+      latitude: row.latitude != null ? Number(row.latitude) : NaN,
+      longitude: row.longitude != null ? Number(row.longitude) : NaN,
+    }),
+    [row.id, row.name, row.esn, row.latitude, row.longitude],
+  );
+
+  const cropProfile: CropProfile = useMemo(() => {
+    if (!row.cultura) return SOYBEAN;
+    const normalize = (s: string) =>
+      s
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim();
+    const clean = normalize(row.cultura);
+    const found = CROP_PROFILES.find(
+      (p) =>
+        normalize(p.name).includes(clean) ||
+        clean.includes(normalize(p.name)) ||
+        normalize(p.cropId) === clean,
+    );
+    return found || SOYBEAN;
+  }, [row.cultura]);
+
+  const { dap, dapDate } = useMemo(() => {
+    if (!row.data_plantio) return { dap: 45, dapDate: today };
+    const clean = row.data_plantio.slice(0, 10);
+    const diffDays = Math.max(
+      0,
+      Math.floor(
+        (new Date(today).getTime() - new Date(clean).getTime()) /
+          (1000 * 60 * 60 * 24),
+      ),
+    );
+    return { dap: diffDays, dapDate: today };
+  }, [row.data_plantio, today]);
+
+  const registration: CropRegistration = useMemo(
+    () => ({
+      cropId: cropProfile.cropId,
+      profileId: cropProfile.profileId,
+      dap,
+      dapDate,
+    }),
+    [cropProfile, dap, dapDate],
+  );
+
+  const events: ManualWaterEvent[] = useMemo(() => {
+    return (row.irrigation_records || []).map((r) => ({
+      id: `irrigation-${r.id}`,
+      date: r.date.slice(0, 10),
+      type: "irrigation" as const,
+      mm: r.irrigation_value_mm,
+    }));
+  }, [row.irrigation_records]);
+
+  const settings = useMemo(() => loadPinSoilSettings(pin), [pin]);
+
+  const startDate = useMemo(
+    () => weatherStartDate(registration, today, null, 60, 120),
+    [registration, today],
+  );
+
+  const weather = usePinWeather(pin, startDate, timezone);
+  const rootRef = useMemo(
+    () => rootDepthReference(registration, settings),
+    [registration, settings],
+  );
+  const estimatedRootDepthM = useMemo(
+    () =>
+      rootsOnDate(registration, today, weather.data?.days ?? [], settings)
+        .depthM,
+    [registration, today, weather.data, settings],
+  );
+
+  const activeRootDepthM =
+    settings.effectiveRootDepthM ?? estimatedRootDepthM ?? 0.2;
+  const soilQueryDepthM = Math.max(0.6, rootRef?.maximumDepthM ?? 0.6);
+
+  const activeSettings = useMemo(
+    () => ({
+      ...settings,
+      coordinateKey: `${pin.latitude},${pin.longitude}`,
+      effectiveRootDepthM: activeRootDepthM,
+    }),
+    [settings, pin.latitude, pin.longitude, activeRootDepthM],
+  );
+
+  const soil = usePinSoil(pin, Math.round(soilQueryDepthM * 100));
+
+  const todayWeather = useMemo(() => {
+    if (!weather.data) return null;
+    return (
+      weather.data.days.find((d) => d.date === today) ??
+      weather.data.days[weather.data.days.length - 1] ??
+      null
+    );
+  }, [weather.data, today]);
+
+  const currentKc = useMemo(() => {
+    if (!weather.data) return null;
+    return balanceKcOnDate(registration, today, weather.data.days).kc;
+  }, [registration, today, weather.data]);
+
+  const limits: SoilLimits = useMemo(() => {
+    if (!soil.profile)
+      return { status: "incomplete", issues: [], layers: [], summary: null };
+    const etcMm =
+      todayWeather?.etoMm != null && currentKc != null
+        ? todayWeather.etoMm * currentKc
+        : null;
+    return calculateSoilLimits(
+      soil.profile,
+      activeSettings,
+      cropProfile.pAtEtc5,
+      etcMm,
+    );
+  }, [soil.profile, activeSettings, todayWeather, currentKc, cropProfile.pAtEtc5]);
+
+  const balance = useMemo(() => {
+    if (weather.loading || !weather.data) return null;
+    return estimateWaterBalance({
+      weather: weather.data,
+      registration,
+      profile: soil.profile,
+      settings: activeSettings,
+      events,
+      pAt5: cropProfile.pAtEtc5,
+      initial: null,
+      irrigationEfficiency:
+        settings.irrigationEfficiency ?? DEFAULT_IRRIGATION_EFFICIENCY,
+    });
+  }, [
+    weather.loading,
+    weather.data,
+    registration,
+    soil.profile,
+    activeSettings,
+    events,
+    cropProfile.pAtEtc5,
+    settings.irrigationEfficiency,
+  ]);
+
+  const current = balance?.current ?? null;
+  const summary = limits.summary;
+  const available = useMemo(() => {
+    if (!current) return null;
+    return waterAvailability(limits, current.depletionMm.min);
+  }, [limits, current]);
+
+  const isLoading = soil.loading || weather.loading;
+  const isAlert = Boolean(available?.thresholdReached);
+  const pctRemaining = available
+    ? Math.max(0, Math.min(100, Math.round(available.fractionRemaining * 100)))
+    : null;
+  const availableMmVal =
+    summary && current
+      ? Math.max(0, summary.cadMm - current.depletionMm.min)
+      : null;
+
+  const formatMm = (v: number) =>
+    v.toLocaleString("pt-BR", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
+
+  return (
+    <VStack
+      align="stretch"
+      justify="center"
+      spacing={1}
+      bg="blackAlpha.400"
+      px={compactMobile ? 2.5 : 3}
+      py={compactMobile ? 1.5 : 2}
+      borderRadius="md"
+      border="1px solid"
+      borderColor={isAlert ? "orange.500" : "whiteAlpha.200"}
+      minW={compactMobile ? "100%" : "205px"}
+    >
+      <Flex justify="space-between" align="center" gap={2}>
+        <Text
+          fontSize="10px"
+          color="gray.400"
+          textTransform="uppercase"
+          fontWeight="bold"
+          whiteSpace="nowrap"
+        >
+          Água disponível na zona radicular
+        </Text>
+        {pctRemaining !== null && (
+          <Badge
+            px={1.5}
+            py={0.2}
+            borderRadius="full"
+            fontSize="10px"
+            fontWeight="bold"
+            bg={isAlert ? "orange.900" : "green.900"}
+            color={isAlert ? "orange.200" : "green.200"}
+          >
+            {pctRemaining}%
+          </Badge>
+        )}
+      </Flex>
+
+      {isLoading && !summary ? (
+        <Text fontSize="xs" color="gray.500" fontStyle="italic">
+          Calculando...
+        </Text>
+      ) : summary && availableMmVal !== null ? (
+        <>
+          <Flex justify="space-between" align="baseline" gap={2}>
+            <Text
+              fontSize="sm"
+              fontWeight="bold"
+              color={isAlert ? "orange.300" : "green.300"}
+              whiteSpace="nowrap"
+            >
+              {formatMm(availableMmVal)}{" "}
+              <Text as="span" fontSize="xs" color="gray.400" fontWeight="normal">
+                / {formatMm(summary.cadMm)} mm
+              </Text>
+            </Text>
+            <Text fontSize="10px" color={isAlert ? "orange.300" : "green.400"} fontWeight="semibold" whiteSpace="nowrap">
+              {isAlert ? "Atenção" : "Adequado"}
+            </Text>
+          </Flex>
+
+          <Box h="5px" w="100%" bg="whiteAlpha.200" borderRadius="full" overflow="hidden">
+            <Box
+              h="100%"
+              w={`${pctRemaining ?? 0}%`}
+              bg={isAlert ? "orange.400" : "green.400"}
+              transition="width 0.3s ease"
+            />
+          </Box>
+        </>
+      ) : (
+        <Text fontSize="xs" color="gray.500">
+          —
+        </Text>
+      )}
+    </VStack>
+  );
+};
+
+const ITEMS_PER_PAGE = 20;
+
 export function DeviceTable({
   data,
   onRowClick,
@@ -379,6 +669,15 @@ export function DeviceTable({
 }: DeviceTableProps) {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({});
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const totalPages = Math.max(1, Math.ceil(data.length / ITEMS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * ITEMS_PER_PAGE;
+  const paginatedData = useMemo(
+    () => data.slice(startIndex, startIndex + ITEMS_PER_PAGE),
+    [data, startIndex],
+  );
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -398,9 +697,9 @@ export function DeviceTable({
     return currentTime - timestamp > oneHourMs;
   };
 
-  const formatRain = (val?: number) => {
-    if (val === undefined || val === null) return "-";
-    return `${val.toFixed(1)}`;
+  const formatRain = (val?: number | null) => {
+    if (val === undefined || val === null || !Number.isFinite(Number(val))) return "-";
+    return `${Number(val).toFixed(1)}`;
   };
 
   const calcularDAP = (dataPlantio?: string | null) => {
@@ -522,7 +821,7 @@ export function DeviceTable({
         </Flex>
 
         <SimpleGrid gridTemplateColumns="1fr" gap={4} w="100%">
-          {data.map((row) => {
+          {paginatedData.map((row) => {
             const isOffline = checkIsOffline(row.lastCommunicationTimestamp);
 
             return (
@@ -624,7 +923,7 @@ export function DeviceTable({
                           <Text fontSize="10px" fontWeight="bold" color="gray.500" textTransform="uppercase" textAlign="center" mb={1}>
                             Irrigação Acumulada
                           </Text>
-                          <HStack spacing={2} align="stretch" w="100%" justify="center">
+                          <HStack spacing={2} align="stretch" w="100%" justify="center" mb={1.5}>
                             {[7, 15, 30].map(days => {
                               const total = (row.irrigation_records || []).filter(r => new Date(r.date).getTime() >= Date.now() - days * 24 * 60 * 60 * 1000).reduce((acc, r) => acc + (r.irrigation_value_mm || 0), 0);
                               return (
@@ -635,6 +934,7 @@ export function DeviceTable({
                               );
                             })}
                           </HStack>
+                          <RootZoneWaterCard row={row} compactMobile />
                         </Box>
                         
                         <SimpleGrid columns={2} gap={2}>
@@ -650,7 +950,7 @@ export function DeviceTable({
                                 {row.irrigation_records?.slice(0, 3).map(record => (
                                   <Flex key={record.id} justify="space-between" align="center" bg="blackAlpha.300" px={1.5} py={0.5} borderRadius="sm" border="1px solid" borderColor="whiteAlpha.100">
                                     <Text fontSize="10px" color="gray.500">{new Date(record.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</Text>
-                                    <Text fontSize="xs" color="cyan.300" fontWeight="bold">+{record.irrigation_value_mm.toFixed(1)}mm</Text>
+                                    <Text fontSize="xs" color="cyan.300" fontWeight="bold">+{Number(record.irrigation_value_mm ?? 0).toFixed(1)}mm</Text>
                                   </Flex>
                                 ))}
                                 {(!row.irrigation_records || row.irrigation_records.length === 0) && (
@@ -1033,7 +1333,7 @@ export function DeviceTable({
                 },
               }}
             >
-              {data.map((row) => {
+              {paginatedData.map((row) => {
                 const isOffline = checkIsOffline(
                   row.lastCommunicationTimestamp,
                 );
@@ -1277,7 +1577,7 @@ export function DeviceTable({
                               {row.irrigation_records?.slice(0, 3).map(record => (
                                 <VStack key={record.id} spacing={0} bg="blackAlpha.300" p={2} borderRadius="md" border="1px solid" borderColor="whiteAlpha.100" minW="80px">
                                   <Text fontSize="10px" color="gray.500" whiteSpace="nowrap">{new Date(record.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</Text>
-                                  <Text fontSize="sm" color="cyan.300" fontWeight="bold">+{record.irrigation_value_mm.toFixed(1)}mm</Text>
+                                  <Text fontSize="sm" color="cyan.300" fontWeight="bold">+{Number(record.irrigation_value_mm ?? 0).toFixed(1)}mm</Text>
                                 </VStack>
                               ))}
                               {(!row.irrigation_records || row.irrigation_records.length === 0) && (
@@ -1293,6 +1593,8 @@ export function DeviceTable({
                                   </VStack>
                                 );
                               })}
+                              <Box w="1px" h="40px" bg="whiteAlpha.200" mx={1} />
+                              <RootZoneWaterCard row={row} />
                             </HStack>
                           </Flex>
                         </Td>
@@ -1406,6 +1708,73 @@ export function DeviceTable({
           </Table>
         </Box>
       </Show>
+
+      {totalPages > 1 && (
+        <Flex
+          mt={4}
+          px={4}
+          py={3}
+          bg="gray.800"
+          borderRadius="xl"
+          border="1px solid"
+          borderColor="whiteAlpha.100"
+          justify="space-between"
+          align="center"
+          direction={{ base: "column", sm: "row" }}
+          gap={3}
+        >
+          <Text fontSize="xs" color="gray.400">
+            Mostrando{" "}
+            <Text as="span" color="white" fontWeight="bold">
+              {startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, data.length)}
+            </Text>{" "}
+            de{" "}
+            <Text as="span" color="white" fontWeight="bold">
+              {data.length}
+            </Text>{" "}
+            dispositivos
+          </Text>
+
+          <HStack spacing={1.5} wrap="wrap" justify="center">
+            <Button
+              size="xs"
+              variant="outline"
+              colorScheme="blue"
+              leftIcon={<Icon as={MdChevronLeft} boxSize={4} />}
+              onClick={() => setCurrentPage(Math.max(1, safePage - 1))}
+              isDisabled={safePage <= 1}
+            >
+              Anterior
+            </Button>
+
+            {Array.from({ length: totalPages }, (_, idx) => idx + 1).map(
+              (page) => (
+                <Button
+                  key={page}
+                  size="xs"
+                  colorScheme="blue"
+                  variant={page === safePage ? "solid" : "outline"}
+                  onClick={() => setCurrentPage(page)}
+                  minW="28px"
+                >
+                  {page}
+                </Button>
+              ),
+            )}
+
+            <Button
+              size="xs"
+              variant="outline"
+              colorScheme="blue"
+              rightIcon={<Icon as={MdChevronRight} boxSize={4} />}
+              onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))}
+              isDisabled={safePage >= totalPages}
+            >
+              Próxima
+            </Button>
+          </HStack>
+        </Flex>
+      )}
     </>
   );
 }

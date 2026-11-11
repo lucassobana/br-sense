@@ -131,12 +131,16 @@ export interface DecisionCardData {
 // --- Funções de Dados (Dashboard) ---
 
 export const getProbes = async () => {
-  const response = await api.get<Probe[]>("/api/devices");
+  const response = await api.get<Probe[]>("/api/devices", {
+    params: { limit: 1000 },
+  });
   return response.data;
 };
 
 export const getFarms = async () => {
-  const response = await api.get<Farm[]>("/api/farms");
+  const response = await api.get<Farm[]>("/api/farms", {
+    params: { limit: 1000 },
+  });
   return response.data;
 };
 
@@ -182,7 +186,9 @@ export const getDeviceHistory = async (esn: string, params?: HistoryParams) => {
 // --- Funções Específicas (Admin ou Legado) ---
 
 export const getUserFarms = async () => {
-  const response = await api.get<import("../types").Farm[]>("/api/farms");
+  const response = await api.get<import("../types").Farm[]>("/api/farms", {
+    params: { limit: 1000 },
+  });
   return response.data;
 };
 

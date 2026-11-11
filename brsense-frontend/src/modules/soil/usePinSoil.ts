@@ -18,15 +18,16 @@ export function usePinSoil(
   const depthCm = rootDepthM && rootDepthM > 0 && rootDepthM <= 2 ? rootDepthM * 100 : 60;
   const key = coordinateKey(coordinates);
   const { latitude, longitude } = coordinates;
+  const isValid = validCoordinates({ latitude, longitude });
   useEffect(() => {
+    if (!isValid) return;
     const abort = new AbortController();
-    if (!validCoordinates({ latitude, longitude })) {
-      setError('Coordenada inválida para consulta de solo.');
-      setLoading(false);
-      return () => abort.abort();
-    }
-    setLoading(true);
-    setError(null);
+    Promise.resolve().then(() => {
+      if (!abort.signal.aborted) {
+        setLoading(true);
+        setError(null);
+      }
+    });
     loader({ latitude, longitude }, depthCm, abort.signal)
       .then((data) => {
         if (!abort.signal.aborted) setProfile(data);
@@ -39,9 +40,14 @@ export function usePinSoil(
         if (!abort.signal.aborted) setLoading(false);
       });
     return () => abort.abort();
-  }, [latitude, longitude, depthCm, loader, revision]);
+  }, [isValid, latitude, longitude, depthCm, loader, revision]);
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
   // Um retorno antigo nunca é apresentado como o solo da nova coordenada.
-  const current = profile && coordinateKey(profile.coordinates) === key ? profile : null;
-  return { profile: current, loading, error, refresh };
+  const current = isValid && profile && coordinateKey(profile.coordinates) === key ? profile : null;
+  return {
+    profile: current,
+    loading: isValid ? loading : false,
+    error: !isValid ? 'Coordenada inválida para consulta de solo.' : error,
+    refresh,
+  };
 }

@@ -4,6 +4,7 @@ import { MdPictureAsPdf, MdShare, MdDownload } from "react-icons/md";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { TableRowData } from "../DeviceTable/DeviceTable";
+import type { ManualIrrigationRecord } from "../../types";
 import { getDeviceAnalysis, getManualIrrigations } from "../../services/api";
 import { fetchWeatherData } from "../../services/weatherService";
 
@@ -74,7 +75,13 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
 
   const getForecastText = async (row: TableRowData) => {
     let forecastText = "-";
-    if (row.latitude !== undefined && row.longitude !== undefined) {
+    if (
+      row.latitude != null &&
+      row.longitude != null &&
+      Number.isFinite(Number(row.latitude)) &&
+      Number.isFinite(Number(row.longitude)) &&
+      !(Number(row.latitude) === 0 && Number(row.longitude) === 0)
+    ) {
       try {
         const roundedLat = Number(row.latitude).toFixed(2);
         const roundedLng = Number(row.longitude).toFixed(2);
@@ -231,19 +238,19 @@ export function ExportPdfButton({ data }: ExportPdfButtonProps) {
             let acumuladoText = "7d: 0.0 mm\n15d: 0.0 mm\n30d: 0.0 mm";
             
             try {
-              const records = row.irrigation_records || await getManualIrrigations(row.id) || [];
+              const records: ManualIrrigationRecord[] = row.irrigation_records || await getManualIrrigations(row.id) || [];
               if (records.length > 0) {
                 const last3 = records.slice(0, 3);
-                historyText = last3.map((rec: any) => {
+                historyText = last3.map((rec: ManualIrrigationRecord) => {
                   const dateStr = new Date(rec.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                  return `${dateStr}: +${rec.irrigation_value_mm.toFixed(1)} mm`;
+                  return `${dateStr}: +${Number(rec.irrigation_value_mm ?? 0).toFixed(1)} mm`;
                 }).join('\n');
                 
                 const now = Date.now();
                 const calcTotal = (days: number) => {
                   return records
-                    .filter((r: any) => new Date(r.date).getTime() >= now - days * 24 * 60 * 60 * 1000)
-                    .reduce((acc: number, r: any) => acc + (r.irrigation_value_mm || 0), 0);
+                    .filter((r: ManualIrrigationRecord) => new Date(r.date).getTime() >= now - days * 24 * 60 * 60 * 1000)
+                    .reduce((acc: number, r: ManualIrrigationRecord) => acc + (r.irrigation_value_mm || 0), 0);
                 };
                 acumuladoText = `7d: ${calcTotal(7).toFixed(1)} mm\n15d: ${calcTotal(15).toFixed(1)} mm\n30d: ${calcTotal(30).toFixed(1)} mm`;
               }

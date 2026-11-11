@@ -31,8 +31,8 @@ export interface Probe {
   measurements?: Measurement[];
   position?: [number, number];
   farm_id?: number;
-  latitude?: number;
-  longitude?: number;
+  latitude?: number | null;
+  longitude?: number | null;
   config_moisture_v1?: number;
   config_moisture_v2?: number;
   config_moisture_v3?: number;

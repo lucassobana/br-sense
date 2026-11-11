@@ -20,8 +20,10 @@ import {
     PopoverContent,
     PopoverArrow,
     PopoverBody, FormControl,
-    FormLabel
+    FormLabel,
+    Badge
 } from '@chakra-ui/react';
+import { FaArrowUp, FaMinus, FaPlus } from 'react-icons/fa';
 import {
     ComposedChart,
     Bar,
@@ -292,6 +294,28 @@ export function SoilMoistureChart({
     const [hoveredData, setHoveredData] = useState<ChartDataPoint | null>(null);
     const [selectedData, setSelectedData] = useState<ChartDataPoint | null>(null);
     const [range, setRange] = useState({ startIndex: 0, endIndex: 0 });
+    const [showIrrigationAnalysis, setShowIrrigationAnalysis] = useState(false);
+    const [activeEventId, setActiveEventId] = useState<string | null>(null);
+    const [minimizedEventIds, setMinimizedEventIds] = useState<string[]>([]);
+    const [chartContainerWidth, setChartContainerWidth] = useState(0);
+
+    useEffect(() => {
+        const el = chartContainerRef.current;
+        if (!el) return;
+        const updateWidth = () => {
+            if (el.clientWidth > 0) {
+                setChartContainerWidth(el.clientWidth);
+            }
+        };
+        updateWidth();
+        if (typeof ResizeObserver !== 'undefined') {
+            const ro = new ResizeObserver(updateWidth);
+            ro.observe(el);
+            return () => ro.disconnect();
+        }
+        window.addEventListener('resize', updateWidth);
+        return () => window.removeEventListener('resize', updateWidth);
+    }, [showIrrigationAnalysis]);
 
     const isTouchDevice = useMemo(() => {
         if (typeof window === 'undefined') return false;
@@ -609,6 +633,360 @@ export function SoilMoistureChart({
         return ticks;
     }, [isMobileViewport, chartData, range.startIndex, range.endIndex, selectedPeriod]);
 
+    const irrigationEvents = useMemo(() => {
+        if (metric !== 'moisture' || chartData.length < 3) return [];
+        const visibleData = chartData.slice(range.startIndex, range.endIndex + 1);
+        if (visibleData.length < 3) return [];
+
+        interface CandidatePeak {
+            valeIdx: number;
+            peakIdx: number;
+            before10: number;
+            after10: number;
+        }
+
+        const candidates: CandidatePeak[] = [];
+
+        for (let i = 1; i < visibleData.length; i++) {
+            const curr10 = typeof visibleData[i].depth10 === 'number' ? (visibleData[i].depth10 as number) : null;
+            if (curr10 === null) continue;
+
+            // Verificar se i é um pico local de 10cm (maior ou igual aos vizinhos em uma janela de ±6h)
+            const currTime = new Date(visibleData[i].time).getTime();
+            let isLocalMax = true;
+            for (let k = Math.max(0, i - 18); k <= Math.min(visibleData.length - 1, i + 18); k++) {
+                if (k === i) continue;
+                const kTime = new Date(visibleData[k].time).getTime();
+                if (Math.abs(kTime - currTime) > 6 * 3600000) continue;
+                const kVal = typeof visibleData[k].depth10 === 'number' ? (visibleData[k].depth10 as number) : null;
+                if (kVal !== null && (kVal > curr10 || (kVal === curr10 && k < i))) {
+                    isLocalMax = false;
+                    break;
+                }
+            }
+            if (!isLocalMax) continue;
+
+            // Varrer para trás até 18h para encontrar o vale pré-subida de 10cm
+            let min10 = curr10;
+            let minIdx = i;
+            for (let j = i - 1; j >= 0; j--) {
+                const jTime = new Date(visibleData[j].time).getTime();
+                if (currTime - jTime > 18 * 3600000) break;
+                const jVal = typeof visibleData[j].depth10 === 'number' ? (visibleData[j].depth10 as number) : null;
+                if (jVal === null) continue;
+                if (jVal <= min10) {
+                    min10 = jVal;
+                    minIdx = j;
+                } else if (jVal > min10 + 0.6) {
+                    break;
+                }
+            }
+
+            // Ajustar para o último ponto no patamar mínimo antes de subir
+            for (let j = minIdx; j < i; j++) {
+                const jVal = typeof visibleData[j].depth10 === 'number' ? (visibleData[j].depth10 as number) : null;
+                if (jVal !== null && jVal <= min10 + 0.15) {
+                    minIdx = j;
+                } else {
+                    break;
+                }
+            }
+
+            const delta10 = curr10 - min10;
+            if (delta10 >= 1.5 && minIdx < i) {
+                const prev = candidates[candidates.length - 1];
+                const prevTime = prev ? new Date(visibleData[prev.peakIdx].time).getTime() : 0;
+                if (prev && currTime - prevTime <= 8 * 3600000) {
+                    if (curr10 > prev.after10) {
+                        prev.peakIdx = i;
+                        prev.after10 = curr10;
+                    }
+                } else {
+                    candidates.push({
+                        valeIdx: minIdx,
+                        peakIdx: i,
+                        before10: min10,
+                        after10: curr10,
+                    });
+                }
+            }
+        }
+
+        const rawEvents = candidates.map((cand, idx) => {
+            const valeTimeMs = new Date(visibleData[cand.valeIdx].time).getTime();
+            const nextCand = candidates[idx + 1];
+            const limitIdx = nextCand
+                ? Math.max(cand.peakIdx, nextCand.valeIdx - 1)
+                : visibleData.length - 1;
+
+            // Analisar resposta nas profundidades (10cm e 20cm sempre presentes como no pptx, e 30-60cm se houver subida)
+            const depthList = [10, 20, 30, 40, 50, 60];
+            const depthsInfo: Array<{
+                depthCm: number;
+                color: string;
+                beforePct: number;
+                afterPct: number | null;
+                increased: boolean;
+            }> = [];
+
+            let endHighlightIdx = cand.peakIdx;
+
+            for (const depthCm of depthList) {
+                const key = `depth${depthCm}`;
+                const color = DEPTH_COLORS[key as keyof typeof DEPTH_COLORS] || '#ffffff';
+
+                if (depthCm === 10) {
+                    depthsInfo.push({
+                        depthCm: 10,
+                        color,
+                        beforePct: cand.before10,
+                        afterPct: cand.after10,
+                        increased: true,
+                    });
+                    continue;
+                }
+
+                // Valor inicial da camada no início da subida de 10cm (ou mínimo logo antes de subir)
+                let baseVal: number | null = null;
+                for (let k = cand.valeIdx; k <= Math.min(limitIdx, cand.valeIdx + 6); k++) {
+                    if (typeof visibleData[k][key] === 'number') {
+                        baseVal = visibleData[k][key] as number;
+                        break;
+                    }
+                }
+                if (baseVal === null) continue;
+
+                // Procurar pico da camada até 24h após o vale de 10cm (ou até o próximo evento)
+                let maxVal = baseVal;
+                let maxIdx = cand.valeIdx;
+                let minBeforeMax = baseVal;
+
+                for (let k = cand.valeIdx; k <= limitIdx; k++) {
+                    const kTime = new Date(visibleData[k].time).getTime();
+                    if (kTime - valeTimeMs > 24 * 3600000) break;
+                    const v = typeof visibleData[k][key] === 'number' ? (visibleData[k][key] as number) : null;
+                    if (v === null) continue;
+                    if (v > maxVal) {
+                        maxVal = v;
+                        maxIdx = k;
+                    }
+                }
+
+                for (let k = cand.valeIdx; k <= maxIdx; k++) {
+                    const v = typeof visibleData[k][key] === 'number' ? (visibleData[k][key] as number) : null;
+                    if (v !== null && v < minBeforeMax) {
+                        minBeforeMax = v;
+                    }
+                }
+
+                const rise = maxVal - minBeforeMax;
+                const threshold = depthCm === 20 ? 0.4 : 0.6;
+
+                if (rise >= threshold && maxIdx > cand.valeIdx) {
+                    depthsInfo.push({
+                        depthCm,
+                        color,
+                        beforePct: minBeforeMax,
+                        afterPct: maxVal,
+                        increased: true,
+                    });
+                    if (maxIdx > endHighlightIdx && maxIdx - cand.valeIdx <= 18) {
+                        endHighlightIdx = maxIdx;
+                    }
+                } else if (depthCm === 20) {
+                    // Sempre incluir 20cm (mesmo sem subida, como no 3º evento do pptx)
+                    depthsInfo.push({
+                        depthCm: 20,
+                        color,
+                        beforePct: baseVal,
+                        afterPct: null,
+                        increased: false,
+                    });
+                }
+            }
+
+            const startHighlightIdx = Math.max(0, cand.valeIdx - 1);
+            const finalHighlightIdx = Math.min(visibleData.length - 1, Math.max(cand.peakIdx + 1, endHighlightIdx));
+            const rawRatio = ((startHighlightIdx + finalHighlightIdx) / 2) / Math.max(1, visibleData.length - 1);
+            const centerRatio = Math.min(0.98, Math.max(0.02, rawRatio));
+            const midPct10 = (cand.before10 + cand.after10) / 2;
+
+            return {
+                id: `ev-${cand.valeIdx}-${cand.peakIdx}`,
+                startTime: visibleData[startHighlightIdx].time,
+                endTime: visibleData[finalHighlightIdx].time,
+                centerRatio,
+                midPct10,
+                depths: depthsInfo,
+            };
+        });
+
+        // Posicionamento 2D anticolisão em pixels reais para mostrar todos os eventos sem sobrepor
+        const accentColor = COLORS.primary;
+        const containerW = chartContainerWidth || chartContainerRef.current?.clientWidth || (isMobileViewport ? 340 : 760);
+        const plotLeft = 26;
+        const plotRight = Math.max(plotLeft + 200, containerW - 35);
+        const plotW = plotRight - plotLeft;
+        const chartH = isMobileViewport ? 260 : 500;
+        const plotTop = 25;
+        const plotBottom = chartH - 28;
+        const plotH = Math.max(80, plotBottom - plotTop);
+        const cardW = isMobileViewport ? 150 : 166;
+        const padX = 8;
+        const padY = 6;
+
+        const placedBoxes: Array<{ left: number; right: number; top: number; bottom: number }> = [];
+
+        return rawEvents.map((ev, idx) => {
+            const isMinimized = minimizedEventIds.includes(ev.id);
+            const rowH = isMobileViewport ? 15 : 17;
+            const cardH = 12 + ev.depths.length * rowH;
+            const topMin = 8;
+            const topMax = Math.max(topMin + 4, chartH - 22 - cardH);
+
+            const eventX = Math.round(plotLeft + ev.centerRatio * plotW);
+            const ratioY = (ev.midPct10 - minLeft) / Math.max(1, maxLeft - minLeft);
+            const eventY = Math.round(plotTop + (1 - Math.min(0.92, Math.max(0.08, ratioY))) * plotH);
+
+            if (isMinimized) {
+                return {
+                    ...ev,
+                    isMinimized: true,
+                    accentColor,
+                    leftPx: eventX - 12,
+                    topPx: eventY - 12,
+                    cardW,
+                    cardH,
+                    eventX,
+                    eventY,
+                    anchorX: eventX,
+                    anchorY: eventY,
+                    connectorPath: '',
+                };
+            }
+
+            // Gerar candidatos verticais intercalando de baixo e de cima em passos de (cardH + padY) e depois refinamento fino
+            const candidateTops: number[] = [];
+            const addTop = (y: number) => {
+                const clamped = Math.round(Math.min(topMax, Math.max(topMin, y)));
+                if (!candidateTops.some((t) => Math.abs(t - clamped) < 6)) {
+                    candidateTops.push(clamped);
+                }
+            };
+
+            const stepY = cardH + padY + 2;
+            const maxSteps = Math.ceil((topMax - topMin) / stepY) + 1;
+            for (let s = 0; s < maxSteps; s++) {
+                if (idx % 2 === 0) {
+                    addTop(topMax - s * stepY);
+                    addTop(topMin + s * stepY);
+                } else {
+                    addTop(topMin + s * stepY);
+                    addTop(topMax - s * stepY);
+                }
+            }
+            for (let y = topMin; y <= topMax; y += 14) {
+                addTop(y);
+            }
+
+            const minLeftPx = plotLeft;
+            const maxLeftPx = Math.max(minLeftPx, plotRight - cardW);
+            const idealLeft = Math.min(maxLeftPx, Math.max(minLeftPx, Math.round(eventX - cardW / 2)));
+
+            const dxSteps: number[] = [0];
+            for (let d = 14; d <= plotW; d += 14) {
+                dxSteps.push(-d, d);
+            }
+
+            let chosenLeft = idealLeft;
+            let chosenTop = candidateTops[0] ?? topMin;
+            let foundFree = false;
+            let bestOverlapArea = Infinity;
+
+            for (const dx of dxSteps) {
+                const candidateLeft = Math.min(maxLeftPx, Math.max(minLeftPx, idealLeft + dx));
+                const cardRight = candidateLeft + cardW;
+
+                for (const candidateTop of candidateTops) {
+                    const cardBottom = candidateTop + cardH;
+                    let overlapArea = 0;
+
+                    for (const box of placedBoxes) {
+                        const xOverlap = Math.max(0, Math.min(cardRight + padX, box.right) - Math.max(candidateLeft - padX, box.left));
+                        const yOverlap = Math.max(0, Math.min(cardBottom + padY, box.bottom) - Math.max(candidateTop - padY, box.top));
+                        overlapArea += xOverlap * yOverlap;
+                    }
+
+                    if (overlapArea === 0) {
+                        chosenLeft = candidateLeft;
+                        chosenTop = candidateTop;
+                        foundFree = true;
+                        break;
+                    }
+
+                    if (overlapArea < bestOverlapArea) {
+                        bestOverlapArea = overlapArea;
+                        chosenLeft = candidateLeft;
+                        chosenTop = candidateTop;
+                    }
+                }
+                if (foundFree) break;
+            }
+
+            placedBoxes.push({
+                left: chosenLeft,
+                right: chosenLeft + cardW,
+                top: chosenTop,
+                bottom: chosenTop + cardH,
+            });
+
+            // Calcular caminho pontilhado (connectorPath) ligando o box ao evento correspondente no gráfico
+            const cardBottom = chosenTop + cardH;
+            const cardRight = chosenLeft + cardW;
+            const cardCenterX = Math.round(chosenLeft + cardW / 2);
+            const cardCenterY = Math.round(chosenTop + cardH / 2);
+
+            let anchorX = cardCenterX;
+            let anchorY = cardCenterY;
+            let connectorPath = '';
+
+            if (cardBottom <= eventY) {
+                anchorY = cardBottom;
+                anchorX = Math.min(cardRight - 10, Math.max(chosenLeft + 10, eventX));
+                const midY = Math.round((anchorY + eventY) / 2);
+                connectorPath = Math.abs(anchorX - eventX) <= 4
+                    ? `M ${anchorX} ${anchorY} L ${eventX} ${eventY}`
+                    : `M ${anchorX} ${anchorY} L ${anchorX} ${midY} L ${eventX} ${midY} L ${eventX} ${eventY}`;
+            } else if (chosenTop >= eventY) {
+                anchorY = chosenTop;
+                anchorX = Math.min(cardRight - 10, Math.max(chosenLeft + 10, eventX));
+                const midY = Math.round((anchorY + eventY) / 2);
+                connectorPath = Math.abs(anchorX - eventX) <= 4
+                    ? `M ${anchorX} ${anchorY} L ${eventX} ${eventY}`
+                    : `M ${anchorX} ${anchorY} L ${anchorX} ${midY} L ${eventX} ${midY} L ${eventX} ${eventY}`;
+            } else {
+                anchorX = eventX < cardCenterX ? chosenLeft : cardRight;
+                anchorY = cardCenterY;
+                connectorPath = `M ${anchorX} ${anchorY} L ${eventX} ${anchorY} L ${eventX} ${eventY}`;
+            }
+
+            return {
+                ...ev,
+                isMinimized: false,
+                accentColor,
+                leftPx: chosenLeft,
+                topPx: chosenTop,
+                cardW,
+                cardH,
+                eventX,
+                eventY,
+                anchorX,
+                anchorY,
+                connectorPath,
+            };
+        });
+    }, [metric, chartData, range.startIndex, range.endIndex, isMobileViewport, chartContainerWidth, minLeft, maxLeft, minimizedEventIds]);
+
 
     const handleChartInteraction = useCallback((state: { activeTooltipIndex?: number | string | null; activeLabel?: string | number } | null | undefined) => {
         if (!state || state.activeTooltipIndex == null) {
@@ -864,6 +1242,32 @@ export function SoilMoistureChart({
                     w={{ base: "100%", md: "auto" }}
                     justify={{ base: "flex-start", md: "flex-end" }}
                 >
+                    {metric === 'moisture' && (
+                        <Button
+                            size="xs"
+                            colorScheme="blue"
+                            variant={showIrrigationAnalysis ? "solid" : "outline"}
+                            leftIcon={<Icon as={FaArrowUp} boxSize={2.5} />}
+                            onClick={() => setShowIrrigationAnalysis((prev) => !prev)}
+                            isDisabled={!chartData.length}
+                        >
+                            Resposta da Irrigação
+                            {irrigationEvents.length > 0 && (
+                                <Badge
+                                    ml={1.5}
+                                    px={1.5}
+                                    py={0.2}
+                                    borderRadius="full"
+                                    fontSize="10px"
+                                    bg={showIrrigationAnalysis ? "whiteAlpha.300" : "blue.600"}
+                                    color="white"
+                                >
+                                    {irrigationEvents.length}
+                                </Badge>
+                            )}
+                        </Button>
+                    )}
+
                     {onSelectDepthRef && metric === 'moisture' && (
                         <Menu>
                             <MenuButton as={Button} size="xs" colorScheme="blue" variant={selectedDepthRef ? "solid" : "outline"} rightIcon={<MdArrowDropDown />} leftIcon={<Icon as={MdLayers} />}>
@@ -992,11 +1396,11 @@ export function SoilMoistureChart({
                         </HStack>
 
                         <Flex wrap="wrap" gap={3} align="center">
-                            {metric === 'moisture' && activeData.precipitacao !== undefined && activeData.precipitacao > 0 && (
+                            {metric === 'moisture' && activeData.precipitacao != null && activeData.precipitacao > 0 && (
                                 <HStack spacing={1.5}>
                                     <Box w="6px" h="6px" borderRadius="full" bg="#4299E1" />
                                     <Text fontSize="10px" color="blue.200">Chuva:</Text>
-                                    <Text fontSize="xs" fontWeight="bold">{activeData.precipitacao.toFixed(1)}mm</Text>
+                                    <Text fontSize="xs" fontWeight="bold">{Number(activeData.precipitacao).toFixed(1)}mm</Text>
                                 </HStack>
                             )}
 
@@ -1018,6 +1422,7 @@ export function SoilMoistureChart({
             </Box>
 
             <Box
+                position="relative"
                 h={{ base: "260px", md: "500px" }}
                 w="100%"
                 ref={chartContainerRef}
@@ -1027,6 +1432,215 @@ export function SoilMoistureChart({
                 onTouchEnd={() => { pinchRef.current = null; }}
                 style={{ touchAction: 'pan-y' }}
             >
+                {showIrrigationAnalysis && metric === 'moisture' && (
+                    <Box
+                        position="absolute"
+                        inset={0}
+                        pointerEvents="none"
+                        zIndex={20}
+                        overflow="hidden"
+                    >
+                        {irrigationEvents.length > 0 ? (
+                            <>
+                                <svg
+                                    width="100%"
+                                    height="100%"
+                                    style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 15 }}
+                                >
+                                    {irrigationEvents.map((ev) => {
+                                        if (ev.isMinimized) return null;
+                                        const isSelected = activeEventId === ev.id;
+                                        return (
+                                            <g key={`line-${ev.id}`} opacity={activeEventId && !isSelected ? 0.45 : 1}>
+                                                <path
+                                                    d={ev.connectorPath}
+                                                    fill="none"
+                                                    stroke={ev.accentColor}
+                                                    strokeWidth={isSelected ? 2.2 : 1.5}
+                                                    strokeDasharray="4 3"
+                                                />
+                                                <circle
+                                                    cx={ev.anchorX}
+                                                    cy={ev.anchorY}
+                                                    r={2.5}
+                                                    fill={ev.accentColor}
+                                                />
+                                                <circle
+                                                    cx={ev.eventX}
+                                                    cy={ev.eventY}
+                                                    r={isSelected ? 4.5 : 3.5}
+                                                    fill={ev.accentColor}
+                                                    stroke="#0b1320"
+                                                    strokeWidth={1.2}
+                                                />
+                                            </g>
+                                        );
+                                    })}
+                                </svg>
+
+                                {irrigationEvents.map((ev) => {
+                                    const isSelected = activeEventId === ev.id;
+                                    if (ev.isMinimized) {
+                                        return (
+                                            <Box
+                                                key={ev.id}
+                                                as="button"
+                                                type="button"
+                                                title="Expandir informações"
+                                                aria-label="Expandir informações"
+                                                position="absolute"
+                                                left={`${ev.leftPx}px`}
+                                                top={`${ev.topPx}px`}
+                                                w="24px"
+                                                h="24px"
+                                                display="flex"
+                                                alignItems="center"
+                                                justifyContent="center"
+                                                pointerEvents="auto"
+                                                zIndex={isSelected ? 30 : 25}
+                                                bg={COLORS.primary}
+                                                color="white"
+                                                borderRadius="full"
+                                                border="2px solid"
+                                                borderColor="white"
+                                                boxShadow="0 2px 8px rgba(0, 0, 0, 0.65)"
+                                                cursor="pointer"
+                                                transition="all 0.15s ease"
+                                                _hover={{ transform: "scale(1.15)", bg: "#4299E1" }}
+                                                onClick={(e: React.MouseEvent) => {
+                                                    e.stopPropagation();
+                                                    setMinimizedEventIds((prev) => prev.filter((id) => id !== ev.id));
+                                                }}
+                                                onMouseEnter={() => setActiveEventId(ev.id)}
+                                                onMouseLeave={() => setActiveEventId(null)}
+                                            >
+                                                <Icon as={FaPlus} boxSize="10px" color="white" />
+                                            </Box>
+                                        );
+                                    }
+
+                                    return (
+                                        <Box
+                                            key={ev.id}
+                                            position="absolute"
+                                            left={`${ev.leftPx}px`}
+                                            top={`${ev.topPx}px`}
+                                            w={`${ev.cardW}px`}
+                                            pointerEvents="auto"
+                                            zIndex={isSelected ? 30 : 20}
+                                            pl={{ base: 2, md: 2.5 }}
+                                            pr={{ base: 1.5, md: 2 }}
+                                            py={{ base: 1, md: 1.5 }}
+                                            bg={COLORS.tabColor}
+                                            opacity={activeEventId && !isSelected ? 0.72 : 0.96}
+                                            backdropFilter="blur(4px)"
+                                            borderRadius="md"
+                                            border="1px solid"
+                                            borderColor={isSelected ? "#63B3ED" : COLORS.primary}
+                                            borderLeft="3px solid"
+                                            borderLeftColor={isSelected ? "#63B3ED" : COLORS.primary}
+                                            boxShadow={isSelected ? "0 0 12px rgba(48, 132, 201, 0.55)" : "0 2px 8px rgba(0, 0, 0, 0.45)"}
+                                            cursor="pointer"
+                                            transition="all 0.15s ease"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setActiveEventId((prev) => (prev === ev.id ? null : ev.id));
+                                            }}
+                                            onMouseEnter={() => setActiveEventId(ev.id)}
+                                            onMouseLeave={() => setActiveEventId(null)}
+                                        >
+                                            <Flex align="flex-start" justify="space-between" gap={1.5}>
+                                                <VStack align="flex-start" spacing={0.5} flex="1" minW={0}>
+                                                    {ev.depths.map((d) => (
+                                                        <Flex key={d.depthCm} align="center" justify="flex-start" fontSize={{ base: "9.5px", md: "10.5px" }} gap={1} whiteSpace="nowrap">
+                                                            <HStack spacing={1}>
+                                                                <Box
+                                                                    as="span"
+                                                                    w="5px"
+                                                                    h="5px"
+                                                                    borderRadius="full"
+                                                                    bg={d.color}
+                                                                    border={d.color === '#000000' ? '1px solid rgba(255,255,255,0.6)' : undefined}
+                                                                    flexShrink={0}
+                                                                />
+                                                                <Text color="gray.300" fontWeight="medium">
+                                                                    {d.depthCm}cm:
+                                                                </Text>
+                                                            </HStack>
+                                                            {d.increased && d.afterPct !== null ? (
+                                                                <HStack spacing={0.5} align="center">
+                                                                    <Text color="gray.200">
+                                                                        {d.beforePct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                                                                    </Text>
+                                                                    <Icon as={FaArrowUp} color="green.400" boxSize="8px" aria-label="Aumento de umidade" />
+                                                                    <Text color="white" fontWeight="bold">
+                                                                        {d.afterPct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                                                                    </Text>
+                                                                </HStack>
+                                                            ) : (
+                                                                <Text color="gray.300">
+                                                                    {d.beforePct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                                                                </Text>
+                                                            )}
+                                                        </Flex>
+                                                    ))}
+                                                </VStack>
+
+                                                <Box
+                                                    as="button"
+                                                    type="button"
+                                                    title="Minimizar"
+                                                    aria-label="Minimizar informações"
+                                                    w="16px"
+                                                    h="16px"
+                                                    flexShrink={0}
+                                                    display="flex"
+                                                    alignItems="center"
+                                                    justifyContent="center"
+                                                    borderRadius="full"
+                                                    bg={COLORS.primary}
+                                                    color="white"
+                                                    border="1.5px solid"
+                                                    borderColor="whiteAlpha.800"
+                                                    boxShadow="0 1px 4px rgba(0, 0, 0, 0.45)"
+                                                    transition="all 0.15s ease"
+                                                    _hover={{ bg: "#4299E1", transform: "scale(1.1)" }}
+                                                    onClick={(e: React.MouseEvent) => {
+                                                        e.stopPropagation();
+                                                        setMinimizedEventIds((prev) =>
+                                                            prev.includes(ev.id) ? prev : [...prev, ev.id]
+                                                        );
+                                                    }}
+                                                >
+                                                    <Icon as={FaMinus} boxSize="7.5px" color="white" />
+                                                </Box>
+                                            </Flex>
+                                        </Box>
+                                    );
+                                })}
+                            </>
+                        ) : (
+                            <Box
+                                position="absolute"
+                                top="28px"
+                                left="50%"
+                                transform="translateX(-50%)"
+                                px={3}
+                                py={1.5}
+                                bg="rgba(23, 53, 78, 0.92)"
+                                borderRadius="md"
+                                border="1px solid"
+                                borderColor="whiteAlpha.300"
+                                pointerEvents="auto"
+                            >
+                                <Text fontSize="xs" color="gray.200">
+                                    Nenhum evento com aumento de umidade identificado neste período.
+                                </Text>
+                            </Box>
+                        )}
+                    </Box>
+                )}
+
                 <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart
                         data={chartData}
@@ -1147,6 +1761,23 @@ export function SoilMoistureChart({
                             cursor={{ stroke: 'rgba(255,255,255,0.3)', strokeWidth: 1 }}
                             content={() => null}
                         />
+
+                        {showIrrigationAnalysis && metric === 'moisture' && irrigationEvents.map((ev) => {
+                            const isSelected = activeEventId === ev.id;
+                            return (
+                                <ReferenceArea
+                                    key={ev.id}
+                                    yAxisId="left"
+                                    x1={ev.startTime}
+                                    x2={ev.endTime}
+                                    fill={COLORS.tabColor}
+                                    fillOpacity={isSelected ? 0.45 : 0.25}
+                                    stroke={isSelected ? "#63B3ED" : COLORS.primary}
+                                    strokeWidth={isSelected ? 2 : 1.5}
+                                    strokeOpacity={isSelected ? 1 : 0.9}
+                                />
+                            );
+                        })}
 
                         {refAreaLeft && refAreaRight && <ReferenceArea yAxisId="left" x1={refAreaLeft} x2={refAreaRight} strokeOpacity={0.3} fill="#8884d8" fillOpacity={0.3} />}
                     </ComposedChart>

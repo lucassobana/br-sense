@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Box, Flex, Grid, Spinner, Text, Badge, Button, Icon } from '@chakra-ui/react';
 import { MdArrowForward } from 'react-icons/md';
 import { CROP_PROFILES, SOYBEAN } from './crops.ts';
@@ -14,6 +14,23 @@ import type { CropRegistration, ManualWaterEvent } from './weather-types.ts';
 
 const mm = (value: number) => `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mm`;
 const percent = (value: number) => `${(value * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+
+function loadPinSoilSettings(pin: {
+  id: string | number;
+  latitude: number;
+  longitude: number;
+}) {
+  const key = `brsense_soil_settings_${pin.id}`;
+  const saved = localStorage.getItem(key);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      // Ignora
+    }
+  }
+  return createSoilSettings(pin);
+}
 
 export interface PinBalanceCompactProps {
   pin: {
@@ -83,33 +100,7 @@ export function PinBalanceCompact({
   }, [irrigationRecords]);
 
   // Configurações do solo (inicia com padrão e permite overrides salvos no localStorage)
-  const [settings, setSettings] = useState(() => {
-    const key = `brsense_soil_settings_${pin.id}`;
-    const saved = localStorage.getItem(key);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // Ignora
-      }
-    }
-    return createSoilSettings(pin);
-  });
-
-  // Recarrega configurações sempre que o pin for alterado
-  useEffect(() => {
-    const key = `brsense_soil_settings_${pin.id}`;
-    const saved = localStorage.getItem(key);
-    if (saved) {
-      try {
-        setSettings(JSON.parse(saved));
-        return;
-      } catch {
-        // Ignora
-      }
-    }
-    setSettings(createSoilSettings(pin));
-  }, [pin.id, pin.latitude, pin.longitude]);
+  const settings = useMemo(() => loadPinSoilSettings(pin), [pin]);
 
   // Clima: Inicia na data necessária para reconstrução histórica
   const startDate = useMemo(() => {
@@ -299,7 +290,7 @@ export function PinBalanceCompact({
 
           <Flex justify="space-between" fontSize="10px" color="gray.400">
             <Text>
-              Raízes: <Text as="span" color="white" fontWeight="medium">{summary?.rootDepthM ? `${summary.rootDepthM.toLocaleString('pt-BR')} m` : `${activeRootDepthM.toFixed(2)} m`}</Text>
+              Raízes: <Text as="span" color="white" fontWeight="medium">{summary?.rootDepthM ? `${summary.rootDepthM.toLocaleString('pt-BR')} m` : `${activeRootDepthM != null ? activeRootDepthM.toFixed(2) : '—'} m`}</Text>
             </Text>
             <Text>
               Consumo permitido: <Text as="span" color="white" fontWeight="medium">{summary ? mm(summary.allowableDepletionMm) : '—'}</Text>
