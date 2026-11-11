@@ -31,6 +31,8 @@ import {
   MdWaterDrop,
   MdAutoAwesome,
   MdVerified,
+  MdChevronLeft,
+  MdChevronRight,
 } from "react-icons/md";
 import type { Probe, ManualIrrigationRecord } from "../../types";
 import { useEffect, useMemo, useState } from "react";
@@ -656,6 +658,8 @@ const RootZoneWaterCard = ({
   );
 };
 
+const ITEMS_PER_PAGE = 20;
+
 export function DeviceTable({
   data,
   onRowClick,
@@ -665,6 +669,15 @@ export function DeviceTable({
 }: DeviceTableProps) {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({});
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const totalPages = Math.max(1, Math.ceil(data.length / ITEMS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * ITEMS_PER_PAGE;
+  const paginatedData = useMemo(
+    () => data.slice(startIndex, startIndex + ITEMS_PER_PAGE),
+    [data, startIndex],
+  );
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -808,7 +821,7 @@ export function DeviceTable({
         </Flex>
 
         <SimpleGrid gridTemplateColumns="1fr" gap={4} w="100%">
-          {data.map((row) => {
+          {paginatedData.map((row) => {
             const isOffline = checkIsOffline(row.lastCommunicationTimestamp);
 
             return (
@@ -1320,7 +1333,7 @@ export function DeviceTable({
                 },
               }}
             >
-              {data.map((row) => {
+              {paginatedData.map((row) => {
                 const isOffline = checkIsOffline(
                   row.lastCommunicationTimestamp,
                 );
@@ -1695,6 +1708,73 @@ export function DeviceTable({
           </Table>
         </Box>
       </Show>
+
+      {totalPages > 1 && (
+        <Flex
+          mt={4}
+          px={4}
+          py={3}
+          bg="gray.800"
+          borderRadius="xl"
+          border="1px solid"
+          borderColor="whiteAlpha.100"
+          justify="space-between"
+          align="center"
+          direction={{ base: "column", sm: "row" }}
+          gap={3}
+        >
+          <Text fontSize="xs" color="gray.400">
+            Mostrando{" "}
+            <Text as="span" color="white" fontWeight="bold">
+              {startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, data.length)}
+            </Text>{" "}
+            de{" "}
+            <Text as="span" color="white" fontWeight="bold">
+              {data.length}
+            </Text>{" "}
+            dispositivos
+          </Text>
+
+          <HStack spacing={1.5} wrap="wrap" justify="center">
+            <Button
+              size="xs"
+              variant="outline"
+              colorScheme="blue"
+              leftIcon={<Icon as={MdChevronLeft} boxSize={4} />}
+              onClick={() => setCurrentPage(Math.max(1, safePage - 1))}
+              isDisabled={safePage <= 1}
+            >
+              Anterior
+            </Button>
+
+            {Array.from({ length: totalPages }, (_, idx) => idx + 1).map(
+              (page) => (
+                <Button
+                  key={page}
+                  size="xs"
+                  colorScheme="blue"
+                  variant={page === safePage ? "solid" : "outline"}
+                  onClick={() => setCurrentPage(page)}
+                  minW="28px"
+                >
+                  {page}
+                </Button>
+              ),
+            )}
+
+            <Button
+              size="xs"
+              variant="outline"
+              colorScheme="blue"
+              rightIcon={<Icon as={MdChevronRight} boxSize={4} />}
+              onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))}
+              isDisabled={safePage >= totalPages}
+            >
+              Próxima
+            </Button>
+          </HStack>
+        </Flex>
+      )}
     </>
   );
 }

@@ -25,17 +25,10 @@ def decode_soil_payload(hex_payload: str, timestamp: datetime) -> list[dict]:
             return [_decode_location(raw)]
         
         elif tipo_mensagem == 2:
-            # Payload de Sensores (Mensagem Raw - ESP32 V4.2 ou Legado)
-            
-            # Identificação da versão do Payload
-            # O legado sempre tem 0x02 exato no byte 0 e 'H'(72) ou 'T'(84) no byte 7
-            is_legacy = (raw[0] == 0x02) and (raw[7] in (0x48, 0x54))
-
-            # Roteamento
-            if is_legacy:
-                return _decode_legacy(raw, timestamp)
-            else:
-                return _decode_new_v2(raw, timestamp)
+            # Payload de Sensores (Mensagem Raw - ESP32 V4.2)
+            # Todas as sondas ativas operam no protocolo V4.2; evita falsos positivos
+            # quando o byte 7 coincide com 0x48 ('H') ou 0x54 ('T').
+            return _decode_new_v2(raw, timestamp)
             
         else:
             # tipo_mensagem == 3 (11 em binário)
