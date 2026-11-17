@@ -5,7 +5,7 @@ from app.settings import settings
 from app.db.session import SessionLocal
 from app.models.request_log import RequestLog
 
-from app.routers import uplink, auth, devices, readings, farms, manual_probes, map_layers, soil_balance
+from app.routers import uplink, auth, devices, readings, farms, manual_probes, map_layers, soil_balance, ndvi_areas
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -97,6 +97,7 @@ app.include_router(readings.router, prefix="/api", tags=["Readings"]) # <--- Nov
 app.include_router(farms.router, prefix="/api", tags=["Farms"]) # <--- Nova rota do gráfico
 app.include_router(manual_probes.router, prefix="/api/manual-probes", tags=["Manual Probes"])
 app.include_router(map_layers.router, prefix="/api/map-layers", tags=["Map Layers"])
+app.include_router(ndvi_areas.router, prefix="/api/ndvi-areas", tags=["NDVI Areas"])
 app.include_router(soil_balance.router, prefix="/api", tags=["Soil Balance"])
 
 # Rota de teste simples

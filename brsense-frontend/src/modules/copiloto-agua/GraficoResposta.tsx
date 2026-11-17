@@ -45,7 +45,7 @@ export function GraficoResposta({ evento, camadas, faixas, profundidadeSeleciona
   const maximoTempo = Math.max(inicio + 1, ...pontos.map(ponto => ponto.instanteMs));
   const minimoUmidade = Math.min(faixas.minimoPct, ...pontos.map(ponto => ponto.umidadePct));
   const maximoUmidade = Math.max(faixas.maximoPct, ...pontos.map(ponto => ponto.umidadePct));
-  const esquerda = 34, direita = largura - 10, topo = 38, fundo = 162, altura = 215;
+  const esquerda = 34, direita = largura - 16, topo = 38, fundo = 162, altura = 215;
   const centroGraficoX = (esquerda + direita) / 2;
   const x = (valor: number) => esquerda + (valor - minimoTempo) / (maximoTempo - minimoTempo) * (direita - esquerda);
   const y = (valor: number) => fundo - (valor - minimoUmidade) / (maximoUmidade - minimoUmidade) * (fundo - topo);

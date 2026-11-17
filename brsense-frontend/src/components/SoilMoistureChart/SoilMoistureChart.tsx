@@ -154,6 +154,7 @@ export function SoilMoistureChart({
     title,
     cultura,
     dap,
+    unit,
     yDomain = [0, 100],
     showZones = true,
     metric = 'moisture',
@@ -1718,7 +1719,7 @@ export function SoilMoistureChart({
                             tickLine={false}
                         />
 
-                        <YAxis yAxisId="left" domain={activeYDomain as [number, number]} ticks={leftTicks} tick={{ fill: '#6b7280', fontSize: isMobileViewport ? 9 : 10 }} axisLine={false} tickLine={false} allowDataOverflow label={({ viewBox }) => (<text x={viewBox.x + viewBox.width} y={viewBox.y / 2} textAnchor="middle" fill="#6b7280" fontSize={isMobileViewport ? 9 : 12}>%</text>)} />
+                        <YAxis yAxisId="left" domain={activeYDomain as [number, number]} ticks={leftTicks} tick={{ fill: '#6b7280', fontSize: isMobileViewport ? 9 : 10 }} axisLine={false} tickLine={false} allowDataOverflow label={({ viewBox }) => (<text x={viewBox.x + viewBox.width} y={viewBox.y / 2} textAnchor="middle" fill="#6b7280" fontSize={isMobileViewport ? 9 : 12}>{unit || (metric === 'temperature' ? '°C' : '%')}</text>)} />
 
                         {metric === 'moisture' && (
                             <YAxis yAxisId="right" orientation="right" reversed={true} domain={MM_DOMAIN} ticks={mmTicks} tick={{ fill: '#6b7280', fontSize: isMobileViewport ? 9 : 10 }} axisLine={false} tickLine={false} hide={false} width={isMobileViewport ? 24 : 30} label={({ viewBox }) => (<text x={viewBox.x + viewBox.width - 20} y={viewBox.y / 2} textAnchor="middle" fill="#6b7280" fontSize={isMobileViewport ? 9 : 12}>mm</text>)} />

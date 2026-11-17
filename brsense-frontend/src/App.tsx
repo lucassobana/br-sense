@@ -7,6 +7,7 @@ import { MyProbes } from "./pages/MyProbList";
 import { ProtectedRoute } from "./components/ProtectedRoute/ProtectedRoute";
 import { Settings } from "./pages/Settings";
 import { Lading } from "./pages/Lading";
+import { NdviPage } from "./pages/NdviPage";
 
 function RootRedirect() {
   const isPWA =
@@ -51,6 +52,16 @@ export function App() {
           <ProtectedRoute>
             <Layout>
               <MyProbes />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ndvi"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <NdviPage />
             </Layout>
           </ProtectedRoute>
         }

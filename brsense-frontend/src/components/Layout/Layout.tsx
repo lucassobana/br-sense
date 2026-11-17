@@ -10,8 +10,10 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const mainRef = useRef<HTMLDivElement>(null);
+  const isMobileMapView =
+    pathname === '/dashboard' && !new URLSearchParams(search).get('probeId');
 
   useEffect(() => {
     const token = localStorage.getItem('access_token') || localStorage.getItem('token');
@@ -25,10 +27,16 @@ export function Layout({ children }: LayoutProps) {
     if (mainRef.current) {
       mainRef.current.scrollTop = 0;
     }
-  }, [pathname]);
+  }, [pathname, search]);
 
   return (
-    <Flex minH="100vh" bg={COLORS.background} direction="column">
+    <Flex
+      minH="100dvh"
+      h={{ base: isMobileMapView ? '100dvh' : 'auto', md: 'auto' }}
+      overflow={{ base: isMobileMapView ? 'hidden' : 'visible', md: 'visible' }}
+      bg={COLORS.background}
+      direction="column"
+    >
       <Sidebar />
 
       <Box
@@ -36,16 +44,29 @@ export function Layout({ children }: LayoutProps) {
         as="main"
         flex="1"
         ml={{ base: 0, md: '80px' }}
-        
-        // ZERADO: Como o Mobile não tem mais Header no topo, não precisamos de margem
-        mt={0} 
-
-        // NOVO: Adiciona um respiro no fundo apenas no Mobile igual ao tamanho da BottomNav (65px)
-        // Isso impede que as listas da tela "Sondas" fiquem atrás da barra
-        pb={{ base: 'calc(65px + env(safe-area-inset-bottom))', md: 0 }}
-        
-        h={{ base: 'auto', md: '100vh' }}
-        overflowY={{ base: 'visible', md: 'auto' }}
+        mt={0}
+        pb={{
+          base: isMobileMapView
+            ? 0
+            : 'calc(65px + env(safe-area-inset-bottom))',
+          md: 0,
+        }}
+        h={{
+          base: isMobileMapView
+            ? 'calc(100dvh - 65px - env(safe-area-inset-bottom))'
+            : 'auto',
+          md: '100vh',
+        }}
+        maxH={{
+          base: isMobileMapView
+            ? 'calc(100dvh - 65px - env(safe-area-inset-bottom))'
+            : 'none',
+          md: '100vh',
+        }}
+        overflowY={{
+          base: isMobileMapView ? 'hidden' : 'visible',
+          md: 'auto',
+        }}
         position="relative"
         zIndex={0}
       >

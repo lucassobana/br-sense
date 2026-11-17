@@ -141,6 +141,7 @@ const getStatusColor = (statusCode: string) => {
 export function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const probeIdParam = searchParams.get("probeId");
+  const fromParam = searchParams.get("from");
 
   const navigate = useNavigate();
   const isMobile = useBreakpointValue({ base: true, md: false });
@@ -278,7 +279,7 @@ export function Dashboard() {
 
   const handleMapGraphClick = (deviceId: number | string) => {
     setDirection(1);
-    setSearchParams({ probeId: String(deviceId) });
+    setSearchParams({ probeId: String(deviceId), from: "map" });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -287,6 +288,7 @@ export function Dashboard() {
     setSearchParams({});
     setChartData([]);
     setBatteryData([]);
+    window.scrollTo({ top: 0, behavior: "auto" });
   };
 
   const handleDeleteManualProbe = async (id: number) => {
@@ -748,7 +750,9 @@ export function Dashboard() {
   }
 
   const handleProbeSelect = (probeId: number | string) => {
-    setSearchParams({ probeId: String(probeId) });
+    const nextParams: Record<string, string> = { probeId: String(probeId) };
+    if (fromParam) nextParams.from = fromParam;
+    setSearchParams(nextParams);
   };
 
   const MotionBox = motion.create(Box);
@@ -770,6 +774,24 @@ export function Dashboard() {
       w="100%"
       bg={COLORS.background}
       pb={{ base: viewMode === "map" ? 0 : 20, md: 10 }}
+      h={{
+        base:
+          viewMode === "map"
+            ? "calc(100dvh - 65px - env(safe-area-inset-bottom))"
+            : "auto",
+        md: "auto",
+      }}
+      maxH={{
+        base:
+          viewMode === "map"
+            ? "calc(100dvh - 65px - env(safe-area-inset-bottom))"
+            : "none",
+        md: "none",
+      }}
+      overflow={{
+        base: viewMode === "map" ? "hidden" : "visible",
+        md: "visible",
+      }}
     >
       <AnimatePresence mode="wait" custom={direction}>
         {viewMode === "map" && (
@@ -784,11 +806,15 @@ export function Dashboard() {
             position="relative"
             w="100%"
             bg={COLORS.background}
-            // CORREÇÃO 1: Alterado "h" para "minH" para evitar a dupla rolagem vertical
+            h={{
+              base: "calc(100dvh - 65px - env(safe-area-inset-bottom))",
+              md: "auto",
+            }}
             minH={{
               base: "calc(100dvh - 65px - env(safe-area-inset-bottom))",
               md: "100vh",
             }}
+            overflow={{ base: "hidden", md: "visible" }}
           >
             <Box
               w="100%"
@@ -906,62 +932,70 @@ export function Dashboard() {
               </Box>
             </Box>
 
-            {/* Cards e Tabela do Monitoramento Detalhado */}
-            <Container maxW="full" mt={8} mb={10} px={{ base: 4, lg: 12 }}>
-              <Flex
-                justify="space-between"
-                align="center"
-                mb={6}
-                wrap="wrap"
-                gap={4}
+            {/* Cards e Tabela do Monitoramento Detalhado (Somente Desktop — no celular fica exclusivo na aba Sondas) */}
+            {!isMobile && (
+              <Container
+                display={{ base: "none", md: "block" }}
+                maxW="full"
+                mt={8}
+                mb={10}
+                px={{ base: 4, lg: 12 }}
               >
-                <Flex align="center" gap={4} wrap="wrap">
-                  <Heading
-                    size={{ base: "sm", md: "md" }}
-                    color={COLORS.textPrimary}
-                    borderLeft="4px solid"
-                    borderColor="blue.500"
-                    pl={3}
-                    isTruncated
-                  >
-                    Monitoramento Detalhado
-                  </Heading>
+                <Flex
+                  justify="space-between"
+                  align="center"
+                  mb={6}
+                  wrap="wrap"
+                  gap={4}
+                >
+                  <Flex align="center" gap={4} wrap="wrap">
+                    <Heading
+                      size={{ base: "sm", md: "md" }}
+                      color={COLORS.textPrimary}
+                      borderLeft="4px solid"
+                      borderColor="blue.500"
+                      pl={3}
+                      isTruncated
+                    >
+                      Monitoramento Detalhado
+                    </Heading>
 
-                  {userIsAdmin && (
-                      <ButtonGroup size="sm" isAttached variant="outline" colorScheme="blue">
-                          <Button 
-                              onClick={() => setDeviceFilter(prev => prev === "sondas" ? null : "sondas")}
-                              bg={deviceFilter === "sondas" ? "blue.600" : "transparent"}
-                              color="white"
-                              _hover={{ bg: deviceFilter === "sondas" ? "blue.700" : "blue.500" }}
-                              _active={{ bg: "blue.700" }}
-                          >
-                              Sondas
-                          </Button>
-                          <Button 
-                              onClick={() => setDeviceFilter(prev => prev === "manuais" ? null : "manuais")}
-                              bg={deviceFilter === "manuais" ? "blue.600" : "transparent"}
-                              color="white"
-                              _hover={{ bg: deviceFilter === "manuais" ? "blue.700" : "blue.500" }}
-                              _active={{ bg: "blue.700" }}
-                          >
-                              Pins Manuais
-                          </Button>
-                      </ButtonGroup>
-                  )}
+                    {userIsAdmin && (
+                        <ButtonGroup size="sm" isAttached variant="outline" colorScheme="blue">
+                            <Button 
+                                onClick={() => setDeviceFilter(prev => prev === "sondas" ? null : "sondas")}
+                                bg={deviceFilter === "sondas" ? "blue.600" : "transparent"}
+                                color="white"
+                                _hover={{ bg: deviceFilter === "sondas" ? "blue.700" : "blue.500" }}
+                                _active={{ bg: "blue.700" }}
+                            >
+                                Sondas
+                            </Button>
+                            <Button 
+                                onClick={() => setDeviceFilter(prev => prev === "manuais" ? null : "manuais")}
+                                bg={deviceFilter === "manuais" ? "blue.600" : "transparent"}
+                                color="white"
+                                _hover={{ bg: deviceFilter === "manuais" ? "blue.700" : "blue.500" }}
+                                _active={{ bg: "blue.700" }}
+                            >
+                                Pins Manuais
+                            </Button>
+                        </ButtonGroup>
+                    )}
+                  </Flex>
+
+                  <ExportPdfButton data={processedTableData} />
                 </Flex>
 
-                <ExportPdfButton data={processedTableData} />
-              </Flex>
-
-              <DeviceTable
-                data={processedTableData}
-                onRowClick={handleMapGraphClick}
-                sortConfig={sortConfig}
-                onSort={handleSort}
-                isAdmin={userIsAdmin}
-              />
-            </Container>
+                <DeviceTable
+                  data={processedTableData}
+                  onRowClick={handleMapGraphClick}
+                  sortConfig={sortConfig}
+                  onSort={handleSort}
+                  isAdmin={userIsAdmin}
+                />
+              </Container>
+            )}
           </MotionBox>
         )}
 
@@ -985,14 +1019,16 @@ export function Dashboard() {
               size="sm"
               mb={4}
               onClick={() => {
-                if (isMobile) {
+                if (isMobile && fromParam !== "map") {
                   navigate("/probes");
                 } else {
                   handleBackToMap();
                 }
               }}
             >
-              {isMobile ? "Voltar ao monitoramento" : "Voltar ao Mapa"}
+              {isMobile && fromParam !== "map"
+                ? "Voltar às Sondas"
+                : "Voltar ao Mapa"}
             </Button>
 
             <MotionBox mb={6}>

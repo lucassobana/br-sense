@@ -14,7 +14,20 @@ import { RainViewerTimeline } from '../RainViewer/RainViewerTimeline';
 import { ManualProbeCard } from '../ProbeCard/ManualProbeCard';
 import { KmlLayersControl } from './KmlLayersControl';
 import { KmlUploadModal } from './KmlUploadModal';
-import { saveMapLayersVisibility } from '../../services/api';
+import { getNdviAreas, saveMapLayersVisibility } from '../../services/api';
+import {
+    NdviMapOverlay,
+    NdviMapToggle,
+    createHttpNdviApi,
+    demoApi,
+    DEMO_AREAS,
+    mapLayersToNdviAreas,
+    type NdviAnalysis,
+    type NdviApi,
+    type NdviArea,
+    type NdviScene,
+} from '../../modules/ndvi';
+import { boundsOf } from '../../modules/ndvi/shared/geometry';
 // import { GiRadarSweep } from "react-icons/gi";
 
 
@@ -180,6 +193,16 @@ interface SatelliteMapProps {
     onManualProbeUpdated?: () => void;
 }
 
+const stopLeafletEvents = (el: HTMLElement | null) => {
+    if (!el) return;
+    L.DomEvent.disableClickPropagation(el);
+    L.DomEvent.disableScrollPropagation(el);
+    const stop = (ev: Event) => ev.stopPropagation();
+    el.addEventListener("pointerdown", stop);
+    el.addEventListener("mousedown", stop);
+    el.addEventListener("touchstart", stop, { passive: true });
+};
+
 const MapRecenter = ({ center, zoom }: { center: [number, number] | null, zoom: number }) => {
     const map = useMap();
     useEffect(() => {
@@ -214,6 +237,9 @@ const MapControls = ({
     hasPendingChanges,
     isSavingLayers,
     onSaveLayers,
+    showNdvi,
+    onToggleNdvi,
+    ndviDisabled,
 }: {
     onLocationFound: (pos: [number, number]) => void;
     showRain: boolean;
@@ -230,6 +256,9 @@ const MapControls = ({
     hasPendingChanges: boolean;
     isSavingLayers: boolean;
     onSaveLayers: () => void;
+    showNdvi: boolean;
+    onToggleNdvi: () => void;
+    ndviDisabled?: boolean;
 }) => {
     const map = useMap();
     const toast = useToast();
@@ -277,6 +306,14 @@ const MapControls = ({
 
     return (
         <Box
+            ref={stopLeafletEvents}
+            onMouseEnter={() => map?.dragging?.disable()}
+            onMouseLeave={() => map?.dragging?.enable()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
             position="absolute"
             top="10px"
             right="10px"
@@ -357,7 +394,63 @@ const MapControls = ({
                 isSaving={isSavingLayers}
                 onSave={onSaveLayers}
             />
+            {/* NDVI Map Toggle (logo abaixo do controle de camadas) */}
+            <Box>
+                <NdviMapToggle
+                    active={showNdvi}
+                    disabled={ndviDisabled}
+                    onToggle={onToggleNdvi}
+                />
+            </Box>
             {showRadar && <RadarLegend />}
+        </Box>
+    );
+};
+
+const MainMapNdviController = ({
+    area,
+    api,
+    enabled,
+    selectedSceneId,
+    onSelectSceneId,
+    onScenesLoaded,
+}: {
+    area?: NdviArea;
+    api: NdviApi;
+    enabled: boolean;
+    selectedSceneId?: string;
+    onSelectSceneId?: (sceneId: string) => void;
+    onScenesLoaded?: (
+        scenes: NdviScene[],
+        analyses: Record<string, NdviAnalysis>,
+    ) => void;
+}) => {
+    const map = useMap();
+
+    useEffect(() => {
+        if (!enabled || !area) return;
+        const b = boundsOf(area.geometry);
+        map.fitBounds(
+            [
+                [b[1], b[0]],
+                [b[3], b[2]],
+            ],
+            { padding: [36, 36], maxZoom: 15 },
+        );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [enabled, area?.id, map]);
+
+    return (
+        <Box>
+            <NdviMapOverlay
+                map={map}
+                area={area}
+                api={api}
+                enabled={enabled}
+                selectedSceneId={selectedSceneId}
+                onSelectSceneId={onSelectSceneId}
+                onScenesLoaded={onScenesLoaded}
+            />
         </Box>
     );
 };
@@ -578,6 +671,56 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     const [showRain, setShowRain] = useState<boolean>(true);
     const [showRadar, setShowRadar] = useState<boolean>(false);
     const [rainPeriod, setRainPeriod] = useState<RainPeriod>('24h'); // Padrão: 24h
+    const [showNdvi, setShowNdvi] = useState<boolean>(false);
+    const [selectedNdviAreaId, setSelectedNdviAreaId] = useState<string>('');
+    const [selectedNdviSceneId, setSelectedNdviSceneId] = useState<string>('');
+    const [ndviScenes, setNdviScenes] = useState<NdviScene[]>([]);
+    const [ndviAnalyses, setNdviAnalyses] = useState<Record<string, NdviAnalysis>>({});
+    const [dbNdviAreas, setDbNdviAreas] = useState<NdviArea[]>([]);
+
+    useEffect(() => {
+        let active = true;
+        getNdviAreas()
+            .then((rows) => {
+                if (active) setDbNdviAreas(rows);
+            })
+            .catch(() => {
+                // fallback silencioso
+            });
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    const ndviAreas = useMemo<NdviArea[]>(() => {
+        if (dbNdviAreas.length > 0) {
+            return dbNdviAreas;
+        }
+        const fromLayers = mapLayersToNdviAreas(mapLayers, {
+            onlyVisible: true,
+            visibleLayerIds,
+            hiddenFeatures,
+        });
+        return fromLayers.length > 0 ? fromLayers : DEMO_AREAS;
+    }, [dbNdviAreas, mapLayers, visibleLayerIds, hiddenFeatures]);
+
+    const selectedNdviArea = useMemo<NdviArea | undefined>(() => {
+        if (selectedNdviAreaId) {
+            const explicit = ndviAreas.find((a) => a.id === selectedNdviAreaId);
+            if (explicit) return explicit;
+        }
+        if (selectedPoint && !selectedPoint.isManualProbe) {
+            const linked = ndviAreas.find((a) => a.deviceId === selectedPoint.id);
+            if (linked) return linked;
+        }
+        return ndviAreas[0];
+    }, [ndviAreas, selectedNdviAreaId, selectedPoint]);
+
+    const ndviApi = useMemo<NdviApi>(() => {
+        return import.meta.env.VITE_NDVI_MODE === 'live'
+            ? createHttpNdviApi(import.meta.env.VITE_NDVI_API_BASE ?? '/api/ndvi')
+            : demoApi;
+    }, []);
 
     const [activeCenter, setActiveCenter] = useState<[number, number]>(() => {
         if (initialCenter) {
@@ -818,83 +961,22 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                     isSavingLayers={isSavingLayers}
                     onSaveLayers={handleSaveLayers}
                     onOpenUpload={() => setIsKmlModalOpen(true)}
+                    showNdvi={showNdvi}
+                    onToggleNdvi={() => setShowNdvi((prev) => !prev)}
+                    ndviDisabled={!selectedNdviArea}
                 />
 
-
-                {/* --- CONTROLES DE PROFUNDIDADE E CHUVA --- */}
-                <Box
-                    position="absolute"
-                    top="10px"
-                    left={{ base: "8px", md: "50px" }}
-                    right={{ md: "auto" }}
-                    zIndex={1000}
-                    bg="rgba(255, 255, 255, 0.95)"
-                    backdropFilter="blur(5px)"
-                    borderRadius="md"
-                    boxShadow="lg"
-                    p={{ base: 1.5, md: 1.5 }}
-                >
-                    <Flex
-                        direction={{ base: "column", md: "row" }}
-                        align={{ base: "stretch", md: "center" }}
-                        gap={{ base: 1.5, md: 3 }}
-                    >
-
-                        {/* Seletor de Profundidade */}
-                        <HStack
-                            spacing={1}
-                            pl={{ base: 0, md: 1 }}
-                            pr={{ base: 0, md: showRain ? 2 : 0 }}
-                            borderRight={{ base: "none", md: showRain ? "1px solid" : "none" }}
-                            borderBottom={{ base: showRain ? "1px solid" : "none", md: "none" }}
-                            borderColor="gray.300"
-                            pb={{ base: showRain ? 1 : 0, md: 0 }}
-                        >
-                            <Text fontSize="xs" fontWeight="bold" color="gray.600">Profundidade:</Text>
-                            <Select
-                                size='sm'
-                                width={{ base: "84px", md: "88px" }}
-                                value={mapDepthFilter}
-                                onChange={(e) => onMapDepthFilterChange && onMapDepthFilterChange(Number(e.target.value))}
-                                bg="transparent"
-                                color="black"
-                                border="none"
-                                fontWeight="bold"
-                                _focus={{ boxShadow: 'none' }}
-                                cursor="pointer"
-                            >
-                                {AVAILABLE_DEPTHS.map(depth => (
-                                    <option key={depth} value={depth}>{depth} cm</option>
-                                ))}
-                            </Select>
-                        </HStack>
-
-                        {/* Seletor de Período de Chuva (Aparece ao ativar botão) */}
-                        {showRain && (
-                            <HStack spacing={1} pr={{ base: 0, md: 1 }}>
-                                <Text fontSize="xs" fontWeight="bold" color="blue.600">Chuva:</Text>
-                                <Select
-                                    size="sm"
-                                    width={{ md: "95px" }}
-                                    value={rainPeriod}
-                                    onChange={(e) => setRainPeriod(e.target.value as RainPeriod)}
-                                    bg="transparent"
-                                    border="none"
-                                    fontWeight="bold"
-                                    color="blue.600"
-                                    _focus={{ boxShadow: 'none' }}
-                                    cursor="pointer"
-                                >
-                                    <option value="1h">1 Hora</option>
-                                    <option value="24h">24 Horas</option>
-                                    <option value="7d">7 Dias</option>
-                                    <option value="15d">15 Dias</option>
-                                    <option value="30d">30 Dias</option>
-                                </Select>
-                            </HStack>
-                        )}
-                    </Flex>
-                </Box>
+                <MainMapNdviController
+                    area={selectedNdviArea}
+                    api={ndviApi}
+                    enabled={showNdvi}
+                    selectedSceneId={selectedNdviSceneId}
+                    onSelectSceneId={setSelectedNdviSceneId}
+                    onScenesLoaded={(scenesList, analysesMap) => {
+                        setNdviScenes(scenesList);
+                        setNdviAnalyses(analysesMap);
+                    }}
+                />
 
                 {userLocation && (
                     <CircleMarker
@@ -989,6 +1071,10 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                                     click: (e) => {
                                         L.DomEvent.stopPropagation(e);
                                         setSelectedPoint(point);
+                                        if (!point.isManualProbe) {
+                                            const linked = ndviAreas.find((a) => a.deviceId === point.id);
+                                            if (linked) setSelectedNdviAreaId(linked.id);
+                                        }
                                     }
                                 }}
                             />
@@ -996,6 +1082,193 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                     );
                 })}
             </MapContainer>
+
+            {/* --- CONTROLES DE PROFUNDIDADE, CHUVA E NDVI (Fora do MapContainer para evitar drag do Leaflet) --- */}
+            <Box
+                ref={stopLeafletEvents}
+                onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
+                position="absolute"
+                top="10px"
+                left={{ base: "8px", md: "50px" }}
+                right={{ md: "auto" }}
+                maxW={{ base: "calc(100vw - 64px)", md: "calc(100vw - 120px)" }}
+                zIndex={1000}
+                bg="rgba(255, 255, 255, 0.95)"
+                backdropFilter="blur(5px)"
+                borderRadius="lg"
+                boxShadow="lg"
+                p={{ base: 1.5, md: 1.5 }}
+            >
+                <Flex
+                    direction={{ base: "column", md: "row" }}
+                    align={{ base: "stretch", md: "center" }}
+                    flexWrap="wrap"
+                    gap={{ base: 1, md: 3 }}
+                >
+                    <Flex
+                        direction="row"
+                        align="center"
+                        justify="space-between"
+                        gap={2}
+                        flexWrap="wrap"
+                    >
+                        {/* Seletor de Profundidade */}
+                        <HStack
+                            spacing={1}
+                            pl={{ base: 0.5, md: 1 }}
+                            pr={{ base: 0, md: showRain ? 2 : 0 }}
+                            borderRight={{ base: "none", md: showRain ? "1px solid" : "none" }}
+                            borderColor="gray.300"
+                        >
+                            <Text fontSize={{ base: "11px", md: "xs" }} fontWeight="bold" color="gray.600" whiteSpace="nowrap">
+                                Profundidade:
+                            </Text>
+                            <Select
+                                size={{ base: "xs", md: "sm" }}
+                                width={{ base: "76px", md: "88px" }}
+                                value={mapDepthFilter}
+                                onChange={(e) => onMapDepthFilterChange && onMapDepthFilterChange(Number(e.target.value))}
+                                bg="transparent"
+                                color="black"
+                                border="none"
+                                fontWeight="bold"
+                                _focus={{ boxShadow: 'none' }}
+                                cursor="pointer"
+                            >
+                                {AVAILABLE_DEPTHS.map(depth => (
+                                    <option key={depth} value={depth}>{depth} cm</option>
+                                ))}
+                            </Select>
+                        </HStack>
+
+                        {/* Seletor de Período de Chuva (Aparece ao ativar botão) */}
+                        {showRain && (
+                            <HStack
+                                spacing={1}
+                                pl={{ base: 2, md: 0 }}
+                                pr={{ base: 0.5, md: 1 }}
+                                borderLeft={{ base: "1px solid", md: "none" }}
+                                borderColor="gray.300"
+                            >
+                                <Text fontSize={{ base: "11px", md: "xs" }} fontWeight="bold" color="blue.600" whiteSpace="nowrap">
+                                    Chuva:
+                                </Text>
+                                <Select
+                                    size={{ base: "xs", md: "sm" }}
+                                    width={{ base: "86px", md: "95px" }}
+                                    value={rainPeriod}
+                                    onChange={(e) => setRainPeriod(e.target.value as RainPeriod)}
+                                    bg="transparent"
+                                    border="none"
+                                    fontWeight="bold"
+                                    color="blue.600"
+                                    _focus={{ boxShadow: 'none' }}
+                                    cursor="pointer"
+                                >
+                                    <option value="1h">1 Hora</option>
+                                    <option value="24h">24 Horas</option>
+                                    <option value="7d">7 Dias</option>
+                                    <option value="15d">15 Dias</option>
+                                    <option value="30d">30 Dias</option>
+                                </Select>
+                            </HStack>
+                        )}
+                    </Flex>
+
+                    {/* Seletor de Área e Histórico NDVI (Aparece ao ativar botão NDVI) */}
+                    {showNdvi && ndviAreas.length > 0 && (
+                        <Flex
+                            direction={{ base: "column", sm: "row" }}
+                            align={{ base: "stretch", sm: "center" }}
+                            gap={{ base: 1, sm: 2 }}
+                            pt={{ base: 1, md: 0 }}
+                            pl={{ base: 0.5, md: 2 }}
+                            borderTop={{ base: "1px solid", md: "none" }}
+                            borderLeft={{ base: "none", md: "1px solid" }}
+                            borderColor="gray.300"
+                        >
+                            <HStack spacing={1} flex="1" minW={0}>
+                                <Text fontSize={{ base: "11px", md: "xs" }} fontWeight="bold" color="green.700" whiteSpace="nowrap">
+                                    Área NDVI:
+                                </Text>
+                                <Select
+                                    size={{ base: "xs", md: "sm" }}
+                                    flex="1"
+                                    width={{ base: "100%", sm: "140px", md: "160px" }}
+                                    minW="110px"
+                                    value={selectedNdviArea?.id ?? ''}
+                                    onChange={(e) => {
+                                        setSelectedNdviAreaId(e.target.value);
+                                        setSelectedNdviSceneId('');
+                                    }}
+                                    bg="transparent"
+                                    border="none"
+                                    fontWeight="bold"
+                                    color="green.700"
+                                    _focus={{ boxShadow: 'none' }}
+                                    cursor="pointer"
+                                >
+                                    {ndviAreas.map((area) => (
+                                        <option key={area.id} value={area.id}>
+                                            {area.deviceName ? `${area.name} (${area.deviceName})` : area.name}
+                                        </option>
+                                    ))}
+                                </Select>
+                            </HStack>
+                            {ndviScenes.length > 0 && (
+                                <HStack
+                                    spacing={1}
+                                    flex="1"
+                                    minW={0}
+                                    pl={{ base: 0, sm: 2 }}
+                                    pt={{ base: 1, sm: 0 }}
+                                    borderTop={{ base: "1px solid", sm: "none" }}
+                                    borderLeft={{ base: "none", sm: "1px solid" }}
+                                    borderColor="gray.300"
+                                >
+                                    <Text fontSize={{ base: "11px", md: "xs" }} fontWeight="bold" color="teal.700" whiteSpace="nowrap">
+                                        Histórico:
+                                    </Text>
+                                    <Select
+                                        size={{ base: "xs", md: "sm" }}
+                                        flex="1"
+                                        width={{ base: "100%", sm: "150px", md: "185px" }}
+                                        minW="120px"
+                                        value={selectedNdviSceneId || ndviScenes[0]?.id || ''}
+                                        onChange={(e) => setSelectedNdviSceneId(e.target.value)}
+                                        bg="transparent"
+                                        border="none"
+                                        fontWeight="bold"
+                                        color="teal.700"
+                                        _focus={{ boxShadow: 'none' }}
+                                        cursor="pointer"
+                                    >
+                                        {ndviScenes.map((s) => {
+                                            const a = ndviAnalyses[s.id];
+                                            const dateStr = new Intl.DateTimeFormat('pt-BR', {
+                                                day: '2-digit',
+                                                month: 'short',
+                                                year: 'numeric',
+                                                timeZone: 'UTC',
+                                            }).format(new Date(s.acquiredAt));
+                                            const meanStr = a?.mean != null ? ` (${a.mean.toFixed(2).replace('.', ',')})` : '';
+                                            return (
+                                                <option key={s.id} value={s.id}>
+                                                    {dateStr}{meanStr}
+                                                </option>
+                                            );
+                                        })}
+                                    </Select>
+                                </HStack>
+                            )}
+                        </Flex>
+                    )}
+                </Flex>
+            </Box>
 
             {/* KML/KMZ Upload Modal */}
             <KmlUploadModal
