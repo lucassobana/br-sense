@@ -1,4 +1,5 @@
 # app/services/copernicus_service.py
+import base64
 import io
 import math
 import os
@@ -436,13 +437,18 @@ class CopernicusService:
                     rgba_img[y, x] = [r, g, b, 245]
                 elif state == 1:
                     # Nuvem/sombra detectada
-                    rgba_img[y, x] = [170, 185, 195, 175]
+                    rgba_img[y, x] = [170, 185, 195, 185]
+                else:
+                    # Nodata / sombra / nuvem densa no polígono
+                    rgba_img[y, x] = [160, 175, 185, 175]
 
         valid_pct = (valid_count / total_in_polygon * 100.0) if total_in_polygon > 0 else 0.0
         quality = "utilizavel" if valid_pct >= 70.0 else ("parcial" if valid_pct >= 30.0 else "insuficiente")
         adequate = quality != "insuficiente" and valid_count > 0
 
         png_bytes = encode_png_rgba(rgba_img)
+        png_b64 = base64.b64encode(png_bytes).decode("ascii")
+        data_png_url = f"data:image/png;base64,{png_b64}"
 
         analysis = {
             "areaId": area_id,
@@ -460,7 +466,7 @@ class CopernicusService:
             "totalPixels": total_in_polygon,
             "histogram": histogram,
             "bounds": [min_lon, min_lat, max_lon, max_lat],
-            "pngUrl": f"/api/ndvi/areas/{area_id}/scenes/{scene_id}/raster.png",
+            "pngUrl": data_png_url,
             "tiffUrl": f"/api/ndvi/areas/{area_id}/scenes/{scene_id}/raster.tif",
             "algorithm": "S2L2A-B08-B04-SCL456-CLD40-1pxDilate-WGS84-v1",
         }

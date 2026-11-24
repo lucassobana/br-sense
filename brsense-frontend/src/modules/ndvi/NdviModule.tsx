@@ -1350,7 +1350,7 @@ export function NdviModule({
                                 borderRadius="sm"
                                 overflow="hidden"
                               >
-                                {a?.pngUrl && (
+                                {a?.pngUrl ? (
                                   <Image
                                     src={a.pngUrl}
                                     alt=""
@@ -1359,8 +1359,43 @@ export function NdviModule({
                                     objectFit="contain"
                                     opacity={cloudy ? 0.45 : 1}
                                     filter={cloudy ? "saturate(0.3)" : "none"}
+                                    fallback={
+                                      cloudy ? (
+                                        <Box
+                                          w="100%"
+                                          h="100%"
+                                          display="flex"
+                                          alignItems="center"
+                                          justifyContent="center"
+                                        >
+                                          <Box
+                                            w="34px"
+                                            h="34px"
+                                            borderRadius={selected.circle ? "full" : "sm"}
+                                            bg="#4a5a6e"
+                                            opacity={0.7}
+                                          />
+                                        </Box>
+                                      ) : undefined
+                                    }
                                   />
-                                )}
+                                ) : cloudy ? (
+                                  <Box
+                                    w="100%"
+                                    h="100%"
+                                    display="flex"
+                                    alignItems="center"
+                                    justifyContent="center"
+                                  >
+                                    <Box
+                                      w="34px"
+                                      h="34px"
+                                      borderRadius={selected.circle ? "full" : "sm"}
+                                      bg="#4a5a6e"
+                                      opacity={0.7}
+                                    />
+                                  </Box>
+                                ) : null}
                                 <Box
                                   as="span"
                                   position="absolute"
