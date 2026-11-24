@@ -1487,6 +1487,7 @@ export function NdviModule({
                     border="1px solid"
                     borderColor="#2b3c57"
                     borderRadius="2xl"
+                    my={4}
                   >
                     <Flex
                       className="section-title"
