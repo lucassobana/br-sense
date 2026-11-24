@@ -85,15 +85,20 @@ for (const a of DEMO_AREAS) {
   a.hectares = hectaresOf(a.geometry);
 }
 
-const DATES = [
-  "2026-04-21T13:24:00Z",
-  "2026-04-16T13:24:00Z",
-  "2026-04-11T13:24:00Z",
-  "2026-04-06T13:24:00Z",
-  "2026-04-01T13:24:00Z",
-  "2026-03-27T13:24:00Z",
-  "2026-03-22T13:24:00Z",
-];
+function getRecentDates(count = 7): string[] {
+  const dates: string[] = [];
+  const now = new Date();
+  // Passagem mais recente: 1 dia atrás às 13:24 UTC (horário típico de passagem do Sentinel-2 no Brasil)
+  const base = new Date(now.getTime() - 1000 * 60 * 60 * 24 * 1);
+  base.setUTCHours(13, 24, 0, 0);
+
+  // Ciclo orbital padrão de revisita de 5 dias do Sentinel-2
+  for (let i = 0; i < count; i++) {
+    const d = new Date(base.getTime() - i * 5 * 24 * 60 * 60 * 1000);
+    dates.push(d.toISOString());
+  }
+  return dates;
+}
 
 function seed(text: string): number {
   let h = 2166136261;
@@ -105,7 +110,8 @@ function seed(text: string): number {
 
 function buildScenes(areaId: string): NdviScene[] {
   const s = seed(areaId);
-  return DATES.map((d, i) => ({
+  const dates = getRecentDates(7);
+  return dates.map((d, i) => ({
     id: `S2-${areaId}-${d.slice(0, 10)}`,
     acquiredAt: d,
     satellite: i % 2 === 0 ? "Sentinel-2B" : "Sentinel-2A",

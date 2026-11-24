@@ -21,7 +21,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { boundsOf } from "../shared/geometry";
-import type { ContourBuildResult } from "../shared/contours";
+import type { ContourBuildResult, LngLat } from "../shared/contours";
 import type {
   NdviAnalysis,
   NdviApi,
@@ -86,6 +86,12 @@ export function AreaMap({
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
   const drawLayerRef = useRef<L.LayerGroup | null>(null);
+  const drawGeometryLayerRef = useRef<L.LayerGroup | null>(null);
+  const drawMarkersLayerRef = useRef<L.LayerGroup | null>(null);
+  const centerMarkerRef = useRef<L.Marker | null>(null);
+  const edgeMarkerRef = useRef<L.Marker | null>(null);
+  const isDraggingCenterRef = useRef(false);
+  const isDraggingEdgeRef = useRef(false);
   const baseLayerRef = useRef<L.TileLayer | null>(null);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const [showOverlay, setShowOverlay] = useState(true);
@@ -111,6 +117,8 @@ export function AreaMap({
       .addTo(map);
     layerRef.current = L.layerGroup().addTo(map);
     drawLayerRef.current = L.layerGroup().addTo(map);
+    drawGeometryLayerRef.current = L.layerGroup().addTo(map);
+    drawMarkersLayerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
     Promise.resolve().then(() => setMapInstance(map));
     const ro = new ResizeObserver(() => map.invalidateSize());
@@ -125,6 +133,10 @@ export function AreaMap({
       mapRef.current = null;
       layerRef.current = null;
       drawLayerRef.current = null;
+      drawGeometryLayerRef.current = null;
+      drawMarkersLayerRef.current = null;
+      centerMarkerRef.current = null;
+      edgeMarkerRef.current = null;
       baseLayerRef.current = null;
       lastFitId.current = "";
       Promise.resolve().then(() => setMapInstance(null));
@@ -239,7 +251,7 @@ export function AreaMap({
         radius: isLinkedToSelected ? 8 : 5,
         color: "#092033",
         weight: 2,
-        fillColor: isLinkedToSelected ? "#48bb78" : "#63b3ed",
+        fillColor: isLinkedToSelected ? "#3084C9" : "#63b3ed",
         fillOpacity: 1,
       })
         .bindTooltip(`${p.name} (${p.esn})`, {
@@ -322,10 +334,26 @@ export function AreaMap({
   ]);
 
   useEffect(() => {
-    const group = drawLayerRef.current;
-    if (!group) return;
-    group.clearLayers();
-    if (!drawing) return;
+    const map = mapRef.current;
+    const geomGroup = drawGeometryLayerRef.current;
+    const markersGroup = drawMarkersLayerRef.current;
+    if (!geomGroup || !markersGroup || !map) return;
+
+    if (!drawing) {
+      geomGroup.clearLayers();
+      markersGroup.clearLayers();
+      if (centerMarkerRef.current) {
+        centerMarkerRef.current.remove();
+        centerMarkerRef.current = null;
+      }
+      if (edgeMarkerRef.current) {
+        edgeMarkerRef.current.remove();
+        edgeMarkerRef.current = null;
+      }
+      return;
+    }
+
+    geomGroup.clearLayers();
     const active = draw.confirmed ?? draw.preview;
     if (active) {
       L.geoJSON(
@@ -337,15 +365,16 @@ export function AreaMap({
         {
           interactive: false,
           style: {
-            color: "#6bc2ff",
-            weight: 2.4,
+            color: "#3084C9",
+            weight: 2.6,
             dashArray: draw.confirmed ? undefined : "6 5",
-            fillColor: "#2b95ea",
-            fillOpacity: 0.2,
+            fillColor: "#3084C9",
+            fillOpacity: 0.22,
           },
         },
-      ).addTo(group);
+      ).addTo(geomGroup);
     }
+
     if (draw.mode === "pivo" && active?.center && active?.edge) {
       L.polyline(
         [
@@ -353,37 +382,210 @@ export function AreaMap({
           [active.edge[1], active.edge[0]],
         ],
         {
-          color: "#bfe3ff",
-          weight: 1.8,
+          color: "#90CDF4",
+          weight: 2,
           dashArray: "4 4",
           interactive: false,
         },
-      ).addTo(group);
+      ).addTo(geomGroup);
     }
-    draw.points.forEach((p, idx) => {
-      L.circleMarker([p[1], p[0]], {
-        radius: idx === 0 && draw.mode === "pivo" ? 7 : 5,
-        color: "#092033",
-        weight: 2,
-        fillColor: idx === 0 && draw.mode === "pivo" ? "#57e3a0" : "#6bc2ff",
-        fillOpacity: 1,
-      })
-        .bindTooltip(
-          draw.mode === "pivo"
-            ? idx === 0
-              ? "Centro"
-              : "Borda"
-            : `Ponto ${idx + 1}`,
-          {
-            permanent: draw.mode === "pivo",
+
+    if (draw.mode === "pivo") {
+      const center = draw.points[0];
+      const edge = draw.points[1];
+
+      // Handle Center Marker (Draggable com cursor para mover o pivô no equipamento)
+      if (center) {
+        if (!centerMarkerRef.current) {
+          const centerIcon = L.divIcon({
+            className: "pivo-center-marker-icon",
+            html: `
+              <div style="
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
+                background: #3084C9;
+                border: 3px solid #FFFFFF;
+                box-shadow: 0 0 12px rgba(0,0,0,0.7), 0 0 0 2px #1E4E79;
+                cursor: grab;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                user-select: none;
+              ">
+                <div style="
+                  width: 8px;
+                  height: 8px;
+                  border-radius: 50%;
+                  background: #FFFFFF;
+                "></div>
+              </div>
+            `,
+            iconSize: [28, 28],
+            iconAnchor: [14, 14],
+          });
+
+          const m = L.marker([center[1], center[0]], {
+            draggable: true,
+            zIndexOffset: 1500,
+            icon: centerIcon,
+          });
+
+          m.bindTooltip("Centro do Pivô (Arraste para ajustar o centro)", {
+            permanent: true,
+            direction: "top",
+            offset: [0, -14],
+            className: "draw-point-label",
+          });
+
+          m.on("dragstart", () => {
+            isDraggingCenterRef.current = true;
+            if (draw.isDraggingRef) draw.isDraggingRef.current = true;
+            map.dragging.disable();
+          });
+
+          m.on("drag", (e: L.LeafletEvent) => {
+            const latlng = (e.target as L.Marker).getLatLng();
+            const newPt: LngLat = [
+              Number(latlng.lng.toFixed(6)),
+              Number(latlng.lat.toFixed(6)),
+            ];
+            draw.movePivotCenter?.(newPt);
+          });
+
+          m.on("dragend", () => {
+            map.dragging.enable();
+            isDraggingCenterRef.current = false;
+            window.setTimeout(() => {
+              if (draw.isDraggingRef) draw.isDraggingRef.current = false;
+            }, 120);
+          });
+
+          m.addTo(markersGroup);
+          centerMarkerRef.current = m;
+        } else if (!isDraggingCenterRef.current) {
+          centerMarkerRef.current.setLatLng([center[1], center[0]]);
+        }
+      } else if (centerMarkerRef.current) {
+        centerMarkerRef.current.remove();
+        centerMarkerRef.current = null;
+      }
+
+      // Handle Edge Marker (Draggable para ajustar o raio)
+      if (edge) {
+        if (!edgeMarkerRef.current) {
+          const edgeIcon = L.divIcon({
+            className: "pivo-edge-marker-icon",
+            html: `
+              <div style="
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                background: #63B3ED;
+                border: 3px solid #FFFFFF;
+                box-shadow: 0 0 10px rgba(0,0,0,0.6), 0 0 0 2px #2B6CB0;
+                cursor: grab;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                user-select: none;
+              ">
+                <div style="
+                  width: 6px;
+                  height: 6px;
+                  border-radius: 50%;
+                  background: #1A365D;
+                "></div>
+              </div>
+            `,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+          });
+
+          const m = L.marker([edge[1], edge[0]], {
+            draggable: true,
+            zIndexOffset: 1400,
+            icon: edgeIcon,
+          });
+
+          m.bindTooltip(
+            active?.radiusM
+              ? `Raio: ${active.radiusM} m (Arraste para ajustar)`
+              : "Borda do Pivô (Arraste para ajustar)",
+            {
+              permanent: true,
+              direction: "top",
+              offset: [0, -12],
+              className: "draw-point-label",
+            },
+          );
+
+          m.on("dragstart", () => {
+            isDraggingEdgeRef.current = true;
+            if (draw.isDraggingRef) draw.isDraggingRef.current = true;
+            map.dragging.disable();
+          });
+
+          m.on("drag", (e: L.LeafletEvent) => {
+            const latlng = (e.target as L.Marker).getLatLng();
+            const newPt: LngLat = [
+              Number(latlng.lng.toFixed(6)),
+              Number(latlng.lat.toFixed(6)),
+            ];
+            draw.setPoint?.(1, newPt);
+          });
+
+          m.on("dragend", () => {
+            map.dragging.enable();
+            isDraggingEdgeRef.current = false;
+            window.setTimeout(() => {
+              if (draw.isDraggingRef) draw.isDraggingRef.current = false;
+            }, 120);
+          });
+
+          m.addTo(markersGroup);
+          edgeMarkerRef.current = m;
+        } else if (!isDraggingEdgeRef.current) {
+          edgeMarkerRef.current.setLatLng([edge[1], edge[0]]);
+          if (active?.radiusM) {
+            edgeMarkerRef.current.setTooltipContent(
+              `Raio: ${active.radiusM} m (Arraste para ajustar)`,
+            );
+          }
+        }
+      } else if (edgeMarkerRef.current) {
+        edgeMarkerRef.current.remove();
+        edgeMarkerRef.current = null;
+      }
+    } else {
+      // mode !== "pivo" (talhão)
+      if (centerMarkerRef.current) {
+        centerMarkerRef.current.remove();
+        centerMarkerRef.current = null;
+      }
+      if (edgeMarkerRef.current) {
+        edgeMarkerRef.current.remove();
+        edgeMarkerRef.current = null;
+      }
+      markersGroup.clearLayers();
+      draw.points.forEach((p, idx) => {
+        L.circleMarker([p[1], p[0]], {
+          radius: 5,
+          color: "#092033",
+          weight: 2,
+          fillColor: "#6bc2ff",
+          fillOpacity: 1,
+        })
+          .bindTooltip(`Vértice ${idx + 1}`, {
+            permanent: false,
             direction: "top",
             offset: [0, -8],
             className: "draw-point-label",
-          },
-        )
-        .addTo(group);
-    });
-  }, [draw.confirmed, draw.mode, draw.points, draw.preview, drawing]);
+          })
+          .addTo(markersGroup);
+      });
+    }
+  }, [draw.confirmed, draw.mode, draw.points, draw.preview, drawing, draw]);
 
   const fitSelected = () => {
     if (!selected || !mapRef.current) return;
@@ -656,7 +858,7 @@ export function AreaMap({
             justify="center"
             direction="column"
             gap={2}
-            bg="rgba(16, 36, 44, 0.82)"
+            bg="rgba(10, 18, 38, 0.88)"
             backdropFilter="blur(4px)"
             p={6}
             textAlign="center"

@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Badge,
   Box,
   Button,
+  Flex,
   HStack,
   Spinner,
   Text,
+  VStack,
 } from "@chakra-ui/react";
 import L from "leaflet";
 import {
@@ -83,14 +86,17 @@ const stopLeafletEvents = (el: HTMLDivElement | null) => {
 export function NdviMapOverlay({
   map,
   area,
+  areas,
   api,
   enabled,
   selectedSceneId,
   onSelectSceneId,
   onScenesLoaded,
+  farmName,
 }: {
   map: L.Map | null;
   area?: NdviArea;
+  areas?: NdviArea[];
   api: NdviApi;
   enabled: boolean;
   selectedSceneId?: string;
@@ -99,20 +105,30 @@ export function NdviMapOverlay({
     scenes: NdviScene[],
     analyses: Record<string, NdviAnalysis>,
   ) => void;
+  farmName?: string;
 }) {
-  const layerRef = useRef<MapNdviLayerHandle | null>(null);
+  const targetAreas = useMemo<NdviArea[]>(() => {
+    if (areas && areas.length > 0) return areas;
+    if (area) return [area];
+    return [];
+  }, [area, areas]);
+
+  const primaryArea = targetAreas[0];
+  const layersRef = useRef<MapNdviLayerHandle[]>([]);
   const [scenes, setScenes] = useState<NdviScene[]>([]);
   const [analyses, setAnalyses] = useState<Record<string, NdviAnalysis>>({});
+  const [currentSceneAnalyses, setCurrentSceneAnalyses] = useState<Record<string, NdviAnalysis>>({});
   const [internalSceneId, setInternalSceneId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const activeSceneId = selectedSceneId || internalSceneId;
 
+  // 1. Carrega o catálogo de cenas para a área principal da fazenda
   useEffect(() => {
-    if (!enabled || !area) {
-      layerRef.current?.remove();
-      layerRef.current = null;
+    if (!enabled || !primaryArea) {
+      layersRef.current.forEach((l) => l.remove());
+      layersRef.current = [];
       return;
     }
     const ac = new AbortController();
@@ -123,8 +139,9 @@ export function NdviMapOverlay({
       setError("");
       setScenes([]);
       setAnalyses({});
+      setCurrentSceneAnalyses({});
       try {
-        const list = await api.listScenes(area, ac.signal);
+        const list = await api.listScenes(primaryArea, ac.signal);
         if (ac.signal.aborted) return;
         if (!list.length) {
           throw new Error(
@@ -139,7 +156,7 @@ export function NdviMapOverlay({
         onSelectSceneId?.(initialId);
 
         const firstAnalysis = await api.analyzeScene(
-          area,
+          primaryArea,
           firstClean ?? list[0],
           ac.signal,
         );
@@ -151,11 +168,12 @@ export function NdviMapOverlay({
         setLoading(false);
         onScenesLoaded?.(list, nextMap);
 
+        // Carrega análises históricas em segundo plano para o seletor de histórico
         for (const s of list) {
           if (ac.signal.aborted) return;
           if (s.id === initialId) continue;
           try {
-            const a = await api.analyzeScene(area, s, ac.signal);
+            const a = await api.analyzeScene(primaryArea, s, ac.signal);
             if (!ac.signal.aborted) {
               nextMap[s.id] = a;
               setAnalyses((prev) => {
@@ -170,67 +188,94 @@ export function NdviMapOverlay({
         }
       } catch (e: unknown) {
         if (ac.signal.aborted) return;
-        layerRef.current?.remove();
-        layerRef.current = null;
+        layersRef.current.forEach((l) => l.remove());
+        layersRef.current = [];
         setLoading(false);
         setError(
           e instanceof Error
             ? e.message
-            : "Não foi possível carregar o histórico de NDVI desta área.",
+            : "Não foi possível carregar o histórico de NDVI desta fazenda.",
         );
       }
     })();
     return () => ac.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, area?.id, enabled]);
+  }, [api, primaryArea?.id, enabled]);
 
   const activeScene =
     scenes.find((s) => s.id === activeSceneId) ?? scenes[0] ?? null;
-  const activeAnalysis = activeScene ? analyses[activeScene.id] : null;
 
+  // 2. Analisa TODAS as áreas vinculadas à fazenda para a cena ativa
   useEffect(() => {
-    if (!enabled || !area || !activeScene || analyses[activeScene.id]) return;
+    if (!enabled || targetAreas.length === 0 || !activeScene) return;
     const ac = new AbortController();
-    api
-      .analyzeScene(area, activeScene, ac.signal)
-      .then((a) => {
-        if (!ac.signal.aborted) {
-          setAnalyses((prev) => ({ ...prev, [activeScene.id]: a }));
+
+    // Se já temos a análise da área principal no cache do histórico, reutiliza
+    if (analyses[activeScene.id] && analyses[activeScene.id].areaId === primaryArea?.id) {
+      setCurrentSceneAnalyses((prev) => ({
+        ...prev,
+        [primaryArea.id]: analyses[activeScene.id],
+      }));
+    }
+
+    Promise.all(
+      targetAreas.map(async (a) => {
+        try {
+          const res = await api.analyzeScene(a, activeScene, ac.signal);
+          if (!ac.signal.aborted) {
+            setCurrentSceneAnalyses((prev) => ({ ...prev, [a.id]: res }));
+          }
+        } catch {
+          // ignora falha de área individual
         }
       })
-      .catch(() => {});
-    return () => ac.abort();
-  }, [analyses, api, area, enabled, activeScene]);
+    );
 
+    return () => ac.abort();
+  }, [analyses, api, targetAreas, enabled, activeScene, primaryArea?.id]);
+
+  // 3. Aplica no mapa as camadas NDVI de TODAS as áreas da fazenda simultaneamente
   useEffect(() => {
-    layerRef.current?.remove();
-    layerRef.current = null;
-    if (
-      !enabled ||
-      !map ||
-      !area ||
-      !activeAnalysis ||
-      activeAnalysis.areaId !== area.id
-    ) {
-      return;
+    layersRef.current.forEach((l) => l.remove());
+    layersRef.current = [];
+    if (!enabled || !map || targetAreas.length === 0) return;
+
+    for (const a of targetAreas) {
+      const aAnalysis = currentSceneAnalyses[a.id];
+      if (aAnalysis && aAnalysis.areaId === a.id) {
+        const handle = attachNdviToLeafletMap(map, a, aAnalysis, {
+          opacity: 0.84,
+          showContour: true,
+        });
+        layersRef.current.push(handle);
+      }
     }
-    layerRef.current = attachNdviToLeafletMap(map, area, activeAnalysis, {
-      opacity: 0.84,
-      showContour: true,
-    });
     return () => {
-      layerRef.current?.remove();
-      layerRef.current = null;
+      layersRef.current.forEach((l) => l.remove());
+      layersRef.current = [];
       map?.dragging?.enable();
     };
-  }, [area, enabled, map, activeAnalysis]);
+  }, [targetAreas, enabled, map, currentSceneAnalyses]);
 
   if (!enabled) return null;
 
-  const missingAreaMessage = !area
-    ? "Selecione uma área desenhada para mostrar o NDVI."
+  const missingAreaMessage = targetAreas.length === 0
+    ? "Nenhuma área NDVI vinculada a esta fazenda."
     : "";
   const effectiveError = missingAreaMessage || error;
+
+  const effectiveFarmName = farmName || primaryArea?.farmName || "";
+
+  const totalHectares = targetAreas.reduce((acc, a) => acc + (a.hectares || 0), 0);
+  const validAnalyses = targetAreas
+    .map((a) => ({ area: a, analysis: currentSceneAnalyses[a.id] }))
+    .filter((x): x is { area: NdviArea; analysis: NdviAnalysis } => Boolean(x.analysis?.mean != null));
+
+  const overallMean =
+    validAnalyses.length > 0
+      ? validAnalyses.reduce((acc, x) => acc + (x.analysis.mean ?? 0) * (x.area.hectares || 1), 0) /
+        validAnalyses.reduce((acc, x) => acc + (x.area.hectares || 1), 0)
+      : null;
 
   return (
     <Box
@@ -241,18 +286,19 @@ export function NdviMapOverlay({
       pointerEvents="auto"
       position="absolute"
       zIndex={740}
-      bg="rgba(11, 24, 45, 0.92)"
+      bg="rgba(10, 18, 38, 0.94)"
       backdropFilter="blur(8px)"
-      border="1px solid #49637b"
-      boxShadow="0 4px 22px rgba(0,0,0,0.3)"
+      border="1px solid"
+      borderColor="#1e3a5f"
+      boxShadow="0 6px 24px rgba(0,0,0,0.4)"
       left={{ base: "8px", md: "17px" }}
       right={{ base: "8px", md: "auto" }}
       bottom={{ base: "16px", md: "36px" }}
       w="auto"
-      minW="0"
-      maxW="fit-content"
-      borderRadius="lg"
-      p={2}
+      minW={{ base: "210px", sm: "240px" }}
+      maxW={{ base: "300px", sm: "320px" }}
+      borderRadius="xl"
+      p={3}
       onMouseEnter={() => map?.dragging?.disable()}
       onMouseLeave={() => map?.dragging?.enable()}
       onPointerDown={(e: React.PointerEvent<HTMLElement>) => {
@@ -272,24 +318,105 @@ export function NdviMapOverlay({
     >
       {loading && (
         <HStack spacing={2} align="center">
-          <Spinner size="xs" color="green.300" />
+          <Spinner size="xs" color="blue.300" />
+          <Text fontSize="xs" color="blue.200">
+            Processando NDVI da fazenda...
+          </Text>
         </HStack>
       )}
       {!loading && effectiveError && (
         <HStack spacing={2} color="orange.300" align="center">
           <AlertTriangle size={15} />
+          <Text fontSize="xs">{effectiveError}</Text>
         </HStack>
       )}
-      {!loading && !effectiveError && area && activeScene && (
-        <HStack spacing={2} align="center">
-          <Box as="span" w="6px" h="6px" borderRadius="full" bg="#68c7a7" flexShrink={0} />
-          <Box
-            h="6px"
-            w={{ base: "110px", md: "150px" }}
-            borderRadius="full"
-            bg="linear-gradient(to right, #436784 0%, #b85b3f 50%, #e7d067 70%, #42a336 90%, #187037 100%)"
-          />
-        </HStack>
+      {!loading && !effectiveError && targetAreas.length > 0 && activeScene && (
+        <VStack spacing={2} align="stretch">
+          {/* Título com Nome da Fazenda e Quantidade de Áreas */}
+          <Flex justify="space-between" align="center" gap={2}>
+            <HStack spacing={1.5} minW={0} flex="1">
+              <Box as="span" w="6px" h="6px" borderRadius="full" bg="#3084C9" flexShrink={0} />
+              <Text fontSize="xs" fontWeight="bold" color="white" noOfLines={1}>
+                {effectiveFarmName || targetAreas[0]?.deviceName || targetAreas[0]?.deviceEsn || targetAreas[0]?.name}
+              </Text>
+            </HStack>
+            {targetAreas.length > 1 ? (
+              <Badge
+                colorScheme="blue"
+                variant="subtle"
+                fontSize="9px"
+                px={1.5}
+                py={0.2}
+                borderRadius="sm"
+                flexShrink={0}
+              >
+                {targetAreas.length} áreas ({totalHectares.toFixed(1).replace(".", ",")} ha)
+              </Badge>
+            ) : effectiveFarmName && (targetAreas[0]?.deviceName || targetAreas[0]?.deviceEsn || targetAreas[0]?.name) ? (
+              <Badge
+                colorScheme="blue"
+                variant="subtle"
+                fontSize="9px"
+                px={1.5}
+                py={0.2}
+                borderRadius="sm"
+                flexShrink={0}
+              >
+                {targetAreas[0].deviceName || targetAreas[0].deviceEsn || targetAreas[0].name}
+              </Badge>
+            ) : null}
+          </Flex>
+
+          {/* Vigor médio ponderado e status da fazenda */}
+          {overallMean != null && (
+            <Flex justify="space-between" align="center" fontSize="10px">
+              <Text color="gray.300">
+                NDVI Médio: <strong style={{ color: "#ffffff" }}>{overallMean.toFixed(2).replace(".", ",")}</strong>
+              </Text>
+              <Text
+                fontWeight="semibold"
+                color={
+                  overallMean >= 0.65
+                    ? "#48bb78"
+                    : overallMean >= 0.45
+                    ? "#ecc94b"
+                    : "#f56565"
+                }
+              >
+                {overallMean >= 0.65
+                  ? "Vigor alto"
+                  : overallMean >= 0.45
+                  ? "Moderado"
+                  : "Em atenção"}
+              </Text>
+            </Flex>
+          )}
+
+          {/* Barra de gradiente NDVI */}
+          <Box position="relative">
+            <Box
+              h="8px"
+              w="100%"
+              borderRadius="full"
+              bg="linear-gradient(to right, #436784 0%, #b85b3f 20%, #db944a 40%, #e7d067 60%, #a2c847 75%, #42a336 88%, #187037 100%)"
+              boxShadow="inset 0 1px 3px rgba(0,0,0,0.5)"
+            />
+            {/* Ticks numéricos */}
+            <Flex justify="space-between" fontSize="9px" color="#90a8b8" mt={0.5} px={0.5}>
+              <Text as="span">0,10</Text>
+              <Text as="span">0,30</Text>
+              <Text as="span">0,50</Text>
+              <Text as="span">0,70</Text>
+              <Text as="span">0,85+</Text>
+            </Flex>
+          </Box>
+
+          {/* Legenda de extremos */}
+          <Flex justify="space-between" fontSize="9px" color="#718096">
+            <Text as="span">Solo exposto</Text>
+            <Text as="span">Vigor alto</Text>
+          </Flex>
+        </VStack>
       )}
     </Box>
   );

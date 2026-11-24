@@ -22,11 +22,16 @@ async function readError(r: Response): Promise<string> {
 }
 
 export function createHttpNdviApi(baseUrl = "/api/ndvi"): NdviApi {
+  const apiHost = import.meta.env.VITE_API_URL || "http://localhost:8000";
+  const root = baseUrl.startsWith("http")
+    ? baseUrl
+    : `${apiHost}${baseUrl.startsWith("/") ? "" : "/"}${baseUrl}`;
+
   return {
     async listScenes(area: NdviArea, signal?: AbortSignal): Promise<NdviScene[]> {
       const r = await fetch(
-        `${baseUrl}/areas/${encodeURIComponent(area.id)}/scenes`,
-        { credentials: "same-origin", signal },
+        `${root}/areas/${encodeURIComponent(area.id)}/scenes`,
+        { signal },
       );
       if (!r.ok) throw new Error(await readError(r));
       return r.json();
@@ -37,11 +42,15 @@ export function createHttpNdviApi(baseUrl = "/api/ndvi"): NdviApi {
       signal?: AbortSignal,
     ): Promise<NdviAnalysis> {
       const r = await fetch(
-        `${baseUrl}/areas/${encodeURIComponent(area.id)}/scenes/${encodeURIComponent(scene.id)}/analysis`,
-        { method: "POST", credentials: "same-origin", signal },
+        `${root}/areas/${encodeURIComponent(area.id)}/scenes/${encodeURIComponent(scene.id)}/analysis`,
+        { method: "POST", signal },
       );
       if (!r.ok) throw new Error(await readError(r));
-      return r.json();
+      const data = await r.json();
+      if (data.pngUrl && data.pngUrl.startsWith("/")) {
+        data.pngUrl = `${apiHost}${data.pngUrl}`;
+      }
+      return data;
     },
   };
 }

@@ -80,6 +80,7 @@ import type {
   NdviProbeOption,
   NdviScene,
 } from "./shared/types";
+import { COLORS } from "../../colors/colors";
 
 export interface NdviModuleProps {
   areas: NdviArea[];
@@ -212,6 +213,21 @@ export function NdviModule({
       ),
     [areas, filter, probeFilterId, query],
   );
+
+  const groupedFiltered = useMemo(() => {
+    const groups: { farmName: string; areas: NdviArea[] }[] = [];
+    const map = new Map<string, NdviArea[]>();
+    for (const a of filtered) {
+      const fn = a.farmName || "Fazenda";
+      if (!map.has(fn)) {
+        const list: NdviArea[] = [];
+        map.set(fn, list);
+        groups.push({ farmName: fn, areas: list });
+      }
+      map.get(fn)!.push(a);
+    }
+    return groups;
+  }, [filtered]);
   const selected =
     filtered.find((a) => a.id === selectedId) ??
     areas.find((a) => a.id === selectedId) ??
@@ -413,7 +429,7 @@ export function NdviModule({
     <Box
       as="section"
       aria-label="Módulo Imagens NDVI"
-      bg="#081927"
+      bg={COLORS.background}
       color="#e7f1f7"
       minH="100vh"
       px={{ base: 3, sm: 4, md: 6, xl: 8 }}
@@ -452,9 +468,9 @@ export function NdviModule({
               h={{ base: "32px", sm: "34px" }}
               flex={{ base: "1 1 auto", sm: "0 0 auto" }}
               borderRadius="lg"
-              borderColor="#2d5a7b"
+              borderColor="#1e3a5f"
               color={tab === "areas" ? "#fff" : "#cbe3f3"}
-              bg={tab === "areas" ? "#2b6cb0" : "#102737"}
+              bg={tab === "areas" ? "#2b6cb0" : "#0c1829"}
               _hover={{ bg: tab === "areas" ? "#2c5282" : "#16354d" }}
               leftIcon={<Layers size={14} />}
               onClick={() => setTab(tab === "areas" ? "visao" : "areas")}
@@ -477,12 +493,20 @@ export function NdviModule({
           )}
           {canMutateAreas && (
             <Button
-              variant="outline"
+              variant="solid"
+              colorScheme="blue"
+              bg="#1E4E79"
+              color="#FFFFFF"
+              border="1px solid"
+              borderColor="#3084C9"
               size={{ base: "xs", sm: "sm" }}
               h={{ base: "32px", sm: "34px" }}
+              px={3.5}
               flex={{ base: "1 1 auto", sm: "0 0 auto" }}
               borderRadius="lg"
-              leftIcon={<Compass size={14} />}
+              fontWeight="semibold"
+              _hover={{ bg: "#2A6496", borderColor: "#63B3ED" }}
+              leftIcon={<Compass size={15} color="#90CDF4" />}
               onClick={() => startDrawing("pivo")}
             >
               Desenhar área
@@ -567,9 +591,9 @@ export function NdviModule({
           flexDirection="column"
           w="100%"
           p={{ base: 3, md: 4 }}
-          bg="#0e2333"
+          bg="#0c1829"
           border="1px solid"
-          borderColor="#203a4c"
+          borderColor="#1e3a5f"
           borderRadius="xl"
         >
           <SimpleGrid columns={{ base: 1, sm: 2, lg: 1 }} spacing={3}>
@@ -582,15 +606,15 @@ export function NdviModule({
                 gap={2.5}
                 pb={{ base: 2, lg: 3 }}
                 borderBottom="1px solid"
-                borderColor="#233b4b"
+                borderColor="#1e3a5f"
               >
                 <Flex
                   as="span"
                   w="33px"
                   h="33px"
                   borderRadius="md"
-                  bg="#173a3a"
-                  color="#8fc3b0"
+                  bg="rgba(48, 132, 201, 0.15)"
+                  color="#63b3ed"
                   align="center"
                   justify="center"
                   flexShrink={0}
@@ -615,8 +639,8 @@ export function NdviModule({
               </Text>
               <Select
                 size="sm"
-                bg="#0b1f30"
-                borderColor="#234057"
+                bg="#091322"
+                borderColor="#1e3a5f"
                 borderRadius="md"
                 color="#dcecf7"
                 value={
@@ -724,87 +748,123 @@ export function NdviModule({
               },
             }}
           >
-            {filtered.map((a) => {
-              const isSelected = a.id === selected?.id;
-              const current =
-                isSelected && active
-                  ? active.mean
-                  : analyses[scenes[0]?.id]?.mean;
-              return (
-                <Box
-                  as="button"
-                  key={a.id}
-                  type="button"
-                  role="option"
-                  aria-selected={isSelected}
-                  textAlign="left"
-                  minW={{ base: "210px", lg: "0" }}
-                  w="100%"
-                  flexShrink={0}
-                  display="flex"
-                  alignItems="center"
-                  gap={2.5}
-                  p={2.5}
-                  borderRadius="lg"
-                  border="1px solid"
-                  borderColor={isSelected ? "#2a6796" : "transparent"}
-                  bg={isSelected ? "#14354e" : "transparent"}
-                  _hover={{ bg: isSelected ? "#14354e" : "#132e42" }}
-                  transition="all 0.15s ease"
-                  onClick={() => {
-                    setSelectedId(a.id);
-                    if (a.deviceId) setSelectedProbeId(a.deviceId);
-                    setDrawing(false);
-                  }}
+            {groupedFiltered.map(({ farmName, areas: farmAreas }) => (
+              <Box key={farmName} w="100%" flexShrink={0}>
+                {groupedFiltered.length > 1 && (
+                  <HStack px={1.5} py={1} mb={1} spacing={1.5} color="#63b3ed">
+                    <MapPin size={12} />
+                    <Text
+                      fontSize="10px"
+                      fontWeight="bold"
+                      textTransform="uppercase"
+                      letterSpacing="wider"
+                      noOfLines={1}
+                    >
+                      {farmName}
+                    </Text>
+                  </HStack>
+                )}
+                <Flex
+                  direction={{ base: "row", lg: "column" }}
+                  align="stretch"
+                  gap={2}
                 >
-                  <Flex
-                    w="35px"
-                    h="35px"
-                    flexShrink={0}
-                    align="center"
-                    justify="center"
-                    borderRadius={a.type === "pivo" ? "full" : "md"}
-                    border="1px solid"
-                    borderColor={a.type === "pivo" ? "#3a7586" : "#315c61"}
-                    bg={
-                      a.type === "pivo"
-                        ? "radial-gradient(circle, #8ba944 1%, #719f3d 35%, #4a7a38 65%, #294b3e 100%)"
-                        : "#183a34"
-                    }
-                    boxShadow={a.type === "pivo" ? "inset 0 0 0 4px #254a37" : "none"}
-                    color={a.type === "pivo" ? "#5d9fce" : "#72b5a2"}
-                  >
-                    {a.type === "pivo" ? (
-                      <Box as="span" w="14px" h="1px" bg="#a0b7aa" transform="rotate(-40deg)" />
-                    ) : (
-                      <Pentagon size={15} />
-                    )}
-                  </Flex>
-                  <Box flex="1" minW="0">
-                    <Text as="strong" display="block" fontSize="xs" fontWeight="600" color="#d9e9f3" noOfLines={1}>
-                      {a.name}
-                    </Text>
-                    <Text as="span" display="block" fontSize="11px" color="#97adbb" noOfLines={1}>
-                      {a.hectares.toFixed(1).replace(".", ",")} ha · {a.crop}
-                    </Text>
-                    <Text as="small" display="block !important" fontSize="10px" color={isSelected ? "#6ab8f0" : "#668da7"} noOfLines={1}>
-                      {a.deviceName
-                        ? `Sonda: ${a.deviceName}${isSelected && active ? ` · NDVI ${fmt(current)}` : ""}`
-                        : isSelected && active
-                          ? `NDVI ${fmt(current)}`
-                          : a.source === "desenho"
-                            ? "Desenhado no mapa"
-                            : "Monitorado"}
-                    </Text>
-                  </Box>
-                  {isSelected && (
-                    <Box as="span" flexShrink={0} color="#58aff3">
-                      <Check size={14} />
-                    </Box>
-                  )}
-                </Box>
-              );
-            })}
+                  {farmAreas.map((a) => {
+                    const isSelected = a.id === selected?.id;
+                    const current =
+                      isSelected && active
+                        ? active.mean
+                        : analyses[scenes[0]?.id]?.mean;
+                    return (
+                      <Box
+                        as="button"
+                        key={a.id}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        textAlign="left"
+                        minW={{ base: "210px", lg: "0" }}
+                        w="100%"
+                        flexShrink={0}
+                        display="flex"
+                        alignItems="center"
+                        gap={2.5}
+                        p={2.5}
+                        borderRadius="lg"
+                        border="1px solid"
+                        borderColor={isSelected ? "#3084C9" : "rgba(255, 255, 255, 0.08)"}
+                        bg={isSelected ? "rgba(48, 132, 201, 0.22)" : "rgba(255, 255, 255, 0.02)"}
+                        _hover={{
+                          bg: isSelected ? "rgba(48, 132, 201, 0.3)" : "rgba(48, 132, 201, 0.1)",
+                          borderColor: isSelected ? "#3084C9" : "rgba(48, 132, 201, 0.4)",
+                        }}
+                        transition="all 0.15s ease"
+                        onClick={() => {
+                          setSelectedId(a.id);
+                          if (a.deviceId) setSelectedProbeId(a.deviceId);
+                          setDrawing(false);
+                        }}
+                      >
+                        <Flex
+                          w="35px"
+                          h="35px"
+                          flexShrink={0}
+                          align="center"
+                          justify="center"
+                          borderRadius={a.type === "pivo" ? "full" : "md"}
+                          border="1px solid"
+                          borderColor={isSelected ? "#3084C9" : "rgba(48, 132, 201, 0.4)"}
+                          bg={
+                            a.type === "pivo"
+                              ? isSelected
+                                ? "radial-gradient(circle, #3182CE 1%, #2B6CB0 40%, #1E4E79 75%, #0B1D2C 100%)"
+                                : "radial-gradient(circle, #2B6CB0 1%, #1E4E79 50%, #0B1D2C 100%)"
+                              : isSelected
+                                ? "rgba(48, 132, 201, 0.28)"
+                                : "rgba(11, 29, 44, 0.8)"
+                          }
+                          boxShadow={a.type === "pivo" ? (isSelected ? "inset 0 0 0 3px rgba(48, 132, 201, 0.6)" : "inset 0 0 0 3px rgba(30, 78, 121, 0.4)") : "none"}
+                          color={isSelected ? "#90CDF4" : "#63B3ED"}
+                        >
+                          {a.type === "pivo" ? (
+                            <Box as="span" w="14px" h="1.5px" bg={isSelected ? "#FFFFFF" : "#90CDF4"} transform="rotate(-40deg)" />
+                          ) : (
+                            <Pentagon size={15} />
+                          )}
+                        </Flex>
+                        <Box flex="1" minW="0">
+                          <HStack spacing={1.5} align="center">
+                            <Text as="strong" display="block" fontSize="xs" fontWeight="600" color="#d9e9f3" noOfLines={1}>
+                              {a.deviceName || a.deviceEsn || a.name}
+                            </Text>
+                            {(drawing || redrawingEdit) && (editingArea?.id === a.id || selected?.id === a.id) && (
+                              <Badge colorScheme="blue" variant="solid" bg="#3084C9" color="white" fontSize="9px" px={1.5} py={0.2} borderRadius="sm">
+                                Desenhando
+                              </Badge>
+                            )}
+                          </HStack>
+                          <Text as="span" display="block" fontSize="11px" color="#97adbb" noOfLines={1}>
+                            {a.hectares.toFixed(1).replace(".", ",")} ha · {a.crop}
+                          </Text>
+                          <Text as="small" display="block !important" fontSize="10px" color={isSelected ? "#6ab8f0" : "#668da7"} noOfLines={1}>
+                            {isSelected && active
+                              ? `NDVI ${fmt(current)}`
+                              : a.source === "desenho"
+                                ? "Desenhado no mapa"
+                                : "Monitorado"}
+                          </Text>
+                        </Box>
+                        {isSelected && (
+                          <Box as="span" flexShrink={0} color="#58aff3">
+                            <Check size={14} />
+                          </Box>
+                        )}
+                      </Box>
+                    );
+                  })}
+                </Flex>
+              </Box>
+            ))}
           </Flex>
 
           {canMutateAreas && (
@@ -813,28 +873,28 @@ export function NdviModule({
               size="sm"
               w="100%"
               mt={3}
-              h="36px"
-              px={3}
+              h="38px"
+              px={3.5}
               variant="outline"
-              borderStyle="dashed"
-              borderColor="#406080"
-              color="#cde6ff"
-              bg="transparent"
+              border="1px dashed"
+              borderColor="#3084C9"
+              color="#FFFFFF"
+              bg="rgba(48, 132, 201, 0.12)"
               fontSize="xs"
-              fontWeight="medium"
+              fontWeight="semibold"
               display="flex"
               alignItems="center"
               justifyContent="space-between"
-              _hover={{ bg: "whiteAlpha.100", borderColor: "#63b3ed" }}
+              _hover={{ bg: "rgba(48, 132, 201, 0.25)", borderColor: "#63B3ED" }}
               onClick={() => startDrawing("pivo")}
             >
               <HStack spacing={2} align="center">
-                <FolderPlus size={15} />
+                <FolderPlus size={16} color="#90CDF4" />
                 <Text as="span" lineHeight="1">
                   Desenhar nova área
                 </Text>
               </HStack>
-              <Plus size={14} />
+              <Plus size={15} color="#90CDF4" />
             </Button>
           )}
         </Box>
@@ -850,7 +910,7 @@ export function NdviModule({
                 gap={3}
               >
                 <Box>
-                  <HStack className="breadcrumb" spacing={1.5} flexWrap="wrap">
+                  <HStack className="breadcrumb" spacing={1.5} flexWrap="wrap"py={2}>
                     <Text as="span">{selected.farmName}</Text>
                     <Text as="span">/</Text>
                     <Text as="span">{selected.name}</Text>
@@ -864,12 +924,6 @@ export function NdviModule({
                       </>
                     )}
                   </HStack>
-                  <Heading as="h2" size={{ base: "sm", md: "md" }} flexWrap="wrap">
-                    {selected.name}{" "}
-                    <Text as="span">
-                      {selected.type === "pivo" ? "Pivô Central" : "Talhão"}
-                    </Text>
-                  </Heading>
                 </Box>
                 <HStack spacing={2} flexWrap="wrap">
                   {selected.deviceId && onOpenProbeGraph && (
@@ -937,58 +991,75 @@ export function NdviModule({
                 </HStack>
               </Flex>
 
-              <HStack
-                className="view-tabs"
-                role="tablist"
-                aria-label="Visualizações do NDVI"
-                spacing={{ base: 4, sm: 6, md: 8 }}
-                mb={{ base: 4, md: 6 }}
-                overflowX="auto"
-                flexWrap="nowrap"
-                sx={{
-                  "&::-webkit-scrollbar": { height: "2px" },
-                }}
-              >
-                {(
-                  [
-                    ["visao", "Visão da área", Eye],
-                    ["comparar", "Comparar datas", GitCompare],
-                    ["historico", "Histórico", History],
-                  ] as const
-                ).map(([id, label, IconComp]) => (
-                  <Button
-                    key={id}
-                    type="button"
-                    size="sm"
-                    variant="unstyled"
-                    display="inline-flex"
-                    alignItems="center"
-                    flexShrink={0}
-                    gap={2}
-                    px={1}
-                    pb={3}
-                    role="tab"
-                    aria-selected={tab === id}
-                    onClick={() => setTab(id)}
-                  >
-                    <IconComp size={15} />
-                    <Text as="span">{label}</Text>
-                  </Button>
-                ))}
-              </HStack>
+              <Box mb={{ base: 4, md: 5 }}>
+                <HStack
+                  role="tablist"
+                  aria-label="Visualizações do NDVI"
+                  display="inline-flex"
+                  p="4px"
+                  bg="#0c1829"
+                  border="1px solid"
+                  borderColor="#1e3a5f"
+                  borderRadius="xl"
+                  spacing={1}
+                  overflowX="auto"
+                  maxW="100%"
+                >
+                  {(
+                    [
+                      ["visao", "Visão da área", Eye],
+                      ["comparar", "Comparar datas", GitCompare],
+                      ["historico", "Histórico", History],
+                    ] as const
+                  ).map(([id, label, IconComp]) => {
+                    const isActive = tab === id;
+                    return (
+                      <Button
+                        key={id}
+                        type="button"
+                        size="sm"
+                        h="36px"
+                        px={{ base: 3, md: 4 }}
+                        borderRadius="lg"
+                        display="inline-flex"
+                        alignItems="center"
+                        gap={2}
+                        role="tab"
+                        aria-selected={isActive}
+                        bg={isActive ? "#3084C9" : "transparent"}
+                        color={isActive ? "#FFFFFF" : "#A0AEC0"}
+                        fontWeight={isActive ? "600" : "500"}
+                        fontSize="xs"
+                        boxShadow={isActive ? "0 2px 6px rgba(48, 132, 201, 0.4)" : "none"}
+                        _hover={{
+                          bg: isActive ? "#2b76b4" : "whiteAlpha.100",
+                          color: "#FFFFFF",
+                        }}
+                        transition="all 0.15s ease"
+                        onClick={() => setTab(id)}
+                      >
+                        <IconComp size={15} color={isActive ? "#FFFFFF" : "#809CAB"} />
+                        <Text as="span">{label}</Text>
+                      </Button>
+                    );
+                  })}
+                </HStack>
+              </Box>
 
               {tab === "visao" && (
                 <>
                   <SimpleGrid
                     columns={{ base: 2, lg: 4 }}
-                    spacing={{ base: 2.5, md: 3 }}
+                    spacing={{ base: 2.5, md: 3.5 }}
+                    mb={{ base: 5, md: 6 }}
                   >
                     <Box
                       as="article"
-                      bg="#0e2536"
+                      bg="#111e35"
                       border="1px solid"
-                      borderColor="#233e50"
-                      borderRadius="lg"
+                      borderColor="#1e3a5f"
+                      borderRadius="xl"
+                      boxShadow="0 4px 12px rgba(0, 0, 0, 0.2)"
                       p={{ base: 2.5, md: 3.5 }}
                     >
                       <HStack as="span" spacing={1.5} color="#88a4b8" fontSize="11px">
@@ -1012,7 +1083,7 @@ export function NdviModule({
                               : "Em atenção"}
                         </Text>
                       </Text>
-                      <Text as="small" color="#79b89e" fontSize="10px">
+                      <Text as="small" color={delta !== null && delta >= 0 ? "#68d391" : "#fc8181"} fontSize="10px">
                         {delta !== null
                           ? `${delta >= 0 ? "+" : ""}${vFmt.format(delta)} vs. última leitura`
                           : "Selecione passagens para comparar"}
@@ -1021,10 +1092,11 @@ export function NdviModule({
 
                     <Box
                       as="article"
-                      bg="#0e2536"
+                      bg="#111e35"
                       border="1px solid"
-                      borderColor="#233e50"
-                      borderRadius="lg"
+                      borderColor="#1e3a5f"
+                      borderRadius="xl"
+                      boxShadow="0 4px 12px rgba(0, 0, 0, 0.2)"
                       p={{ base: 2.5, md: 3.5 }}
                     >
                       <HStack as="span" spacing={1.5} color="#88a4b8" fontSize="11px">
@@ -1051,11 +1123,11 @@ export function NdviModule({
                         fontSize="10px"
                         color={
                           active?.quality === "utilizavel"
-                            ? "#79b89e"
+                            ? "#68d391"
                             : "#d1b77a"
                         }
                       >
-                        <Box as="span" w="6px" h="6px" borderRadius="full" bg="#68b9a4" display="inline-block" mr={1.5} />
+                        <Box as="span" w="6px" h="6px" borderRadius="full" bg={active?.quality === "utilizavel" ? "#22c55e" : "#eab308"} display="inline-block" mr={1.5} />
                         {active?.quality === "utilizavel"
                           ? "Cena utilizável para decisão"
                           : active?.quality === "parcial"
@@ -1066,10 +1138,11 @@ export function NdviModule({
 
                     <Box
                       as="article"
-                      bg="#0e2536"
+                      bg="#111e35"
                       border="1px solid"
-                      borderColor="#233e50"
-                      borderRadius="lg"
+                      borderColor="#1e3a5f"
+                      borderRadius="xl"
+                      boxShadow="0 4px 12px rgba(0, 0, 0, 0.2)"
                       p={{ base: 2.5, md: 3.5 }}
                     >
                       <HStack as="span" spacing={1.5} color="#88a4b8" fontSize="11px">
@@ -1088,17 +1161,18 @@ export function NdviModule({
                         <Text as="em" fontStyle="normal" color="#789aae">{scene?.acquiredAt.slice(0, 4)}</Text>
                       </Text>
                       <Text as="small" fontSize="10px" color="#7896a9">
-                        <Box as="span" w="6px" h="6px" borderRadius="full" bg="#60c48a" display="inline-block" mr={1.5} />
+                        <Box as="span" w="6px" h="6px" borderRadius="full" bg="#63b3ed" display="inline-block" mr={1.5} />
                         Passagem 10:24 BRT
                       </Text>
                     </Box>
 
                     <Box
                       as="article"
-                      bg="#0e2536"
+                      bg="#111e35"
                       border="1px solid"
-                      borderColor="#233e50"
-                      borderRadius="lg"
+                      borderColor="#1e3a5f"
+                      borderRadius="xl"
+                      boxShadow="0 4px 12px rgba(0, 0, 0, 0.2)"
                       display="block !important"
                       p={{ base: 2.5, md: 3.5 }}
                     >
@@ -1132,12 +1206,12 @@ export function NdviModule({
                     className="map-content-grid"
                     gridTemplateColumns={{
                       base: "minmax(0, 1fr)",
-                      xl: "minmax(0, 1fr) 235px",
+                      xl: "minmax(0, 1fr) 280px",
                     }}
                     gap={{ base: 4, md: 5 }}
                   >
                     <Box minW={0}>
-                      <Box position="relative" border="1px solid" borderColor="#294556" borderRadius="lg" overflow="hidden">
+                      <Box position="relative" border="1px solid" borderColor="#1e3a5f" borderRadius="lg" overflow="hidden">
                         <AreaMap
                           areas={areas}
                           selected={selected}
@@ -1154,8 +1228,8 @@ export function NdviModule({
                             left="15px"
                             bottom="32px"
                             zIndex={600}
-                            bg="rgba(16, 45, 66, 0.9)"
-                            border="1px solid #30546b"
+                            bg="rgba(12, 24, 41, 0.92)"
+                            border="1px solid #1e3a5f"
                             borderRadius="md"
                             py={2}
                             px={3}
@@ -1259,11 +1333,11 @@ export function NdviModule({
                               flexShrink={0}
                               textAlign="left"
                               p={1.5}
-                              bg={isSelected ? "#153c56" : "#102939"}
+                              bg={isSelected ? "#1a365d" : "#0c1829"}
                               border="1px solid"
-                              borderColor={isSelected ? "#2b9fff" : "#213f50"}
+                              borderColor={isSelected ? "#3084c9" : "#1e3a5f"}
                               borderRadius="md"
-                              _hover={{ bg: isSelected ? "#194665" : "#143347" }}
+                              _hover={{ bg: isSelected ? "#234e78" : "whiteAlpha.100" }}
                               onClick={() => setSceneId(s.id)}
                             >
                               <Box
@@ -1271,7 +1345,7 @@ export function NdviModule({
                                 display="flex"
                                 alignItems="center"
                                 justifyContent="center"
-                                bg="#213d2b"
+                                bg="#0a1628"
                                 position="relative"
                                 borderRadius="sm"
                                 overflow="hidden"
@@ -1292,14 +1366,14 @@ export function NdviModule({
                                   position="absolute"
                                   bottom="3px"
                                   right="3px"
-                                  bg={cloudy ? "rgba(36, 52, 62, 0.8)" : "rgba(20, 49, 36, 0.75)"}
+                                  bg={cloudy ? "rgba(26, 38, 54, 0.85)" : "rgba(16, 36, 60, 0.85)"}
                                   borderRadius="full"
                                   w="14px"
                                   h="14px"
                                   display="flex"
                                   alignItems="center"
                                   justifyContent="center"
-                                  color={cloudy ? "#c0c8ca" : "#aff0bd"}
+                                  color={cloudy ? "#c0c8ca" : "#90cdf4"}
                                 >
                                   {cloudy ? (
                                     <Cloud size={10} />
@@ -1330,13 +1404,14 @@ export function NdviModule({
                       display="flex !important"
                       flexDirection="column"
                       p={{ base: 3.5, md: 4 }}
-                      bg="#0e2536"
+                      bg="#111e35"
                       border="1px solid"
-                      borderColor="#223e50"
+                      borderColor="#1e3a5f"
                       borderRadius="xl"
+                      boxShadow="0 4px 12px rgba(0, 0, 0, 0.2)"
                     >
                       <Flex align="center" gap={2} mb={2}>
-                        <Box as="span" w="3px" h="12px" borderRadius="sm" bg="#2b9ff9" />
+                        <Box as="span" w="3px" h="12px" borderRadius="sm" bg="#3084c9" />
                         <Heading as="h3" size="sm" flex="1" color="#fff">
                           Distribuição na área
                         </Heading>
@@ -1348,35 +1423,35 @@ export function NdviModule({
                       <Divider
                         className="analysis-divider"
                         display="block !important"
-                        borderColor="#1d3548"
+                        borderColor="#1e3a5f"
                         my={3.5}
                       />
-                      <VStack className="area-meta" align="stretch" spacing={2} mt={0}>
-                        <Flex justify="space-between" gap={2}>
-                          <Text as="span">Sonda vinculada</Text>
-                          <Text as="strong" textAlign="right">
+                      <VStack align="stretch" spacing={2.5} mt={0}>
+                        <Flex justify="space-between" align="center" gap={2} fontSize="xs">
+                          <Text color="#A0AEC0" flexShrink={0}>Sonda vinculada</Text>
+                          <Text fontWeight="semibold" color="#FFFFFF" textAlign="right" noOfLines={1} title={selected.deviceName ? `${selected.deviceName}${selected.deviceEsn ? ` (${selected.deviceEsn})` : ""}` : "Não vinculada"}>
                             {selected.deviceName
                               ? `${selected.deviceName}${selected.deviceEsn ? ` (${selected.deviceEsn})` : ""}`
                               : "Não vinculada"}
                           </Text>
                         </Flex>
-                        <Flex justify="space-between" gap={2}>
-                          <Text as="span">Cultura / estádio</Text>
-                          <Text as="strong" textAlign="right">
-                            {selected.crop}
+                        <Flex justify="space-between" align="center" gap={2} fontSize="xs">
+                          <Text color="#A0AEC0" flexShrink={0}>Cultura / estádio</Text>
+                          <Text fontWeight="semibold" color="#FFFFFF" textAlign="right" noOfLines={1}>
+                            {selected.crop || "—"}
                           </Text>
                         </Flex>
-                        <Flex justify="space-between" gap={2}>
-                          <Text as="span">Mín / Máx na área</Text>
-                          <Text as="strong" textAlign="right">
+                        <Flex justify="space-between" align="center" gap={2} fontSize="xs">
+                          <Text color="#A0AEC0" flexShrink={0}>Mín / Máx na área</Text>
+                          <Text fontWeight="semibold" color="#FFFFFF" textAlign="right" noOfLines={1}>
                             {fmt(active?.min)} – {fmt(active?.max)}
                           </Text>
                         </Flex>
-                        <Flex justify="space-between" gap={2}>
-                          <Text as="span">Contorno</Text>
-                          <Text as="strong" textAlign="right">
+                        <Flex justify="space-between" align="center" gap={2} fontSize="xs">
+                          <Text color="#A0AEC0" flexShrink={0}>Contorno</Text>
+                          <Text fontWeight="semibold" color="#FFFFFF" textAlign="right" noOfLines={1} title={selected.circle ? `Círculo · raio ${selected.circle.radiusM} m` : selected.source === "desenho" ? "Polígono desenhado" : "Cadastro BR Sense"}>
                             {selected.circle
-                              ? `Círculo · raio ${selected.circle.radiusM} m`
+                              ? `Círculo (${selected.circle.radiusM}m)`
                               : selected.source === "desenho"
                                 ? "Polígono desenhado"
                                 : "Cadastro BR Sense"}
@@ -1384,12 +1459,20 @@ export function NdviModule({
                         </Flex>
                       </VStack>
                       <Button
-                        variant="outline"
-                        size="xs"
+                        colorScheme="blue"
+                        variant="solid"
+                        bg="#3084C9"
+                        _hover={{ bg: "#0B5FA5" }}
+                        color="white"
+                        size="sm"
+                        w="100%"
                         mt={4}
-                        h="32px"
-                        className="comparison-button"
-                        rightIcon={<ChevronRight size={14} />}
+                        h="36px"
+                        borderRadius="lg"
+                        fontWeight="semibold"
+                        fontSize="xs"
+                        boxShadow="0 2px 8px rgba(48, 132, 201, 0.3)"
+                        rightIcon={<ChevronRight size={16} />}
                         onClick={() => setTab("comparar")}
                       >
                         Comparar com outra passagem

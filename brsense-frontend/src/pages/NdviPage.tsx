@@ -11,6 +11,7 @@ import {
   updateNdviArea,
 } from "../services/api";
 import { isUserAdmin } from "../services/auth";
+import { COLORS } from "../colors/colors";
 import type { Farm, MapLayer, Probe } from "../types";
 import {
   NdviModule,
@@ -180,7 +181,7 @@ export function NdviPage() {
   };
 
   return (
-    <Box minH="100vh" bg="#0b1123">
+    <Box minH="100vh" bg={COLORS.background}>
       <NdviModule
         areas={dbAreas}
         probes={probeOptions}

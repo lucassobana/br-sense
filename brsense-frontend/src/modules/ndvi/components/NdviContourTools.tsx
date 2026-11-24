@@ -22,6 +22,9 @@ export interface ContourDrawState {
   setMode: (mode: DrawMode) => void;
   undo: () => void;
   clear: () => void;
+  setPoint?: (index: number, pt: LngLat) => void;
+  movePivotCenter?: (newCenter: LngLat) => void;
+  isDraggingRef?: React.MutableRefObject<boolean>;
 }
 
 const nFmt = new Intl.NumberFormat("pt-BR", {
@@ -144,16 +147,16 @@ export function NdviContourTools({
               spacing={2}
               p={2}
               borderRadius="md"
-              bg={points.length >= 1 ? "rgba(72, 187, 120, 0.14)" : "rgba(66, 153, 225, 0.14)"}
+              bg={points.length >= 1 ? "rgba(48, 132, 201, 0.22)" : "rgba(48, 132, 201, 0.08)"}
               border="1px solid"
-              borderColor={points.length >= 1 ? "green.600" : "blue.600"}
+              borderColor={points.length >= 1 ? "#3084C9" : "rgba(48, 132, 201, 0.3)"}
             >
-              <Badge colorScheme={points.length >= 1 ? "green" : "blue"} borderRadius="full">
+              <Badge colorScheme="blue" borderRadius="full">
                 1
               </Badge>
               <Text fontSize="xs">
                 {points.length >= 1
-                  ? "Centro marcado no mapa"
+                  ? "Centro marcado (arraste para alinhar)"
                   : "Clique no centro do pivô"}
               </Text>
             </HStack>
@@ -163,34 +166,37 @@ export function NdviContourTools({
               borderRadius="md"
               bg={
                 points.length >= 2
-                  ? "rgba(72, 187, 120, 0.14)"
+                  ? "rgba(48, 132, 201, 0.22)"
                   : points.length === 1
-                    ? "rgba(66, 153, 225, 0.14)"
+                    ? "rgba(48, 132, 201, 0.08)"
                     : "whiteAlpha.50"
               }
               border="1px solid"
               borderColor={
                 points.length >= 2
-                  ? "green.600"
+                  ? "#3084C9"
                   : points.length === 1
-                    ? "blue.600"
+                    ? "#3084C9"
                     : "whiteAlpha.200"
               }
             >
               <Badge
-                colorScheme={
-                  points.length >= 2 ? "green" : points.length === 1 ? "blue" : "gray"
-                }
+                colorScheme={points.length >= 2 ? "blue" : points.length === 1 ? "blue" : "gray"}
                 borderRadius="full"
               >
                 2
               </Badge>
               <Text fontSize="xs">
                 {points.length >= 2
-                  ? "Borda definida"
+                  ? "Raio definido (arraste a borda para ajustar)"
                   : "Clique em um ponto na borda"}
               </Text>
             </HStack>
+            {points.length >= 1 && (
+              <Text fontSize="10px" color="#90CDF4" px={0.5} lineHeight="1.3">
+                💡 Arraste o cursor sobre o <strong>Centro</strong> para posicionar no equipamento ou sobre a <strong>Borda</strong> para calibrar o raio.
+              </Text>
+            )}
           </VStack>
         ) : (
           <HStack
@@ -213,7 +219,7 @@ export function NdviContourTools({
         )}
 
         <SimpleGrid columns={2} spacing={2}>
-          <Box bg="#0c2233" p={2} borderRadius="md" border="1px solid" borderColor="#234057">
+          <Box bg="#0c1829" p={2} borderRadius="md" border="1px solid" borderColor="#1e3a5f">
             <Text fontSize="11px" color="#8fb0c7">
               Área estimada
             </Text>
@@ -224,7 +230,7 @@ export function NdviContourTools({
               </Text>
             </Text>
           </Box>
-          <Box bg="#0c2233" p={2} borderRadius="md" border="1px solid" borderColor="#234057">
+          <Box bg="#0c1829" p={2} borderRadius="md" border="1px solid" borderColor="#1e3a5f">
             <Text fontSize="11px" color="#8fb0c7">
               {mode === "pivo" ? "Raio" : "Vértices"}
             </Text>

@@ -18,7 +18,9 @@ export function DistributionBars({ bins }: { bins: NdviBin[] }) {
         h="10px"
         borderRadius="full"
         overflow="hidden"
-        bg="#0c2233"
+        bg="#0c1829"
+        border="1px solid"
+        borderColor="#1e3a5f"
       >
         {bins.map((b) => {
           const pct = (b.count / total) * 100;
@@ -43,12 +45,15 @@ export function DistributionBars({ bins }: { bins: NdviBin[] }) {
               justify="space-between"
               align="center"
               fontSize="xs"
+              py={0.5}
             >
-              <HStack spacing={2}>
-                <Box w="10px" h="10px" borderRadius="sm" bg={b.color} />
-                <Text color="#cbe3f3">{b.label}</Text>
+              <HStack spacing={2} minW={0} flex="1">
+                <Box w="8px" h="8px" borderRadius="full" bg={b.color} flexShrink={0} />
+                <Text color="#A0AEC0" fontSize="xs" noOfLines={1}>
+                  {b.label}
+                </Text>
               </HStack>
-              <Text fontWeight="bold" color="#f0f8ff">
+              <Text fontWeight="semibold" color="#FFFFFF" fontSize="xs" ml={2} flexShrink={0}>
                 {pct}%
               </Text>
             </Flex>

@@ -89,8 +89,10 @@ export function ContourEditor({
             align={{ base: "stretch", md: "center" }}
             direction={{ base: "column", md: "row" }}
             gap={{ base: 2, md: 3 }}
+            w="100%"
           >
-            <HStack spacing={2.5}>
+            {/* Esquerda: Título */}
+            <HStack spacing={2.5} flexShrink={0}>
               <Flex
                 w={{ base: "30px", md: "36px" }}
                 h={{ base: "30px", md: "36px" }}
@@ -105,53 +107,79 @@ export function ContourEditor({
               </Flex>
               <Box>
                 <Heading size={{ base: "xs", md: "sm" }} color="#f3f9fd">
-                  Desenhar área sobre o mapa de satélite
+                  Desenhar área sobre o mapa
                 </Heading>
                 <Text
                   fontSize="xs"
                   color="#8fb0c7"
                   fontWeight="normal"
-                  display={{ base: "none", sm: "block" }}
+                  display={{ base: "none", xl: "block" }}
                 >
-                  Para pivô central, clique no centro e depois na borda. Para
-                  talhão, marque os vértices do polígono.
+                  Pivô central ou polígono de talhão
                 </Text>
               </Box>
             </HStack>
 
+            {/* Centro: Vinculação da Sonda Centralizada */}
             {probes.length > 0 && (
-              <HStack spacing={2} w={{ base: "100%", md: "auto" }}>
+              <Flex
+                flex="1"
+                justify={{ base: "flex-start", md: "center" }}
+                align="center"
+                mx={{ base: 0, md: 2 }}
+              >
                 <HStack
-                  spacing={1.5}
-                  color="#9ec6de"
-                  fontSize="xs"
-                  fontWeight="semibold"
-                  flexShrink={0}
+                  spacing={2}
+                  w={{ base: "100%", md: "auto" }}
+                  bg="rgba(12, 32, 50, 0.85)"
+                  px={3}
+                  py={1.5}
+                  borderRadius="lg"
+                  border="1px solid"
+                  borderColor="rgba(48, 132, 201, 0.45)"
+                  boxShadow="sm"
                 >
-                  <Radio size={13} />
-                  <Text as="span" whiteSpace="nowrap">
-                    Sonda:
-                  </Text>
+                  <HStack
+                    spacing={1.5}
+                    color="#9ec6de"
+                    fontSize="xs"
+                    fontWeight="semibold"
+                    flexShrink={0}
+                  >
+                    <Radio size={13} color="#63B3ED" />
+                    <Text as="span" whiteSpace="nowrap" color="#63B3ED">
+                      Sonda:
+                    </Text>
+                  </HStack>
+                  <Select
+                    size="sm"
+                    w={{ base: "100%", md: "260px" }}
+                    bg="#0c2032"
+                    borderColor="#3084C9"
+                    borderWidth="1.5px"
+                    _hover={{ borderColor: "#63B3ED" }}
+                    borderRadius="md"
+                    color="#FFFFFF"
+                    fontWeight="semibold"
+                    value={activeProbe?.id ?? ""}
+                    onChange={(e) => onSelectProbeId?.(Number(e.target.value))}
+                  >
+                    {probes.map((p) => (
+                      <option
+                        key={p.id}
+                        value={p.id}
+                        style={{ background: "#0b1d2c", color: "#ffffff" }}
+                      >
+                        {p.name} ({p.esn}){p.farmName ? ` · ${p.farmName}` : ""}
+                      </option>
+                    ))}
+                  </Select>
                 </HStack>
-                <Select
-                  size={{ base: "xs", md: "sm" }}
-                  flex="1"
-                  w={{ base: "100%", md: "260px" }}
-                  bg="#091a28"
-                  borderColor="#29465b"
-                  borderRadius="md"
-                  color="#eef6fb"
-                  value={activeProbe?.id ?? ""}
-                  onChange={(e) => onSelectProbeId?.(Number(e.target.value))}
-                >
-                  {probes.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.esn})
-                    </option>
-                  ))}
-                </Select>
-              </HStack>
+              </Flex>
             )}
+
+            {/* Direita: Espaço reservado para manter o centro perfeitamente balanceado */}
+            <Box w={{ base: "0px", md: "40px" }} flexShrink={0} display={{ base: "none", md: "block" }} />
           </Flex>
         </ModalHeader>
         <ModalCloseButton color="#9ec6de" top={2.5} right={2.5} />

@@ -68,8 +68,8 @@ export function AreaDialog({
     if (!drawnContour) return;
     const isCircle = drawnContour.type === "pivo";
     const id = `desenho-${randomId()}`;
-    const defaultName = activeProbe
-      ? `${isCircle ? "Pivô" : "Talhão"} · ${activeProbe.name}`
+    const defaultName = activeProbe?.name
+      ? activeProbe.name
       : isCircle
         ? "Pivô desenhado no mapa"
         : "Talhão desenhado no mapa";
@@ -218,17 +218,20 @@ export function AreaDialog({
               </FormLabel>
               <Select
                 size="sm"
-                bg="#091a28"
-                borderColor="#29465b"
-                color="#eef6fb"
+                bg="#0c2032"
+                borderColor="#3084C9"
+                borderWidth="1.5px"
+                _hover={{ borderColor: "#63B3ED" }}
+                color="#FFFFFF"
+                fontWeight="semibold"
                 value={activeProbe?.id ?? ""}
                 onChange={(e) => handleProbeChange(Number(e.target.value))}
               >
                 {probes.length === 0 ? (
-                  <option value="">Nenhuma sonda disponível</option>
+                  <option value="" style={{ background: "#0b1d2c", color: "#ffffff" }}>Nenhuma sonda disponível</option>
                 ) : (
                   probes.map((p) => (
-                    <option key={p.id} value={p.id}>
+                    <option key={p.id} value={p.id} style={{ background: "#0b1d2c", color: "#ffffff" }}>
                       {p.name} ({p.esn}){p.farmName ? ` · ${p.farmName}` : ""}
                     </option>
                   ))
@@ -280,11 +283,11 @@ export function AreaDialog({
 
                 {drafts[0]?.circle && (
                   <Box
-                    bg="#0c2233"
+                    bg="#0c1829"
                     p={2.5}
                     borderRadius="md"
                     border="1px solid"
-                    borderColor="#25455d"
+                    borderColor="#1e3a5f"
                   >
                     <Text fontSize="xs" color="#8fb0c7">
                       Círculo calculado pelo centro + borda
