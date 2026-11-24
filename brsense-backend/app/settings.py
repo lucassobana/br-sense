@@ -39,8 +39,8 @@ class Settings(BaseSettings):
     CLIENT_SECRET_BACKEND: Optional[str] = None  # set in .env: CLIENT_SECRET_BACKEND="xyz"
 
     # ---- Copernicus Data Space (Sentinel-2 NDVI) ----
-    COPERNICUS_CLIENT_ID: Optional[str] = "sh-9d9a3f81-47d1-4352-9930-bf3fd5f5bebb"
-    COPERNICUS_CLIENT_SECRET: Optional[str] = "0ZHfu8q8osRKjYDsEDmb75jchpFxcu5FudDAgYOsxxM7uqCzPf3pcuvFllZUjM8OMt20ibP33dwMwOoSBnlTUJ"
+    COPERNICUS_CLIENT_ID: Optional[str] = None  # set in .env: COPERNICUS_CLIENT_ID="xyz"
+    COPERNICUS_CLIENT_SECRET: Optional[str] = None  # set in .env: COPERNICUS_CLIENT_SECRET="xyz"
 
     # ---- CORS ----
     CORS_ALLOW_ORIGINS: list[str] = ["*"]

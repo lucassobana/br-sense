@@ -14,12 +14,11 @@ import tifffile
 from app.settings import settings
 
 COPERNICUS_CLIENT_ID = os.getenv(
-    "COPERNICUS_CLIENT_ID", getattr(settings, "COPERNICUS_CLIENT_ID", "sh-9d9a3f81-47d1-4352-9930-bf3fd5f5bebb")
-)
+    "COPERNICUS_CLIENT_ID", getattr(settings, "COPERNICUS_CLIENT_ID", None)
+) or ""
 COPERNICUS_CLIENT_SECRET = os.getenv(
-    "COPERNICUS_CLIENT_SECRET",
-    getattr(settings, "COPERNICUS_CLIENT_SECRET", "0ZHfu8q8osRKjYDsEDmb75jchpFxcu5FudDAgYOsxxM7uqCzPf3pcuvFllZUjM8OMt20ibP33dwMwOoSBnlTUJ"),
-)
+    "COPERNICUS_CLIENT_SECRET", getattr(settings, "COPERNICUS_CLIENT_SECRET", None)
+) or ""
 
 ENDPOINTS = {
     "token": "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token",
