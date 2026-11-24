@@ -60,10 +60,18 @@ def _resolve_area_geometry(area_id: str, db: Session) -> Dict[str, Any]:
 def list_ndvi_scenes(
     area_id: str,
     days: int = Query(90, ge=1, le=180),
+    geom_json: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     """Retorna as passagens reais do satélite Sentinel-2 (Copernicus) sobre a área."""
-    geometry = _resolve_area_geometry(area_id, db)
+    geometry = None
+    if geom_json:
+        try:
+            geometry = json.loads(geom_json)
+        except Exception:
+            pass
+    if not geometry:
+        geometry = _resolve_area_geometry(area_id, db)
     try:
         scenes = service.list_scenes(geometry, days=days)
         return scenes
@@ -78,10 +86,15 @@ def list_ndvi_scenes(
 def analyze_ndvi_scene(
     area_id: str,
     scene_id: str,
+    payload: Optional[Dict[str, Any]] = None,
     db: Session = Depends(get_db),
 ):
     """Processa a imagem real do Sentinel-2 para a cena e área selecionadas."""
-    geometry = _resolve_area_geometry(area_id, db)
+    geometry = None
+    if payload and isinstance(payload, dict) and payload.get("geometry"):
+        geometry = payload["geometry"]
+    if not geometry:
+        geometry = _resolve_area_geometry(area_id, db)
     try:
         analysis = service.analyze_scene(area_id, geometry, scene_id)
         return analysis

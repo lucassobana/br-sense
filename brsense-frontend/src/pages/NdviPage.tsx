@@ -36,7 +36,7 @@ export function NdviPage() {
   const initialAreaId = searchParams.get("area") ?? undefined;
   const probeParam = searchParams.get("probeId");
   const initialProbeId = probeParam ? Number(probeParam) : undefined;
-  const liveMode = import.meta.env.VITE_NDVI_MODE === "live";
+  const liveMode = import.meta.env.VITE_NDVI_MODE !== "demo";
   const isAdmin = isUserAdmin();
 
   const [probes, setProbes] = useState<Probe[]>([]);

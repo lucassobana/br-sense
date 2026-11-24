@@ -22,15 +22,20 @@ async function readError(r: Response): Promise<string> {
 }
 
 export function createHttpNdviApi(baseUrl = "/api/ndvi"): NdviApi {
-  const apiHost = import.meta.env.VITE_API_URL || "http://localhost:8000";
+  const rawApiHost = import.meta.env.VITE_API_URL || "http://localhost:8000";
+  const apiHost = rawApiHost.replace(/\/+$/, "");
   const root = baseUrl.startsWith("http")
-    ? baseUrl
-    : `${apiHost}${baseUrl.startsWith("/") ? "" : "/"}${baseUrl}`;
+    ? baseUrl.replace(/\/+$/, "")
+    : `${apiHost}${baseUrl.startsWith("/") ? "" : "/"}${baseUrl}`.replace(/\/+$/, "");
 
   return {
     async listScenes(area: NdviArea, signal?: AbortSignal): Promise<NdviScene[]> {
+      const url = new URL(`${root}/areas/${encodeURIComponent(area.id)}/scenes`, window.location.origin);
+      if (area.geometry) {
+        url.searchParams.set("geom_json", JSON.stringify(area.geometry));
+      }
       const r = await fetch(
-        `${root}/areas/${encodeURIComponent(area.id)}/scenes`,
+        url.toString(),
         { signal },
       );
       if (!r.ok) throw new Error(await readError(r));
@@ -43,7 +48,16 @@ export function createHttpNdviApi(baseUrl = "/api/ndvi"): NdviApi {
     ): Promise<NdviAnalysis> {
       const r = await fetch(
         `${root}/areas/${encodeURIComponent(area.id)}/scenes/${encodeURIComponent(scene.id)}/analysis`,
-        { method: "POST", signal },
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            geometry: area.geometry,
+          }),
+          signal,
+        },
       );
       if (!r.ok) throw new Error(await readError(r));
       const data = await r.json();

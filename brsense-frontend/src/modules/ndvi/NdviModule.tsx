@@ -140,7 +140,7 @@ export function NdviModule({
   onAreaRemoved,
   onOpenProbeGraph,
 }: NdviModuleProps) {
-  const effectiveMode = mode ?? (demoMode ? "demo" : "live");
+  const effectiveMode = mode ?? (demoMode || import.meta.env.VITE_NDVI_MODE === "demo" ? "demo" : "live");
   const canMutateAreas = Boolean(isAdmin && onAreasImported);
   const client = useMemo(
     () =>

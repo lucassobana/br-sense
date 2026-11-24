@@ -897,9 +897,10 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     }, [showNdvi, currentFarmAreas, visibleNdviAreaIds]);
 
     const ndviApi = useMemo<NdviApi>(() => {
-        return import.meta.env.VITE_NDVI_MODE === 'live'
-            ? createHttpNdviApi(import.meta.env.VITE_NDVI_API_BASE ?? '/api/ndvi')
-            : demoApi;
+        const isDemo = import.meta.env.VITE_NDVI_MODE === 'demo';
+        return isDemo
+            ? demoApi
+            : createHttpNdviApi(import.meta.env.VITE_NDVI_API_BASE ?? '/api/ndvi');
     }, []);
 
     const [activeCenter, setActiveCenter] = useState<[number, number]>(() => {
