@@ -3,6 +3,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap, CircleMarker, Polyline, GeoJSON } from 'react-leaflet';
 import { Box, VStack, Fade, IconButton, useToast, Tooltip, Select, Text, HStack, Flex } from '@chakra-ui/react';
 import { MdAdd, MdRemove, MdMyLocation, MdWaterDrop } from 'react-icons/md';
+import { ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Measurement, RadarFrame, MapLayer, Farm } from '../../types';
@@ -14,10 +16,10 @@ import { RainViewerTimeline } from '../RainViewer/RainViewerTimeline';
 import { ManualProbeCard } from '../ProbeCard/ManualProbeCard';
 import { KmlLayersControl } from './KmlLayersControl';
 import { KmlUploadModal } from './KmlUploadModal';
+import { NdviLayersControl } from './NdviLayersControl';
 import { getNdviAreas, saveMapLayersVisibility } from '../../services/api';
 import {
     NdviMapOverlay,
-    NdviMapToggle,
     createHttpNdviApi,
     demoApi,
     DEMO_AREAS,
@@ -240,6 +242,19 @@ const MapControls = ({
     showNdvi,
     onToggleNdvi,
     ndviDisabled,
+    ndviAreas,
+    visibleNdviAreaIds,
+    onToggleNdviArea,
+    onToggleNdviFarm,
+    selectedNdviFarmName,
+    onSelectNdviFarmName,
+    selectedNdviAreaId,
+    onSelectNdviAreaId,
+    ndviScenes,
+    ndviAnalyses,
+    selectedNdviSceneId,
+    onSelectNdviSceneId,
+    farms,
 }: {
     onLocationFound: (pos: [number, number]) => void;
     showRain: boolean;
@@ -259,10 +274,24 @@ const MapControls = ({
     showNdvi: boolean;
     onToggleNdvi: () => void;
     ndviDisabled?: boolean;
+    ndviAreas: NdviArea[];
+    visibleNdviAreaIds: Set<string>;
+    onToggleNdviArea: (id: string) => void;
+    onToggleNdviFarm: (farmName: string) => void;
+    selectedNdviFarmName: string;
+    onSelectNdviFarmName: (farmName: string) => void;
+    selectedNdviAreaId: string;
+    onSelectNdviAreaId: (id: string) => void;
+    ndviScenes: NdviScene[];
+    ndviAnalyses: Record<string, NdviAnalysis>;
+    selectedNdviSceneId: string;
+    onSelectNdviSceneId: (id: string) => void;
+    farms?: Farm[];
 }) => {
     const map = useMap();
     const toast = useToast();
     const [loadingLoc, setLoadingLoc] = useState(false);
+    const [activeMapPanel, setActiveMapPanel] = useState<'kml' | 'ndvi' | null>(null);
 
     const handleLocate = () => {
         if (!navigator.geolocation) {
@@ -393,15 +422,32 @@ const MapControls = ({
                 hasPendingChanges={hasPendingChanges}
                 isSaving={isSavingLayers}
                 onSave={onSaveLayers}
+                isOpen={activeMapPanel === 'kml'}
+                onToggleOpen={() => setActiveMapPanel((curr) => curr === 'kml' ? null : 'kml')}
+                onClose={() => setActiveMapPanel(null)}
             />
-            {/* NDVI Map Toggle (logo abaixo do controle de camadas) */}
-            <Box>
-                <NdviMapToggle
-                    active={showNdvi}
-                    disabled={ndviDisabled}
-                    onToggle={onToggleNdvi}
-                />
-            </Box>
+            {/* NDVI Layers Control (no mesmo formato das Camadas KML) */}
+            <NdviLayersControl
+                showNdvi={showNdvi}
+                onToggleNdvi={onToggleNdvi}
+                areas={ndviAreas}
+                visibleAreaIds={visibleNdviAreaIds}
+                onToggleArea={onToggleNdviArea}
+                onToggleFarm={onToggleNdviFarm}
+                selectedFarmName={selectedNdviFarmName}
+                onSelectFarmName={onSelectNdviFarmName}
+                selectedAreaId={selectedNdviAreaId}
+                onSelectAreaId={onSelectNdviAreaId}
+                scenes={ndviScenes}
+                analyses={ndviAnalyses}
+                selectedSceneId={selectedNdviSceneId}
+                onSelectSceneId={onSelectNdviSceneId}
+                farms={farms}
+                disabled={ndviDisabled}
+                isOpen={activeMapPanel === 'ndvi'}
+                onToggleOpen={() => setActiveMapPanel((curr) => curr === 'ndvi' ? null : 'ndvi')}
+                onClose={() => setActiveMapPanel(null)}
+            />
             {showRadar && <RadarLegend />}
         </Box>
     );
@@ -409,6 +455,8 @@ const MapControls = ({
 
 const MainMapNdviController = ({
     area,
+    areas = [],
+    farmName,
     api,
     enabled,
     selectedSceneId,
@@ -416,6 +464,8 @@ const MainMapNdviController = ({
     onScenesLoaded,
 }: {
     area?: NdviArea;
+    areas?: NdviArea[];
+    farmName?: string;
     api: NdviApi;
     enabled: boolean;
     selectedSceneId?: string;
@@ -426,25 +476,40 @@ const MainMapNdviController = ({
     ) => void;
 }) => {
     const map = useMap();
+    const effectiveAreas = useMemo(() => {
+        if (areas && areas.length > 0) return areas;
+        if (area) return [area];
+        return [];
+    }, [area, areas]);
 
     useEffect(() => {
-        if (!enabled || !area) return;
-        const b = boundsOf(area.geometry);
-        map.fitBounds(
-            [
-                [b[1], b[0]],
-                [b[3], b[2]],
-            ],
-            { padding: [36, 36], maxZoom: 15 },
-        );
+        if (!enabled || effectiveAreas.length === 0) return;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const a of effectiveAreas) {
+            const b = boundsOf(a.geometry);
+            if (b[0] < minX) minX = b[0];
+            if (b[1] < minY) minY = b[1];
+            if (b[2] > maxX) maxX = b[2];
+            if (b[3] > maxY) maxY = b[3];
+        }
+        if (minX !== Infinity) {
+            map.fitBounds(
+                [
+                    [minY, minX],
+                    [maxY, maxX],
+                ],
+                { padding: [36, 36], maxZoom: 15 },
+            );
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabled, area?.id, map]);
+    }, [enabled, effectiveAreas, map]);
 
     return (
         <Box>
             <NdviMapOverlay
                 map={map}
-                area={area}
+                areas={effectiveAreas}
+                farmName={farmName}
                 api={api}
                 enabled={enabled}
                 selectedSceneId={selectedSceneId}
@@ -693,16 +758,35 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     }, []);
 
     const ndviAreas = useMemo<NdviArea[]>(() => {
+        let rawAreas: NdviArea[] = [];
         if (dbNdviAreas.length > 0) {
-            return dbNdviAreas;
+            rawAreas = dbNdviAreas;
+        } else {
+            const fromLayers = mapLayersToNdviAreas(mapLayers, {
+                onlyVisible: true,
+                visibleLayerIds,
+                hiddenFeatures,
+            });
+            rawAreas = fromLayers.length > 0 ? fromLayers : DEMO_AREAS;
         }
-        const fromLayers = mapLayersToNdviAreas(mapLayers, {
-            onlyVisible: true,
-            visibleLayerIds,
-            hiddenFeatures,
-        });
-        return fromLayers.length > 0 ? fromLayers : DEMO_AREAS;
-    }, [dbNdviAreas, mapLayers, visibleLayerIds, hiddenFeatures]);
+
+        if (points && points.length > 0) {
+            const probeMap = new Map(points.map((p) => [p.id, p]));
+            return rawAreas.map((a) => {
+                if (a.deviceId && probeMap.has(a.deviceId)) {
+                    const p = probeMap.get(a.deviceId)!;
+                    return {
+                        ...a,
+                        deviceName: a.deviceName || p.name || (p.esn ? `Sonda ${p.esn}` : undefined),
+                        deviceEsn: a.deviceEsn || p.esn,
+                    };
+                }
+                return a;
+            });
+        }
+
+        return rawAreas;
+    }, [dbNdviAreas, mapLayers, visibleLayerIds, hiddenFeatures, points]);
 
     const selectedNdviArea = useMemo<NdviArea | undefined>(() => {
         if (selectedNdviAreaId) {
@@ -715,6 +799,102 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
         }
         return ndviAreas[0];
     }, [ndviAreas, selectedNdviAreaId, selectedPoint]);
+
+    const navigate = useNavigate();
+
+    const farmNameById = useMemo(() => {
+        return new Map<number, string>((farms ?? []).map((f) => [f.id, f.name]));
+    }, [farms]);
+
+    const getAreaFarmName = (area?: NdviArea): string => {
+        if (!area) return "";
+        if (area.farmName) return area.farmName;
+        if (area.farmId && farmNameById.has(area.farmId)) {
+            return farmNameById.get(area.farmId)!;
+        }
+        return "Fazenda";
+    };
+
+    const groupedNdviAreas = useMemo(() => {
+        const groups: { farmName: string; areas: NdviArea[] }[] = [];
+        const map = new Map<string, NdviArea[]>();
+        for (const area of ndviAreas) {
+            const farmName = getAreaFarmName(area);
+            if (!map.has(farmName)) {
+                const list: NdviArea[] = [];
+                map.set(farmName, list);
+                groups.push({ farmName, areas: list });
+            }
+            map.get(farmName)!.push(area);
+        }
+        return groups;
+    }, [ndviAreas, farmNameById]);
+
+    const currentNdviFarmName = selectedNdviArea ? getAreaFarmName(selectedNdviArea) : (groupedNdviAreas[0]?.farmName ?? '');
+    const currentFarmAreas = useMemo(() => {
+        return groupedNdviAreas.find(g => g.farmName === currentNdviFarmName)?.areas ?? [];
+    }, [groupedNdviAreas, currentNdviFarmName]);
+
+    // ── Estado de exibição individual das áreas NDVI (mesmo comportamento das Camadas KML) ──
+    const [visibleNdviAreaIds, setVisibleNdviAreaIds] = useState<Set<string>>(() => new Set());
+
+    useEffect(() => {
+        if (ndviAreas.length > 0) {
+            setVisibleNdviAreaIds((prev) => {
+                if (prev.size === 0) {
+                    return new Set(ndviAreas.map((a) => a.id));
+                }
+                return prev;
+            });
+        }
+    }, [ndviAreas]);
+
+    const handleToggleNdviArea = (areaId: string) => {
+        setVisibleNdviAreaIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(areaId)) {
+                next.delete(areaId);
+            } else {
+                next.add(areaId);
+            }
+            return next;
+        });
+    };
+
+    const handleToggleNdviFarm = (farmName: string) => {
+        const farmAreas = groupedNdviAreas.find((g) => g.farmName === farmName)?.areas ?? [];
+        const someVisible = farmAreas.some((a) => visibleNdviAreaIds.has(a.id));
+        setVisibleNdviAreaIds((prev) => {
+            const next = new Set(prev);
+            if (someVisible) {
+                farmAreas.forEach((a) => next.delete(a.id));
+            } else {
+                farmAreas.forEach((a) => next.add(a.id));
+            }
+            return next;
+        });
+    };
+
+    const handleSelectNdviFarm = (farmName: string) => {
+        const farmAreas = groupedNdviAreas.find((g) => g.farmName === farmName)?.areas ?? [];
+        if (farmAreas.length > 0) {
+            setSelectedNdviAreaId(farmAreas[0].id);
+            setSelectedNdviSceneId('');
+            const anyVisible = farmAreas.some((a) => visibleNdviAreaIds.has(a.id));
+            if (!anyVisible) {
+                setVisibleNdviAreaIds((prev) => {
+                    const next = new Set(prev);
+                    farmAreas.forEach((a) => next.add(a.id));
+                    return next;
+                });
+            }
+        }
+    };
+
+    const displayedNdviAreas = useMemo(() => {
+        if (!showNdvi) return [];
+        return currentFarmAreas.filter((a) => visibleNdviAreaIds.has(a.id));
+    }, [showNdvi, currentFarmAreas, visibleNdviAreaIds]);
 
     const ndviApi = useMemo<NdviApi>(() => {
         return import.meta.env.VITE_NDVI_MODE === 'live'
@@ -964,12 +1144,29 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                     showNdvi={showNdvi}
                     onToggleNdvi={() => setShowNdvi((prev) => !prev)}
                     ndviDisabled={!selectedNdviArea}
+                    ndviAreas={ndviAreas}
+                    visibleNdviAreaIds={visibleNdviAreaIds}
+                    onToggleNdviArea={handleToggleNdviArea}
+                    onToggleNdviFarm={handleToggleNdviFarm}
+                    selectedNdviFarmName={currentNdviFarmName}
+                    onSelectNdviFarmName={handleSelectNdviFarm}
+                    selectedNdviAreaId={selectedNdviArea?.id ?? ''}
+                    onSelectNdviAreaId={(id) => {
+                        setSelectedNdviAreaId(id);
+                        setSelectedNdviSceneId('');
+                    }}
+                    ndviScenes={ndviScenes}
+                    ndviAnalyses={ndviAnalyses}
+                    selectedNdviSceneId={selectedNdviSceneId || ndviScenes[0]?.id || ''}
+                    onSelectNdviSceneId={setSelectedNdviSceneId}
+                    farms={farms}
                 />
 
                 <MainMapNdviController
-                    area={selectedNdviArea}
+                    areas={displayedNdviAreas}
+                    farmName={currentNdviFarmName}
                     api={ndviApi}
-                    enabled={showNdvi}
+                    enabled={showNdvi && displayedNdviAreas.length > 0}
                     selectedSceneId={selectedNdviSceneId}
                     onSelectSceneId={setSelectedNdviSceneId}
                     onScenesLoaded={(scenesList, analysesMap) => {
@@ -1159,7 +1356,8 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                                 </Text>
                                 <Select
                                     size={{ base: "xs", md: "sm" }}
-                                    width={{ base: "86px", md: "95px" }}
+                                    width={{ base: "98px", md: "112px" }}
+                                    minW="96px"
                                     value={rainPeriod}
                                     onChange={(e) => setRainPeriod(e.target.value as RainPeriod)}
                                     bg="transparent"
@@ -1192,29 +1390,28 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                             borderColor="gray.300"
                         >
                             <HStack spacing={1} flex="1" minW={0}>
-                                <Text fontSize={{ base: "11px", md: "xs" }} fontWeight="bold" color="green.700" whiteSpace="nowrap">
-                                    Área NDVI:
+                                <Text fontSize={{ base: "11px", md: "xs" }} fontWeight="bold" color="blue.600" whiteSpace="nowrap">
+                                    Fazenda:
                                 </Text>
                                 <Select
                                     size={{ base: "xs", md: "sm" }}
                                     flex="1"
-                                    width={{ base: "100%", sm: "140px", md: "160px" }}
-                                    minW="110px"
-                                    value={selectedNdviArea?.id ?? ''}
+                                    width={{ base: "100%", sm: "160px", md: "200px" }}
+                                    minW="120px"
+                                    value={currentNdviFarmName}
                                     onChange={(e) => {
-                                        setSelectedNdviAreaId(e.target.value);
-                                        setSelectedNdviSceneId('');
+                                        handleSelectNdviFarm(e.target.value);
                                     }}
                                     bg="transparent"
                                     border="none"
                                     fontWeight="bold"
-                                    color="green.700"
+                                    color="blue.700"
                                     _focus={{ boxShadow: 'none' }}
                                     cursor="pointer"
                                 >
-                                    {ndviAreas.map((area) => (
-                                        <option key={area.id} value={area.id}>
-                                            {area.deviceName ? `${area.name} (${area.deviceName})` : area.name}
+                                    {groupedNdviAreas.map(({ farmName }) => (
+                                        <option key={farmName} value={farmName}>
+                                            {farmName}
                                         </option>
                                     ))}
                                 </Select>
@@ -1239,7 +1436,13 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                                         width={{ base: "100%", sm: "150px", md: "185px" }}
                                         minW="120px"
                                         value={selectedNdviSceneId || ndviScenes[0]?.id || ''}
-                                        onChange={(e) => setSelectedNdviSceneId(e.target.value)}
+                                        onChange={(e) => {
+                                            if (e.target.value === '__more__') {
+                                                navigate('/ndvi');
+                                                return;
+                                            }
+                                            setSelectedNdviSceneId(e.target.value);
+                                        }}
                                         bg="transparent"
                                         border="none"
                                         fontWeight="bold"
@@ -1247,7 +1450,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                                         _focus={{ boxShadow: 'none' }}
                                         cursor="pointer"
                                     >
-                                        {ndviScenes.map((s) => {
+                                        {ndviScenes.slice(0, 5).map((s) => {
                                             const a = ndviAnalyses[s.id];
                                             const dateStr = new Intl.DateTimeFormat('pt-BR', {
                                                 day: '2-digit',
@@ -1262,7 +1465,22 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                                                 </option>
                                             );
                                         })}
+                                        {ndviScenes.length > 5 && (
+                                            <option value="__more__">
+                                                Ver mais no módulo NDVI (+{ndviScenes.length - 5})...
+                                            </option>
+                                        )}
                                     </Select>
+                                    <Tooltip label="Ver histórico completo no módulo NDVI">
+                                        <IconButton
+                                            aria-label="Ver histórico completo"
+                                            icon={<ExternalLink size={12} />}
+                                            size="xs"
+                                            variant="ghost"
+                                            colorScheme="blue"
+                                            onClick={() => navigate('/ndvi')}
+                                        />
+                                    </Tooltip>
                                 </HStack>
                             )}
                         </Flex>

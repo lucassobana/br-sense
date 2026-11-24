@@ -94,6 +94,9 @@ interface KmlLayersControlProps {
   isSaving: boolean;
   /** Persiste no backend o estado atual de exibição das camadas/features */
   onSave: () => void;
+  isOpen?: boolean;
+  onToggleOpen?: () => void;
+  onClose?: () => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -109,10 +112,24 @@ export const KmlLayersControl: React.FC<KmlLayersControlProps> = ({
   hasPendingChanges,
   isSaving,
   onSave,
+  isOpen,
+  onToggleOpen,
+  onClose,
 }) => {
-  const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isPanelOpen = isOpen !== undefined ? isOpen : internalOpen;
   const [expandedLayerIds, setExpandedLayerIds] = useState<Set<number>>(new Set());
   const panelRef = useRef<HTMLDivElement>(null);
+
+  const handleToggleOpen = () => {
+    if (onToggleOpen) onToggleOpen();
+    else setInternalOpen((v) => !v);
+  };
+
+  const handleClose = () => {
+    if (onClose) onClose();
+    else setInternalOpen(false);
+  };
 
   // Prevent Leaflet from catching wheel events (Leaflet uses native DOM listeners,
   // React's synthetic stopPropagation doesn't reach it).
@@ -141,7 +158,7 @@ export const KmlLayersControl: React.FC<KmlLayersControlProps> = ({
       <Tooltip label="Camadas KML/KMZ" placement="left">
         <Box
           as="button"
-          onClick={() => setIsPanelOpen((v) => !v)}
+          onClick={handleToggleOpen}
           w="36px"
           h="36px"
           display="flex"
@@ -210,7 +227,7 @@ export const KmlLayersControl: React.FC<KmlLayersControlProps> = ({
                 size="xs"
                 variant="ghost"
                 color="whiteAlpha.600"
-                onClick={() => setIsPanelOpen(false)}
+                onClick={handleClose}
               />
             </HStack>
           </HStack>

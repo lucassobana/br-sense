@@ -1055,7 +1055,7 @@ export function Dashboard() {
                       alignItems="center"
                       gap={2}
                     >
-                      {selectedProbe.name || selectedProbe.esn}
+                      {selectedProbe.isManualProbe ? (selectedProbe.name || selectedProbe.esn) : (selectedProbe.esn || selectedProbe.name)}
                       <motion.div
                         animate={{ rotate: selectedProbe ? 0 : 180 }}
                         transition={{ duration: 0.4 }}
@@ -1072,47 +1072,53 @@ export function Dashboard() {
                     overflowY="auto"
                     zIndex={10}
                   >
-                    {processedTableData.map((probe) => {
-                      const probeKey = probe.isManualProbe ? probe.esn : probe.id;
-                      const selectedKey = selectedProbe.isManualProbe ? selectedProbe.esn : selectedProbe.id;
-                      return (
-                        <MenuItem
-                          key={probeKey}
-                          onClick={() => handleProbeSelect(probeKey)}
-                          bg={
-                            probeKey === selectedKey
-                              ? COLORS.primary
-                              : "gray.800"
-                          }
-                          color="white"
-                          _hover={{
-                            bg:
+                    {processedTableData
+                      .filter(
+                        (probe) =>
+                          !probe.isManualProbe &&
+                          Boolean(probe.esn && probe.esn.trim().startsWith("0-"))
+                      )
+                      .map((probe) => {
+                        const probeKey = probe.id;
+                        const selectedKey = selectedProbe.isManualProbe ? selectedProbe.esn : selectedProbe.id;
+                        return (
+                          <MenuItem
+                            key={probeKey}
+                            onClick={() => handleProbeSelect(probeKey)}
+                            bg={
                               probeKey === selectedKey
-                                ? COLORS.primaryDark
-                                : "gray.700",
-                          }}
-                          _focus={{
-                            bg:
-                              probeKey === selectedKey
-                                ? COLORS.primaryDark
-                                : "gray.700",
-                          }}
-                      >
-                        <Flex align="center" gap={3} w="100%">
-                          <Box
-                            w="12px"
-                            h="12px"
-                            borderRadius="full"
-                            bg={getStatusColor(probe.status)}
-                            flexShrink={0}
-                          />
-                          <Text flex="1" isTruncated>
-                            {probe.name || probe.esn}
-                          </Text>
-                        </Flex>
-                      </MenuItem>
-                    );
-                  })}
+                                ? COLORS.primary
+                                : "gray.800"
+                            }
+                            color="white"
+                            _hover={{
+                              bg:
+                                probeKey === selectedKey
+                                  ? COLORS.primaryDark
+                                  : "gray.700",
+                            }}
+                            _focus={{
+                              bg:
+                                probeKey === selectedKey
+                                  ? COLORS.primaryDark
+                                  : "gray.700",
+                            }}
+                          >
+                            <Flex align="center" gap={3} w="100%">
+                              <Box
+                                w="12px"
+                                h="12px"
+                                borderRadius="full"
+                                bg={getStatusColor(probe.status)}
+                                flexShrink={0}
+                              />
+                              <Text flex="1" isTruncated>
+                                {probe.esn}
+                              </Text>
+                            </Flex>
+                          </MenuItem>
+                        );
+                      })}
                   </MenuList>
                 </Menu>
               </Flex>

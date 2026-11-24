@@ -1,11 +1,25 @@
 import { extendTheme } from '@chakra-ui/react';
 
 export const theme = extendTheme({
+  config: {
+    initialColorMode: 'dark',
+    useSystemColorMode: false,
+  },
   styles: {
     global: {
+      ':root, html, body': {
+        colorScheme: 'dark',
+      },
       body: {
         bg: '#0A1226', // COLORS.background
         color: '#FFFFFF', // COLORS.textPrimary
+      },
+      'select, input, textarea': {
+        colorScheme: 'dark',
+      },
+      'select option': {
+        backgroundColor: '#0c2032 !important',
+        color: '#FFFFFF !important',
       },
     },
   },

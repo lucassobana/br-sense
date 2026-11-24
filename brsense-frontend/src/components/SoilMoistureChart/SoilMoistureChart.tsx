@@ -403,8 +403,6 @@ export function SoilMoistureChart({
         });
 
         const sortedTs = Array.from(groupedMap.keys()).sort((a, b) => a - b);
-        
-        const lastValidByDepth: Record<string, number | null> = {};
 
         const rawChartData = sortedTs.map((ts, index) => {
             const group = groupedMap.get(ts)!;
@@ -420,29 +418,7 @@ export function SoilMoistureChart({
             }
 
             Object.keys(group.values).forEach(key => {
-                let currentVal = group.values[key];
-
-                if (metric === 'moisture') {
-                    const lastValid = lastValidByDepth[key];
-
-                    if (lastValid === undefined || lastValid === null) {
-                        if (currentVal !== 0) {
-                            lastValidByDepth[key] = currentVal;
-                        }
-                    } else {
-                        const diff = currentVal - lastValid;
-                        
-                        const isQuedaInvalida = diff < 0 && diff < -15;
-                        const isSubidaInvalida = diff > 0 && diff > 20;
-
-                        if (currentVal === 0 || isQuedaInvalida || isSubidaInvalida) {
-                            currentVal = lastValid;
-                        } else {
-                            lastValidByDepth[key] = currentVal;
-                        }
-                    }
-                }
-                newItem[key] = currentVal;
+                newItem[key] = group.values[key];
             });
 
             return newItem;
