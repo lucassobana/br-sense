@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Box, useToast } from "@chakra-ui/react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import {
   createNdviAreasBatch,
   deleteNdviArea,
@@ -38,6 +38,10 @@ export function NdviPage() {
   const initialProbeId = probeParam ? Number(probeParam) : undefined;
   const liveMode = import.meta.env.VITE_NDVI_MODE !== "demo";
   const isAdmin = isUserAdmin();
+
+  if (!isAdmin) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const [probes, setProbes] = useState<Probe[]>([]);
   const [farms, setFarms] = useState<Farm[]>([]);
