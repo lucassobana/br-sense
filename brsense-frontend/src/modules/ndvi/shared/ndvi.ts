@@ -10,7 +10,7 @@ export const BINS: Omit<NdviBin, "count">[] = [
     rangeLabel: "< 0,25",
     min: -1,
     max: 0.25,
-    color: "#bf5b3d",
+    color: "#e52700",
   },
   {
     id: "atencao",
@@ -18,7 +18,7 @@ export const BINS: Omit<NdviBin, "count">[] = [
     rangeLabel: "0,25 – 0,45",
     min: 0.25,
     max: 0.45,
-    color: "#df9b43",
+    color: "#ff6e00",
   },
   {
     id: "moderado",
@@ -26,7 +26,7 @@ export const BINS: Omit<NdviBin, "count">[] = [
     rangeLabel: "0,45 – 0,65",
     min: 0.45,
     max: 0.65,
-    color: "#b7cf4c",
+    color: "#73e60a",
   },
   {
     id: "vigoroso",
@@ -34,7 +34,7 @@ export const BINS: Omit<NdviBin, "count">[] = [
     rangeLabel: "≥ 0,65",
     min: 0.65,
     max: 1.01,
-    color: "#2ea84b",
+    color: "#0fc319",
   },
 ];
 
@@ -46,13 +46,13 @@ export function qualityFor(validPct: number): SceneQuality {
 
 export function ndviColor(v: number): [number, number, number] {
   const stops: [number, [number, number, number]][] = [
-    [-0.2, [68, 99, 127]],
-    [0.08, [175, 86, 61]],
-    [0.25, [215, 130, 67]],
-    [0.42, [231, 198, 92]],
-    [0.58, [164, 205, 76]],
-    [0.72, [64, 166, 64]],
-    [0.88, [22, 111, 56]],
+    [0.00, [215, 25, 0]],
+    [0.20, [235, 45, 0]],
+    [0.32, [255, 110, 0]],
+    [0.44, [255, 230, 0]],
+    [0.56, [115, 230, 10]],
+    [0.68, [15, 195, 25]],
+    [0.80, [0, 110, 20]],
   ];
   if (v <= stops[0][0]) return stops[0][1];
   for (let i = 1; i < stops.length; i++) {

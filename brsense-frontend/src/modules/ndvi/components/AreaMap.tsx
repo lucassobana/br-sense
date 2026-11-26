@@ -171,7 +171,7 @@ export function AreaMap({
           [b[3], b[2]],
         ],
         {
-          opacity: 0.86,
+          opacity: 0.90,
           interactive: false,
           className: "ndvi-raster",
         },

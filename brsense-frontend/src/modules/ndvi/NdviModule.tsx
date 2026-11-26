@@ -252,8 +252,13 @@ export function NdviModule({
         if (ac.signal.aborted) return;
         setScenes(list);
         const firstClean =
-          list.find((s) => (s.tileCloudPct ?? 0) <= 35) ?? list[0];
+          list.find((s) => (s.tileCloudPct ?? 0) <= 10) ??
+          list.find((s) => (s.tileCloudPct ?? 0) <= 35) ??
+          list[0];
         const secondClean =
+          list.find(
+            (s) => s.id !== firstClean?.id && (s.tileCloudPct ?? 0) <= 20,
+          ) ??
           list.find(
             (s) => s.id !== firstClean?.id && (s.tileCloudPct ?? 0) <= 45,
           ) ??
@@ -1260,7 +1265,7 @@ export function NdviModule({
                           <Box
                             h="6px"
                             borderRadius="full"
-                            bg="linear-gradient(to right, #436784 0%, #b85b3f 50%, #db944a 60%, #e7d067 70%, #a2c847 80%, #42a336 90%, #187037 100%)"
+                            bg="linear-gradient(to right, #d71900 0%, #eb2d00 15%, #ff6e00 30%, #ffe600 48%, #73e60a 66%, #0fc319 82%, #006e14 100%)"
                           />
                           <Flex justify="space-between" fontSize="10px" color="#90a8b8" mt={1}>
                             <Text as="span">0,10</Text>

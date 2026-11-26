@@ -14,7 +14,7 @@ export function attachNdviToLeafletMap(
   options: { opacity?: number; showContour?: boolean } = {},
 ): MapNdviLayerHandle {
   const group = L.layerGroup().addTo(map);
-  const opacity = options.opacity ?? 0.84;
+  const opacity = options.opacity ?? 0.90;
 
   if (analysis?.pngUrl) {
     const b = analysis.bounds ?? boundsOf(area.geometry);

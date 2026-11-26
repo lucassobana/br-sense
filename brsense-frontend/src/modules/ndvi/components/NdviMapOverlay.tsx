@@ -148,16 +148,22 @@ export function NdviMapOverlay({
             "Nenhuma passagem de satélite foi encontrada para esta área.",
           );
         }
-        setScenes(list);
-        const firstClean =
-          list.find((s) => (s.tileCloudPct ?? 0) <= 45) ?? list[0];
-        const initialId = firstClean?.id ?? list[0].id;
+        // No mapa: filtra somente passagens com pelo menos 90% de visualização (nuvens <= 10%)
+        const cleanList = list.filter((s) => (s.tileCloudPct ?? 0) <= 10);
+        const mapList = cleanList.length > 0 ? cleanList : list.filter((s) => (s.tileCloudPct ?? 0) <= 20);
+        if (!mapList.length) {
+          throw new Error(
+            "Nenhuma passagem recente com pelo menos 90% de visualização livre de nuvens.",
+          );
+        }
+        setScenes(mapList);
+        const initialId = mapList[0].id;
         setInternalSceneId(initialId);
         onSelectSceneId?.(initialId);
 
         const firstAnalysis = await api.analyzeScene(
           primaryArea,
-          firstClean ?? list[0],
+          mapList[0],
           ac.signal,
         );
         if (ac.signal.aborted) return;
@@ -166,10 +172,10 @@ export function NdviMapOverlay({
         };
         setAnalyses(nextMap);
         setLoading(false);
-        onScenesLoaded?.(list, nextMap);
+        onScenesLoaded?.(mapList, nextMap);
 
         // Carrega análises históricas em segundo plano para o seletor de histórico
-        for (const s of list) {
+        for (const s of mapList) {
           if (ac.signal.aborted) return;
           if (s.id === initialId) continue;
           try {
@@ -178,7 +184,7 @@ export function NdviMapOverlay({
               nextMap[s.id] = a;
               setAnalyses((prev) => {
                 const updated = { ...prev, [s.id]: a };
-                onScenesLoaded?.(list, updated);
+                onScenesLoaded?.(mapList, updated);
                 return updated;
               });
             }
@@ -242,9 +248,9 @@ export function NdviMapOverlay({
 
     for (const a of targetAreas) {
       const aAnalysis = currentSceneAnalyses[a.id];
-      if (aAnalysis && aAnalysis.areaId === a.id) {
+      if (aAnalysis && aAnalysis.areaId === a.id && (aAnalysis.validPct >= 90 || aAnalysis.quality === "utilizavel")) {
         const handle = attachNdviToLeafletMap(map, a, aAnalysis, {
-          opacity: 0.84,
+          opacity: 0.90,
           showContour: true,
         });
         layersRef.current.push(handle);
@@ -398,7 +404,7 @@ export function NdviMapOverlay({
               h="8px"
               w="100%"
               borderRadius="full"
-              bg="linear-gradient(to right, #436784 0%, #b85b3f 20%, #db944a 40%, #e7d067 60%, #a2c847 75%, #42a336 88%, #187037 100%)"
+              bg="linear-gradient(to right, #d71900 0%, #eb2d00 15%, #ff6e00 30%, #ffe600 48%, #73e60a 66%, #0fc319 82%, #006e14 100%)"
               boxShadow="inset 0 1px 3px rgba(0,0,0,0.5)"
             />
             {/* Ticks numéricos */}

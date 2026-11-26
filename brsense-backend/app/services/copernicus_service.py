@@ -42,20 +42,20 @@ function evaluatePixel(s) {
 }"""
 
 BINS = [
-    {"id": "baixo", "label": "Solo exposto / falha", "rangeLabel": "< 0,25", "min": -1.0, "max": 0.25, "color": "#bf5b3d"},
-    {"id": "atencao", "label": "Atenção / estresse", "rangeLabel": "0,25 – 0,45", "min": 0.25, "max": 0.45, "color": "#df9b43"},
-    {"id": "moderado", "label": "Desenvolvimento", "rangeLabel": "0,45 – 0,65", "min": 0.45, "max": 0.65, "color": "#b7cf4c"},
-    {"id": "vigoroso", "label": "Vigor alto", "rangeLabel": "≥ 0,65", "min": 0.65, "max": 1.01, "color": "#2ea84b"},
+    {"id": "baixo", "label": "Solo exposto / falha", "rangeLabel": "< 0,25", "min": -1.0, "max": 0.25, "color": "#e52700"},
+    {"id": "atencao", "label": "Atenção / estresse", "rangeLabel": "0,25 – 0,45", "min": 0.25, "max": 0.45, "color": "#ff6e00"},
+    {"id": "moderado", "label": "Desenvolvimento", "rangeLabel": "0,45 – 0,65", "min": 0.45, "max": 0.65, "color": "#73e60a"},
+    {"id": "vigoroso", "label": "Vigor alto", "rangeLabel": "≥ 0,65", "min": 0.65, "max": 1.01, "color": "#0fc319"},
 ]
 
 COLOR_STOPS = [
-    (-0.2, (68, 99, 127)),
-    (0.08, (175, 86, 61)),
-    (0.25, (215, 130, 67)),
-    (0.42, (231, 198, 92)),
-    (0.58, (164, 205, 76)),
-    (0.72, (64, 166, 64)),
-    (0.88, (22, 111, 56)),
+    (0.00, (215, 25, 0)),    # #d71900 - Vermelho puro profundo (solo exposto / falha crítica)
+    (0.20, (235, 45, 0)),    # #eb2d00 - Vermelho vivo brilhante
+    (0.32, (255, 110, 0)),   # #ff6e00 - Laranja elétrico puro (estresse hídrico / anomalia)
+    (0.44, (255, 230, 0)),   # #ffe600 - Amarelo puro neon (transição nítida / atenção)
+    (0.56, (115, 230, 10)),  # #73e60a - Verde-limão / Chartreuse elétrico (desenvolvimento)
+    (0.68, (15, 195, 25)),   # #0fc319 - Verde folha vivo e brilhante (bom vigor)
+    (0.80, (0, 110, 20)),    # #006e14 - Verde escuro intenso (vigor máximo / dossel pleno)
 ]
 
 
@@ -434,7 +434,7 @@ class CopernicusService:
                             break
 
                     r, g, b = ndvi_color(val)
-                    rgba_img[y, x] = [r, g, b, 245]
+                    rgba_img[y, x] = [r, g, b, 255]
                 elif state == 1:
                     # Nuvem/sombra detectada
                     rgba_img[y, x] = [170, 185, 195, 185]

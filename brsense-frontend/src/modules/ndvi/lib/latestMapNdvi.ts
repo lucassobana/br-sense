@@ -24,8 +24,8 @@ export async function loadLatestMapNdvi(
     );
   }
   const ordered = [
-    ...scenes.filter((s) => (s.tileCloudPct ?? 0) <= 45),
-    ...scenes.filter((s) => (s.tileCloudPct ?? 0) > 45),
+    ...scenes.filter((s) => (s.tileCloudPct ?? 0) <= 10),
+    ...scenes.filter((s) => (s.tileCloudPct ?? 0) > 10 && (s.tileCloudPct ?? 0) <= 30),
   ];
   let fallback: LatestMapNdviResult | null = null;
   for (let i = 0; i < Math.min(ordered.length, 4); i++) {
@@ -38,7 +38,7 @@ export async function loadLatestMapNdvi(
       analysis,
       usedFallbackScene: scene.id !== scenes[0].id,
     };
-    if (analysis.quality !== "insuficiente") return candidate;
+    if (analysis.quality !== "insuficiente" && analysis.validPct >= 90) return candidate;
     fallback ??= candidate;
   }
   if (fallback) return fallback;

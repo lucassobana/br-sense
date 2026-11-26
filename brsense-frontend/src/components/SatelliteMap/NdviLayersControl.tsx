@@ -136,8 +136,17 @@ export const NdviLayersControl: React.FC<NdviLayersControlProps> = ({
     });
   };
 
-  // Limita estritamente às últimas 5 medições
-  const recentScenes = scenes.slice(0, 5);
+  // Limita estritamente às últimas 5 medições com pelo menos 90% de visualização (nuvens <= 10%)
+  const recentScenes = useMemo(() => {
+    return scenes
+      .filter((s) => {
+        const a = analyses[s.id];
+        if ((s.tileCloudPct ?? 0) > 10) return false;
+        if (a && a.validPct < 90) return false;
+        return true;
+      })
+      .slice(0, 5);
+  }, [scenes, analyses]);
 
   return (
     <Box position="relative">

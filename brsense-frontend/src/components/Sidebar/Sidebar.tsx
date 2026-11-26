@@ -117,12 +117,12 @@ const SidebarContent = ({
     { label: "Mapa", icon: MdMap, path: "/dashboard" },
     { label: "Fazendas", icon: MdAgriculture, path: "/farms" },
     { label: "Sondas", icon: MdSensors, path: "/probes" },
-    { label: "Imagens NDVI", icon: MdSatelliteAlt, path: "/ndvi" },
   ];
 
   const navItems = isAdmin
     ? [
         ...baseNavItems,
+        { label: "Imagens NDVI", icon: MdSatelliteAlt, path: "/ndvi" },
         { label: "Configurações", icon: MdSettings, path: "/settings" },
       ]
     : baseNavItems;
@@ -278,11 +278,14 @@ const BottomNav = ({ isAdmin = false }: { isAdmin?: boolean }) => {
   const baseItems = [
     { label: "Mapa", icon: MdMap, path: "/dashboard" },
     { label: "Sondas", icon: MdSensors, path: "/probes" },
-    { label: "NDVI", icon: MdSatelliteAlt, path: "/ndvi" },
   ];
 
   const mobileItems = isAdmin
-    ? [...baseItems, { label: "Config.", icon: MdSettings, path: "/settings" }]
+    ? [
+        ...baseItems,
+        { label: "NDVI", icon: MdSatelliteAlt, path: "/ndvi" },
+        { label: "Config.", icon: MdSettings, path: "/settings" },
+      ]
     : baseItems;
 
   return (

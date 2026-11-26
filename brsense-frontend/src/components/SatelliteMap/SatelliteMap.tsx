@@ -255,6 +255,7 @@ const MapControls = ({
     selectedNdviSceneId,
     onSelectNdviSceneId,
     farms,
+    isAdmin = false,
 }: {
     onLocationFound: (pos: [number, number]) => void;
     showRain: boolean;
@@ -287,6 +288,7 @@ const MapControls = ({
     selectedNdviSceneId: string;
     onSelectNdviSceneId: (id: string) => void;
     farms?: Farm[];
+    isAdmin?: boolean;
 }) => {
     const map = useMap();
     const toast = useToast();
@@ -426,28 +428,30 @@ const MapControls = ({
                 onToggleOpen={() => setActiveMapPanel((curr) => curr === 'kml' ? null : 'kml')}
                 onClose={() => setActiveMapPanel(null)}
             />
-            {/* NDVI Layers Control (no mesmo formato das Camadas KML) */}
-            <NdviLayersControl
-                showNdvi={showNdvi}
-                onToggleNdvi={onToggleNdvi}
-                areas={ndviAreas}
-                visibleAreaIds={visibleNdviAreaIds}
-                onToggleArea={onToggleNdviArea}
-                onToggleFarm={onToggleNdviFarm}
-                selectedFarmName={selectedNdviFarmName}
-                onSelectFarmName={onSelectNdviFarmName}
-                selectedAreaId={selectedNdviAreaId}
-                onSelectAreaId={onSelectNdviAreaId}
-                scenes={ndviScenes}
-                analyses={ndviAnalyses}
-                selectedSceneId={selectedNdviSceneId}
-                onSelectSceneId={onSelectNdviSceneId}
-                farms={farms}
-                disabled={ndviDisabled}
-                isOpen={activeMapPanel === 'ndvi'}
-                onToggleOpen={() => setActiveMapPanel((curr) => curr === 'ndvi' ? null : 'ndvi')}
-                onClose={() => setActiveMapPanel(null)}
-            />
+            {/* NDVI Layers Control (apenas para Admin) */}
+            {isAdmin && (
+                <NdviLayersControl
+                    showNdvi={showNdvi}
+                    onToggleNdvi={onToggleNdvi}
+                    areas={ndviAreas}
+                    visibleAreaIds={visibleNdviAreaIds}
+                    onToggleArea={onToggleNdviArea}
+                    onToggleFarm={onToggleNdviFarm}
+                    selectedFarmName={selectedNdviFarmName}
+                    onSelectFarmName={onSelectNdviFarmName}
+                    selectedAreaId={selectedNdviAreaId}
+                    onSelectAreaId={onSelectNdviAreaId}
+                    scenes={ndviScenes}
+                    analyses={ndviAnalyses}
+                    selectedSceneId={selectedNdviSceneId}
+                    onSelectSceneId={onSelectNdviSceneId}
+                    farms={farms}
+                    disabled={ndviDisabled}
+                    isOpen={activeMapPanel === 'ndvi'}
+                    onToggleOpen={() => setActiveMapPanel((curr) => curr === 'ndvi' ? null : 'ndvi')}
+                    onClose={() => setActiveMapPanel(null)}
+                />
+            )}
             {showRadar && <RadarLegend />}
         </Box>
     );
@@ -1123,6 +1127,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                 {/* {showRadar && <RadarLegend />} */}
 
                 <MapControls
+                    isAdmin={isAdmin}
                     onLocationFound={(pos) => setUserLocation(pos)}
                     showRain={showRain}
                     onToggleRain={() => setShowRain((prev) => !prev)}
@@ -1163,18 +1168,20 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                     farms={farms}
                 />
 
-                <MainMapNdviController
-                    areas={displayedNdviAreas}
-                    farmName={currentNdviFarmName}
-                    api={ndviApi}
-                    enabled={showNdvi && displayedNdviAreas.length > 0}
-                    selectedSceneId={selectedNdviSceneId}
-                    onSelectSceneId={setSelectedNdviSceneId}
-                    onScenesLoaded={(scenesList, analysesMap) => {
-                        setNdviScenes(scenesList);
-                        setNdviAnalyses(analysesMap);
-                    }}
-                />
+                {isAdmin && (
+                    <MainMapNdviController
+                        areas={displayedNdviAreas}
+                        farmName={currentNdviFarmName}
+                        api={ndviApi}
+                        enabled={showNdvi && displayedNdviAreas.length > 0}
+                        selectedSceneId={selectedNdviSceneId}
+                        onSelectSceneId={setSelectedNdviSceneId}
+                        onScenesLoaded={(scenesList, analysesMap) => {
+                            setNdviScenes(scenesList);
+                            setNdviAnalyses(analysesMap);
+                        }}
+                    />
+                )}
 
                 {userLocation && (
                     <CircleMarker
@@ -1378,8 +1385,8 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                         )}
                     </Flex>
 
-                    {/* Seletor de Área e Histórico NDVI (Aparece ao ativar botão NDVI) */}
-                    {showNdvi && ndviAreas.length > 0 && (
+                    {/* Seletor de Área e Histórico NDVI (Aparece ao ativar botão NDVI, apenas para Admin) */}
+                    {isAdmin && showNdvi && ndviAreas.length > 0 && (
                         <Flex
                             direction={{ base: "column", sm: "row" }}
                             align={{ base: "stretch", sm: "center" }}
@@ -1451,21 +1458,29 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                                         _focus={{ boxShadow: 'none' }}
                                         cursor="pointer"
                                     >
-                                        {ndviScenes.slice(0, 5).map((s) => {
-                                            const a = ndviAnalyses[s.id];
-                                            const dateStr = new Intl.DateTimeFormat('pt-BR', {
-                                                day: '2-digit',
-                                                month: 'short',
-                                                year: 'numeric',
-                                                timeZone: 'UTC',
-                                            }).format(new Date(s.acquiredAt));
-                                            const meanStr = a?.mean != null ? ` (${a.mean.toFixed(2).replace('.', ',')})` : '';
-                                            return (
-                                                <option key={s.id} value={s.id}>
-                                                    {dateStr}{meanStr}
-                                                </option>
-                                            );
-                                        })}
+                                        {ndviScenes
+                                            .filter((s) => {
+                                                const a = ndviAnalyses[s.id];
+                                                if ((s.tileCloudPct ?? 0) > 10) return false;
+                                                if (a && a.validPct < 90) return false;
+                                                return true;
+                                            })
+                                            .slice(0, 5)
+                                            .map((s) => {
+                                                const a = ndviAnalyses[s.id];
+                                                const dateStr = new Intl.DateTimeFormat('pt-BR', {
+                                                    day: '2-digit',
+                                                    month: 'short',
+                                                    year: 'numeric',
+                                                    timeZone: 'UTC',
+                                                }).format(new Date(s.acquiredAt));
+                                                const meanStr = a?.mean != null ? ` (${a.mean.toFixed(2).replace('.', ',')})` : '';
+                                                return (
+                                                    <option key={s.id} value={s.id}>
+                                                        {dateStr}{meanStr}
+                                                    </option>
+                                                );
+                                            })}
                                         {ndviScenes.length > 5 && (
                                             <option value="__more__">
                                                 Ver mais no módulo NDVI (+{ndviScenes.length - 5})...
