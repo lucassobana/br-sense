@@ -53,3 +53,24 @@ html, body, #root {
 .leaflet-container a.leaflet-popup-close-button:hover {
     color: white !important;
 }
+
+/* Suporte a Tema Escuro em formulários, selects e opções no macOS / WebKit */
+:root, html, body {
+    color-scheme: dark;
+}
+
+select, input, textarea {
+    color-scheme: dark;
+}
+
+select option,
+select optgroup {
+    background-color: #0c2032 !important;
+    color: #ffffff !important;
+}
+
+select option:checked,
+select option:hover {
+    background-color: #1e4e79 !important;
+    color: #ffffff !important;
+}

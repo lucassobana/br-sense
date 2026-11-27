@@ -20,6 +20,7 @@ import {
   MdMap,
   MdAgriculture,
   MdSensors,
+  MdSatelliteAlt,
   MdLogout,
   MdSettings,
 } from "react-icons/md";
@@ -121,6 +122,7 @@ const SidebarContent = ({
   const navItems = isAdmin
     ? [
         ...baseNavItems,
+        { label: "Imagens NDVI", icon: MdSatelliteAlt, path: "/ndvi" },
         { label: "Configurações", icon: MdSettings, path: "/settings" },
       ]
     : baseNavItems;
@@ -279,7 +281,11 @@ const BottomNav = ({ isAdmin = false }: { isAdmin?: boolean }) => {
   ];
 
   const mobileItems = isAdmin
-    ? [...baseItems, { label: "Config.", icon: MdSettings, path: "/settings" }]
+    ? [
+        ...baseItems,
+        { label: "NDVI", icon: MdSatelliteAlt, path: "/ndvi" },
+        { label: "Config.", icon: MdSettings, path: "/settings" },
+      ]
     : baseItems;
 
   return (

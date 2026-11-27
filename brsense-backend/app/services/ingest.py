@@ -2,7 +2,7 @@
 import logging
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from app.models.device import Device
 from app.models.farm import Farm
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_UNASSIGNED_FARM_ID = 18
 
-def _get_default_farm_id(db: Session) -> int | None:
+def _get_default_farm_id(db: Session) -> Optional[int]:
     farm = db.query(Farm.id).filter(Farm.id == DEFAULT_UNASSIGNED_FARM_ID).first()
     return farm[0] if farm else None
 

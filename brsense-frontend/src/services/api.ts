@@ -302,3 +302,111 @@ export const saveMapLayersVisibility = async (
   return response.data;
 };
 
+// --- Funções de Áreas NDVI (vinculadas a Sondas no Banco de Dados) ---
+
+export interface BackendNdviAreaResponse {
+  id: string;
+  db_id: number;
+  device_id: number;
+  device_esn?: string | null;
+  device_name?: string | null;
+  farm_id?: number | null;
+  farmName: string;
+  city: string;
+  name: string;
+  type: "pivo" | "talhao";
+  crop: string;
+  hectares: number;
+  geometry: import("../modules/ndvi").AreaGeometry;
+  source: "demo" | "kml" | "sistema" | "desenho";
+  circle?: {
+    center: [number, number];
+    edge: [number, number];
+    radiusM: number;
+  } | null;
+  created_at?: string;
+}
+
+export interface CreateNdviAreaDTO {
+  device_id: number;
+  name: string;
+  type: "pivo" | "talhao";
+  crop: string;
+  hectares: number;
+  geometry: import("../modules/ndvi").AreaGeometry;
+  source: "desenho" | "kml" | "sistema";
+  circle?: {
+    center: [number, number];
+    edge: [number, number];
+    radiusM: number;
+  };
+}
+
+const mapBackendNdviArea = (
+  raw: BackendNdviAreaResponse,
+): import("../modules/ndvi").NdviArea => ({
+  id: raw.id,
+  dbId: raw.db_id,
+  deviceId: raw.device_id,
+  deviceEsn: raw.device_esn ?? undefined,
+  deviceName: raw.device_name ?? undefined,
+  farmId: raw.farm_id ?? undefined,
+  name: raw.name,
+  farmName: raw.farmName,
+  city: raw.city,
+  type: raw.type,
+  crop: raw.crop,
+  hectares: Number(raw.hectares),
+  geometry: raw.geometry,
+  source: raw.source,
+  circle: raw.circle ?? undefined,
+});
+
+export const getNdviAreas = async (
+  deviceId?: number,
+): Promise<import("../modules/ndvi").NdviArea[]> => {
+  const response = await api.get<BackendNdviAreaResponse[]>("/api/ndvi-areas", {
+    params: deviceId ? { device_id: deviceId } : undefined,
+  });
+  return response.data.map(mapBackendNdviArea);
+};
+
+export const createNdviAreasBatch = async (
+  areas: CreateNdviAreaDTO[],
+): Promise<import("../modules/ndvi").NdviArea[]> => {
+  const response = await api.post<BackendNdviAreaResponse[]>(
+    "/api/ndvi-areas/batch",
+    { areas },
+  );
+  return response.data.map(mapBackendNdviArea);
+};
+
+export interface UpdateNdviAreaDTO {
+  device_id?: number;
+  name?: string;
+  type?: "pivo" | "talhao";
+  crop?: string;
+  hectares?: number;
+  geometry?: import("../modules/ndvi").AreaGeometry;
+  circle?: {
+    center: [number, number];
+    edge: [number, number];
+    radiusM: number;
+  } | null;
+}
+
+export const updateNdviArea = async (
+  areaId: string | number,
+  data: UpdateNdviAreaDTO,
+): Promise<import("../modules/ndvi").NdviArea> => {
+  const response = await api.put<BackendNdviAreaResponse>(
+    `/api/ndvi-areas/${areaId}`,
+    data,
+  );
+  return mapBackendNdviArea(response.data);
+};
+
+export const deleteNdviArea = async (areaId: string | number): Promise<void> => {
+  await api.delete(`/api/ndvi-areas/${areaId}`);
+};
+

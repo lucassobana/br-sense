@@ -3,6 +3,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap, CircleMarker, Polyline, GeoJSON } from 'react-leaflet';
 import { Box, VStack, Fade, IconButton, useToast, Tooltip, Select, Text, HStack, Flex } from '@chakra-ui/react';
 import { MdAdd, MdRemove, MdMyLocation, MdWaterDrop } from 'react-icons/md';
+import { ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Measurement, RadarFrame, MapLayer, Farm } from '../../types';
@@ -14,7 +16,20 @@ import { RainViewerTimeline } from '../RainViewer/RainViewerTimeline';
 import { ManualProbeCard } from '../ProbeCard/ManualProbeCard';
 import { KmlLayersControl } from './KmlLayersControl';
 import { KmlUploadModal } from './KmlUploadModal';
-import { saveMapLayersVisibility } from '../../services/api';
+import { NdviLayersControl } from './NdviLayersControl';
+import { getNdviAreas, saveMapLayersVisibility } from '../../services/api';
+import {
+    NdviMapOverlay,
+    createHttpNdviApi,
+    demoApi,
+    DEMO_AREAS,
+    mapLayersToNdviAreas,
+    type NdviAnalysis,
+    type NdviApi,
+    type NdviArea,
+    type NdviScene,
+} from '../../modules/ndvi';
+import { boundsOf } from '../../modules/ndvi/shared/geometry';
 // import { GiRadarSweep } from "react-icons/gi";
 
 
@@ -180,6 +195,16 @@ interface SatelliteMapProps {
     onManualProbeUpdated?: () => void;
 }
 
+const stopLeafletEvents = (el: HTMLElement | null) => {
+    if (!el) return;
+    L.DomEvent.disableClickPropagation(el);
+    L.DomEvent.disableScrollPropagation(el);
+    const stop = (ev: Event) => ev.stopPropagation();
+    el.addEventListener("pointerdown", stop);
+    el.addEventListener("mousedown", stop);
+    el.addEventListener("touchstart", stop, { passive: true });
+};
+
 const MapRecenter = ({ center, zoom }: { center: [number, number] | null, zoom: number }) => {
     const map = useMap();
     useEffect(() => {
@@ -214,6 +239,23 @@ const MapControls = ({
     hasPendingChanges,
     isSavingLayers,
     onSaveLayers,
+    showNdvi,
+    onToggleNdvi,
+    ndviDisabled,
+    ndviAreas,
+    visibleNdviAreaIds,
+    onToggleNdviArea,
+    onToggleNdviFarm,
+    selectedNdviFarmName,
+    onSelectNdviFarmName,
+    selectedNdviAreaId,
+    onSelectNdviAreaId,
+    ndviScenes,
+    ndviAnalyses,
+    selectedNdviSceneId,
+    onSelectNdviSceneId,
+    farms,
+    isAdmin = false,
 }: {
     onLocationFound: (pos: [number, number]) => void;
     showRain: boolean;
@@ -230,10 +272,28 @@ const MapControls = ({
     hasPendingChanges: boolean;
     isSavingLayers: boolean;
     onSaveLayers: () => void;
+    showNdvi: boolean;
+    onToggleNdvi: () => void;
+    ndviDisabled?: boolean;
+    ndviAreas: NdviArea[];
+    visibleNdviAreaIds: Set<string>;
+    onToggleNdviArea: (id: string) => void;
+    onToggleNdviFarm: (farmName: string) => void;
+    selectedNdviFarmName: string;
+    onSelectNdviFarmName: (farmName: string) => void;
+    selectedNdviAreaId: string;
+    onSelectNdviAreaId: (id: string) => void;
+    ndviScenes: NdviScene[];
+    ndviAnalyses: Record<string, NdviAnalysis>;
+    selectedNdviSceneId: string;
+    onSelectNdviSceneId: (id: string) => void;
+    farms?: Farm[];
+    isAdmin?: boolean;
 }) => {
     const map = useMap();
     const toast = useToast();
     const [loadingLoc, setLoadingLoc] = useState(false);
+    const [activeMapPanel, setActiveMapPanel] = useState<'kml' | 'ndvi' | null>(null);
 
     const handleLocate = () => {
         if (!navigator.geolocation) {
@@ -277,6 +337,14 @@ const MapControls = ({
 
     return (
         <Box
+            ref={stopLeafletEvents}
+            onMouseEnter={() => map?.dragging?.disable()}
+            onMouseLeave={() => map?.dragging?.enable()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
             position="absolute"
             top="10px"
             right="10px"
@@ -356,8 +424,102 @@ const MapControls = ({
                 hasPendingChanges={hasPendingChanges}
                 isSaving={isSavingLayers}
                 onSave={onSaveLayers}
+                isOpen={activeMapPanel === 'kml'}
+                onToggleOpen={() => setActiveMapPanel((curr) => curr === 'kml' ? null : 'kml')}
+                onClose={() => setActiveMapPanel(null)}
             />
+            {/* NDVI Layers Control (apenas para Admin) */}
+            {isAdmin && (
+                <NdviLayersControl
+                    showNdvi={showNdvi}
+                    onToggleNdvi={onToggleNdvi}
+                    areas={ndviAreas}
+                    visibleAreaIds={visibleNdviAreaIds}
+                    onToggleArea={onToggleNdviArea}
+                    onToggleFarm={onToggleNdviFarm}
+                    selectedFarmName={selectedNdviFarmName}
+                    onSelectFarmName={onSelectNdviFarmName}
+                    selectedAreaId={selectedNdviAreaId}
+                    onSelectAreaId={onSelectNdviAreaId}
+                    scenes={ndviScenes}
+                    analyses={ndviAnalyses}
+                    selectedSceneId={selectedNdviSceneId}
+                    onSelectSceneId={onSelectNdviSceneId}
+                    farms={farms}
+                    disabled={ndviDisabled}
+                    isOpen={activeMapPanel === 'ndvi'}
+                    onToggleOpen={() => setActiveMapPanel((curr) => curr === 'ndvi' ? null : 'ndvi')}
+                    onClose={() => setActiveMapPanel(null)}
+                />
+            )}
             {showRadar && <RadarLegend />}
+        </Box>
+    );
+};
+
+const MainMapNdviController = ({
+    area,
+    areas = [],
+    farmName,
+    api,
+    enabled,
+    selectedSceneId,
+    onSelectSceneId,
+    onScenesLoaded,
+}: {
+    area?: NdviArea;
+    areas?: NdviArea[];
+    farmName?: string;
+    api: NdviApi;
+    enabled: boolean;
+    selectedSceneId?: string;
+    onSelectSceneId?: (sceneId: string) => void;
+    onScenesLoaded?: (
+        scenes: NdviScene[],
+        analyses: Record<string, NdviAnalysis>,
+    ) => void;
+}) => {
+    const map = useMap();
+    const effectiveAreas = useMemo(() => {
+        if (areas && areas.length > 0) return areas;
+        if (area) return [area];
+        return [];
+    }, [area, areas]);
+
+    useEffect(() => {
+        if (!enabled || effectiveAreas.length === 0) return;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const a of effectiveAreas) {
+            const b = boundsOf(a.geometry);
+            if (b[0] < minX) minX = b[0];
+            if (b[1] < minY) minY = b[1];
+            if (b[2] > maxX) maxX = b[2];
+            if (b[3] > maxY) maxY = b[3];
+        }
+        if (minX !== Infinity) {
+            map.fitBounds(
+                [
+                    [minY, minX],
+                    [maxY, maxX],
+                ],
+                { padding: [36, 36], maxZoom: 15 },
+            );
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [enabled, effectiveAreas, map]);
+
+    return (
+        <Box>
+            <NdviMapOverlay
+                map={map}
+                areas={effectiveAreas}
+                farmName={farmName}
+                api={api}
+                enabled={enabled}
+                selectedSceneId={selectedSceneId}
+                onSelectSceneId={onSelectSceneId}
+                onScenesLoaded={onScenesLoaded}
+            />
         </Box>
     );
 };
@@ -578,6 +740,172 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
     const [showRain, setShowRain] = useState<boolean>(true);
     const [showRadar, setShowRadar] = useState<boolean>(false);
     const [rainPeriod, setRainPeriod] = useState<RainPeriod>('24h'); // Padrão: 24h
+    const [showNdvi, setShowNdvi] = useState<boolean>(false);
+    const [selectedNdviAreaId, setSelectedNdviAreaId] = useState<string>('');
+    const [selectedNdviSceneId, setSelectedNdviSceneId] = useState<string>('');
+    const [ndviScenes, setNdviScenes] = useState<NdviScene[]>([]);
+    const [ndviAnalyses, setNdviAnalyses] = useState<Record<string, NdviAnalysis>>({});
+    const [dbNdviAreas, setDbNdviAreas] = useState<NdviArea[]>([]);
+
+    useEffect(() => {
+        let active = true;
+        getNdviAreas()
+            .then((rows) => {
+                if (active) setDbNdviAreas(rows);
+            })
+            .catch(() => {
+                // fallback silencioso
+            });
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    const ndviAreas = useMemo<NdviArea[]>(() => {
+        let rawAreas: NdviArea[] = [];
+        if (dbNdviAreas.length > 0) {
+            rawAreas = dbNdviAreas;
+        } else {
+            const fromLayers = mapLayersToNdviAreas(mapLayers, {
+                onlyVisible: true,
+                visibleLayerIds,
+                hiddenFeatures,
+            });
+            rawAreas = fromLayers.length > 0 ? fromLayers : DEMO_AREAS;
+        }
+
+        if (points && points.length > 0) {
+            const probeMap = new Map(points.map((p) => [p.id, p]));
+            return rawAreas.map((a) => {
+                if (a.deviceId && probeMap.has(a.deviceId)) {
+                    const p = probeMap.get(a.deviceId)!;
+                    return {
+                        ...a,
+                        deviceName: a.deviceName || p.name || (p.esn ? `Sonda ${p.esn}` : undefined),
+                        deviceEsn: a.deviceEsn || p.esn,
+                    };
+                }
+                return a;
+            });
+        }
+
+        return rawAreas;
+    }, [dbNdviAreas, mapLayers, visibleLayerIds, hiddenFeatures, points]);
+
+    const selectedNdviArea = useMemo<NdviArea | undefined>(() => {
+        if (selectedNdviAreaId) {
+            const explicit = ndviAreas.find((a) => a.id === selectedNdviAreaId);
+            if (explicit) return explicit;
+        }
+        if (selectedPoint && !selectedPoint.isManualProbe) {
+            const linked = ndviAreas.find((a) => a.deviceId === selectedPoint.id);
+            if (linked) return linked;
+        }
+        return ndviAreas[0];
+    }, [ndviAreas, selectedNdviAreaId, selectedPoint]);
+
+    const navigate = useNavigate();
+
+    const farmNameById = useMemo(() => {
+        return new Map<number, string>((farms ?? []).map((f) => [f.id, f.name]));
+    }, [farms]);
+
+    const getAreaFarmName = (area?: NdviArea): string => {
+        if (!area) return "";
+        if (area.farmName) return area.farmName;
+        if (area.farmId && farmNameById.has(area.farmId)) {
+            return farmNameById.get(area.farmId)!;
+        }
+        return "Fazenda";
+    };
+
+    const groupedNdviAreas = useMemo(() => {
+        const groups: { farmName: string; areas: NdviArea[] }[] = [];
+        const map = new Map<string, NdviArea[]>();
+        for (const area of ndviAreas) {
+            const farmName = getAreaFarmName(area);
+            if (!map.has(farmName)) {
+                const list: NdviArea[] = [];
+                map.set(farmName, list);
+                groups.push({ farmName, areas: list });
+            }
+            map.get(farmName)!.push(area);
+        }
+        return groups;
+    }, [ndviAreas, farmNameById]);
+
+    const currentNdviFarmName = selectedNdviArea ? getAreaFarmName(selectedNdviArea) : (groupedNdviAreas[0]?.farmName ?? '');
+    const currentFarmAreas = useMemo(() => {
+        return groupedNdviAreas.find(g => g.farmName === currentNdviFarmName)?.areas ?? [];
+    }, [groupedNdviAreas, currentNdviFarmName]);
+
+    // ── Estado de exibição individual das áreas NDVI (mesmo comportamento das Camadas KML) ──
+    const [visibleNdviAreaIds, setVisibleNdviAreaIds] = useState<Set<string>>(() => new Set());
+
+    useEffect(() => {
+        if (ndviAreas.length > 0) {
+            setVisibleNdviAreaIds((prev) => {
+                if (prev.size === 0) {
+                    return new Set(ndviAreas.map((a) => a.id));
+                }
+                return prev;
+            });
+        }
+    }, [ndviAreas]);
+
+    const handleToggleNdviArea = (areaId: string) => {
+        setVisibleNdviAreaIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(areaId)) {
+                next.delete(areaId);
+            } else {
+                next.add(areaId);
+            }
+            return next;
+        });
+    };
+
+    const handleToggleNdviFarm = (farmName: string) => {
+        const farmAreas = groupedNdviAreas.find((g) => g.farmName === farmName)?.areas ?? [];
+        const someVisible = farmAreas.some((a) => visibleNdviAreaIds.has(a.id));
+        setVisibleNdviAreaIds((prev) => {
+            const next = new Set(prev);
+            if (someVisible) {
+                farmAreas.forEach((a) => next.delete(a.id));
+            } else {
+                farmAreas.forEach((a) => next.add(a.id));
+            }
+            return next;
+        });
+    };
+
+    const handleSelectNdviFarm = (farmName: string) => {
+        const farmAreas = groupedNdviAreas.find((g) => g.farmName === farmName)?.areas ?? [];
+        if (farmAreas.length > 0) {
+            setSelectedNdviAreaId(farmAreas[0].id);
+            setSelectedNdviSceneId('');
+            const anyVisible = farmAreas.some((a) => visibleNdviAreaIds.has(a.id));
+            if (!anyVisible) {
+                setVisibleNdviAreaIds((prev) => {
+                    const next = new Set(prev);
+                    farmAreas.forEach((a) => next.add(a.id));
+                    return next;
+                });
+            }
+        }
+    };
+
+    const displayedNdviAreas = useMemo(() => {
+        if (!showNdvi) return [];
+        return currentFarmAreas.filter((a) => visibleNdviAreaIds.has(a.id));
+    }, [showNdvi, currentFarmAreas, visibleNdviAreaIds]);
+
+    const ndviApi = useMemo<NdviApi>(() => {
+        const isDemo = import.meta.env.VITE_NDVI_MODE === 'demo';
+        return isDemo
+            ? demoApi
+            : createHttpNdviApi(import.meta.env.VITE_NDVI_API_BASE ?? '/api/ndvi');
+    }, []);
 
     const [activeCenter, setActiveCenter] = useState<[number, number]>(() => {
         if (initialCenter) {
@@ -799,6 +1127,7 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                 {/* {showRadar && <RadarLegend />} */}
 
                 <MapControls
+                    isAdmin={isAdmin}
                     onLocationFound={(pos) => setUserLocation(pos)}
                     showRain={showRain}
                     onToggleRain={() => setShowRain((prev) => !prev)}
@@ -818,83 +1147,41 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                     isSavingLayers={isSavingLayers}
                     onSaveLayers={handleSaveLayers}
                     onOpenUpload={() => setIsKmlModalOpen(true)}
+                    showNdvi={showNdvi}
+                    onToggleNdvi={() => setShowNdvi((prev) => !prev)}
+                    ndviDisabled={!selectedNdviArea}
+                    ndviAreas={ndviAreas}
+                    visibleNdviAreaIds={visibleNdviAreaIds}
+                    onToggleNdviArea={handleToggleNdviArea}
+                    onToggleNdviFarm={handleToggleNdviFarm}
+                    selectedNdviFarmName={currentNdviFarmName}
+                    onSelectNdviFarmName={handleSelectNdviFarm}
+                    selectedNdviAreaId={selectedNdviArea?.id ?? ''}
+                    onSelectNdviAreaId={(id) => {
+                        setSelectedNdviAreaId(id);
+                        setSelectedNdviSceneId('');
+                    }}
+                    ndviScenes={ndviScenes}
+                    ndviAnalyses={ndviAnalyses}
+                    selectedNdviSceneId={selectedNdviSceneId || ndviScenes[0]?.id || ''}
+                    onSelectNdviSceneId={setSelectedNdviSceneId}
+                    farms={farms}
                 />
 
-
-                {/* --- CONTROLES DE PROFUNDIDADE E CHUVA --- */}
-                <Box
-                    position="absolute"
-                    top="10px"
-                    left={{ base: "8px", md: "50px" }}
-                    right={{ md: "auto" }}
-                    zIndex={1000}
-                    bg="rgba(255, 255, 255, 0.95)"
-                    backdropFilter="blur(5px)"
-                    borderRadius="md"
-                    boxShadow="lg"
-                    p={{ base: 1.5, md: 1.5 }}
-                >
-                    <Flex
-                        direction={{ base: "column", md: "row" }}
-                        align={{ base: "stretch", md: "center" }}
-                        gap={{ base: 1.5, md: 3 }}
-                    >
-
-                        {/* Seletor de Profundidade */}
-                        <HStack
-                            spacing={1}
-                            pl={{ base: 0, md: 1 }}
-                            pr={{ base: 0, md: showRain ? 2 : 0 }}
-                            borderRight={{ base: "none", md: showRain ? "1px solid" : "none" }}
-                            borderBottom={{ base: showRain ? "1px solid" : "none", md: "none" }}
-                            borderColor="gray.300"
-                            pb={{ base: showRain ? 1 : 0, md: 0 }}
-                        >
-                            <Text fontSize="xs" fontWeight="bold" color="gray.600">Profundidade:</Text>
-                            <Select
-                                size='sm'
-                                width={{ base: "84px", md: "88px" }}
-                                value={mapDepthFilter}
-                                onChange={(e) => onMapDepthFilterChange && onMapDepthFilterChange(Number(e.target.value))}
-                                bg="transparent"
-                                color="black"
-                                border="none"
-                                fontWeight="bold"
-                                _focus={{ boxShadow: 'none' }}
-                                cursor="pointer"
-                            >
-                                {AVAILABLE_DEPTHS.map(depth => (
-                                    <option key={depth} value={depth}>{depth} cm</option>
-                                ))}
-                            </Select>
-                        </HStack>
-
-                        {/* Seletor de Período de Chuva (Aparece ao ativar botão) */}
-                        {showRain && (
-                            <HStack spacing={1} pr={{ base: 0, md: 1 }}>
-                                <Text fontSize="xs" fontWeight="bold" color="blue.600">Chuva:</Text>
-                                <Select
-                                    size="sm"
-                                    width={{ md: "95px" }}
-                                    value={rainPeriod}
-                                    onChange={(e) => setRainPeriod(e.target.value as RainPeriod)}
-                                    bg="transparent"
-                                    border="none"
-                                    fontWeight="bold"
-                                    color="blue.600"
-                                    _focus={{ boxShadow: 'none' }}
-                                    cursor="pointer"
-                                >
-                                    <option value="1h">1 Hora</option>
-                                    <option value="24h">24 Horas</option>
-                                    <option value="7d">7 Dias</option>
-                                    <option value="15d">15 Dias</option>
-                                    <option value="30d">30 Dias</option>
-                                </Select>
-                            </HStack>
-                        )}
-                    </Flex>
-                </Box>
+                {isAdmin && (
+                    <MainMapNdviController
+                        areas={displayedNdviAreas}
+                        farmName={currentNdviFarmName}
+                        api={ndviApi}
+                        enabled={showNdvi && displayedNdviAreas.length > 0}
+                        selectedSceneId={selectedNdviSceneId}
+                        onSelectSceneId={setSelectedNdviSceneId}
+                        onScenesLoaded={(scenesList, analysesMap) => {
+                            setNdviScenes(scenesList);
+                            setNdviAnalyses(analysesMap);
+                        }}
+                    />
+                )}
 
                 {userLocation && (
                     <CircleMarker
@@ -989,6 +1276,10 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                                     click: (e) => {
                                         L.DomEvent.stopPropagation(e);
                                         setSelectedPoint(point);
+                                        if (!point.isManualProbe) {
+                                            const linked = ndviAreas.find((a) => a.deviceId === point.id);
+                                            if (linked) setSelectedNdviAreaId(linked.id);
+                                        }
                                     }
                                 }}
                             />
@@ -996,6 +1287,222 @@ export const SatelliteMap: React.FC<SatelliteMapProps> = ({
                     );
                 })}
             </MapContainer>
+
+            {/* --- CONTROLES DE PROFUNDIDADE, CHUVA E NDVI (Fora do MapContainer para evitar drag do Leaflet) --- */}
+            <Box
+                ref={stopLeafletEvents}
+                onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
+                position="absolute"
+                top="10px"
+                left={{ base: "8px", md: "50px" }}
+                right={{ md: "auto" }}
+                maxW={{ base: "calc(100vw - 64px)", md: "calc(100vw - 120px)" }}
+                zIndex={1000}
+                bg="rgba(255, 255, 255, 0.95)"
+                backdropFilter="blur(5px)"
+                borderRadius="lg"
+                boxShadow="lg"
+                p={{ base: 1.5, md: 1.5 }}
+            >
+                <Flex
+                    direction={{ base: "column", md: "row" }}
+                    align={{ base: "stretch", md: "center" }}
+                    flexWrap="wrap"
+                    gap={{ base: 1, md: 3 }}
+                >
+                    <Flex
+                        direction="row"
+                        align="center"
+                        justify="space-between"
+                        gap={2}
+                        flexWrap="wrap"
+                    >
+                        {/* Seletor de Profundidade */}
+                        <HStack
+                            spacing={1}
+                            pl={{ base: 0.5, md: 1 }}
+                            pr={{ base: 0, md: showRain ? 2 : 0 }}
+                            borderRight={{ base: "none", md: showRain ? "1px solid" : "none" }}
+                            borderColor="gray.300"
+                        >
+                            <Text fontSize={{ base: "11px", md: "xs" }} fontWeight="bold" color="gray.600" whiteSpace="nowrap">
+                                Profundidade:
+                            </Text>
+                            <Select
+                                size={{ base: "xs", md: "sm" }}
+                                width={{ base: "76px", md: "88px" }}
+                                value={mapDepthFilter}
+                                onChange={(e) => onMapDepthFilterChange && onMapDepthFilterChange(Number(e.target.value))}
+                                bg="transparent"
+                                color="black"
+                                border="none"
+                                fontWeight="bold"
+                                _focus={{ boxShadow: 'none' }}
+                                cursor="pointer"
+                            >
+                                {AVAILABLE_DEPTHS.map(depth => (
+                                    <option key={depth} value={depth}>{depth} cm</option>
+                                ))}
+                            </Select>
+                        </HStack>
+
+                        {/* Seletor de Período de Chuva (Aparece ao ativar botão) */}
+                        {showRain && (
+                            <HStack
+                                spacing={1}
+                                pl={{ base: 2, md: 0 }}
+                                pr={{ base: 0.5, md: 1 }}
+                                borderLeft={{ base: "1px solid", md: "none" }}
+                                borderColor="gray.300"
+                            >
+                                <Text fontSize={{ base: "11px", md: "xs" }} fontWeight="bold" color="blue.600" whiteSpace="nowrap">
+                                    Chuva:
+                                </Text>
+                                <Select
+                                    size={{ base: "xs", md: "sm" }}
+                                    width={{ base: "98px", md: "112px" }}
+                                    minW="96px"
+                                    value={rainPeriod}
+                                    onChange={(e) => setRainPeriod(e.target.value as RainPeriod)}
+                                    bg="transparent"
+                                    border="none"
+                                    fontWeight="bold"
+                                    color="blue.600"
+                                    _focus={{ boxShadow: 'none' }}
+                                    cursor="pointer"
+                                >
+                                    <option value="1h">1 Hora</option>
+                                    <option value="24h">24 Horas</option>
+                                    <option value="7d">7 Dias</option>
+                                    <option value="15d">15 Dias</option>
+                                    <option value="30d">30 Dias</option>
+                                </Select>
+                            </HStack>
+                        )}
+                    </Flex>
+
+                    {/* Seletor de Área e Histórico NDVI (Aparece ao ativar botão NDVI, apenas para Admin) */}
+                    {isAdmin && showNdvi && ndviAreas.length > 0 && (
+                        <Flex
+                            direction={{ base: "column", sm: "row" }}
+                            align={{ base: "stretch", sm: "center" }}
+                            gap={{ base: 1, sm: 2 }}
+                            pt={{ base: 1, md: 0 }}
+                            pl={{ base: 0.5, md: 2 }}
+                            borderTop={{ base: "1px solid", md: "none" }}
+                            borderLeft={{ base: "none", md: "1px solid" }}
+                            borderColor="gray.300"
+                        >
+                            <HStack spacing={1} flex="1" minW={0}>
+                                <Text fontSize={{ base: "11px", md: "xs" }} fontWeight="bold" color="blue.600" whiteSpace="nowrap">
+                                    Fazenda:
+                                </Text>
+                                <Select
+                                    size={{ base: "xs", md: "sm" }}
+                                    flex="1"
+                                    width={{ base: "100%", sm: "160px", md: "200px" }}
+                                    minW="120px"
+                                    value={currentNdviFarmName}
+                                    onChange={(e) => {
+                                        handleSelectNdviFarm(e.target.value);
+                                    }}
+                                    bg="transparent"
+                                    border="none"
+                                    fontWeight="bold"
+                                    color="blue.700"
+                                    _focus={{ boxShadow: 'none' }}
+                                    cursor="pointer"
+                                >
+                                    {groupedNdviAreas.map(({ farmName }) => (
+                                        <option key={farmName} value={farmName}>
+                                            {farmName}
+                                        </option>
+                                    ))}
+                                </Select>
+                            </HStack>
+                            {ndviScenes.length > 0 && (
+                                <HStack
+                                    spacing={1}
+                                    flex="1"
+                                    minW={0}
+                                    pl={{ base: 0, sm: 2 }}
+                                    pt={{ base: 1, sm: 0 }}
+                                    borderTop={{ base: "1px solid", sm: "none" }}
+                                    borderLeft={{ base: "none", sm: "1px solid" }}
+                                    borderColor="gray.300"
+                                >
+                                    <Text fontSize={{ base: "11px", md: "xs" }} fontWeight="bold" color="teal.700" whiteSpace="nowrap">
+                                        Histórico:
+                                    </Text>
+                                    <Select
+                                        size={{ base: "xs", md: "sm" }}
+                                        flex="1"
+                                        width={{ base: "100%", sm: "150px", md: "185px" }}
+                                        minW="120px"
+                                        value={selectedNdviSceneId || ndviScenes[0]?.id || ''}
+                                        onChange={(e) => {
+                                            if (e.target.value === '__more__') {
+                                                navigate('/ndvi');
+                                                return;
+                                            }
+                                            setSelectedNdviSceneId(e.target.value);
+                                        }}
+                                        bg="transparent"
+                                        border="none"
+                                        fontWeight="bold"
+                                        color="teal.700"
+                                        _focus={{ boxShadow: 'none' }}
+                                        cursor="pointer"
+                                    >
+                                        {ndviScenes
+                                            .filter((s) => {
+                                                const a = ndviAnalyses[s.id];
+                                                if ((s.tileCloudPct ?? 0) > 10) return false;
+                                                if (a && a.validPct < 90) return false;
+                                                return true;
+                                            })
+                                            .slice(0, 5)
+                                            .map((s) => {
+                                                const a = ndviAnalyses[s.id];
+                                                const dateStr = new Intl.DateTimeFormat('pt-BR', {
+                                                    day: '2-digit',
+                                                    month: 'short',
+                                                    year: 'numeric',
+                                                    timeZone: 'UTC',
+                                                }).format(new Date(s.acquiredAt));
+                                                const meanStr = a?.mean != null ? ` (${a.mean.toFixed(2).replace('.', ',')})` : '';
+                                                return (
+                                                    <option key={s.id} value={s.id}>
+                                                        {dateStr}{meanStr}
+                                                    </option>
+                                                );
+                                            })}
+                                        {ndviScenes.length > 5 && (
+                                            <option value="__more__">
+                                                Ver mais no módulo NDVI (+{ndviScenes.length - 5})...
+                                            </option>
+                                        )}
+                                    </Select>
+                                    <Tooltip label="Ver histórico completo no módulo NDVI">
+                                        <IconButton
+                                            aria-label="Ver histórico completo"
+                                            icon={<ExternalLink size={12} />}
+                                            size="xs"
+                                            variant="ghost"
+                                            colorScheme="blue"
+                                            onClick={() => navigate('/ndvi')}
+                                        />
+                                    </Tooltip>
+                                </HStack>
+                            )}
+                        </Flex>
+                    )}
+                </Flex>
+            </Box>
 
             {/* KML/KMZ Upload Modal */}
             <KmlUploadModal

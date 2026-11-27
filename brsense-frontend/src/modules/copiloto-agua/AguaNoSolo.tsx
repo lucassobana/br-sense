@@ -61,15 +61,7 @@ export function AguaNoSolo({
   if (!evento || !analise) return <Text color={cores.texto} p="4">Nenhuma irrigação registrada neste período.</Text>;
 
   return (
-    <Box color={cores.texto} minW="0" fontSize="sm">
-      <Flex justify="space-between" align="center" mb="3" gap="2">
-        <Text color={cores.texto} fontSize="lg" fontWeight="600">
-          Resposta da água
-        </Text>
-        <Text color={cores.secundario} fontSize="xs">
-          {evento.demonstrativo ? 'Exemplo' : 'Histórico'}
-        </Text>
-      </Flex>
+    <Box color={cores.texto} minW="0" fontSize="sm" pr="2.5">
 
       <Grid templateColumns="minmax(0,1fr) auto" gap="4" alignItems="end" mb="3">
         <FormControl minW="0">

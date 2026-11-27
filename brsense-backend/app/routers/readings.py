@@ -1,4 +1,5 @@
 # app/routers/readings.py
+import re
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -152,20 +153,44 @@ def get_device_history(
     return reading_history
 
 @router.get("/logs")
-def view_uplink_logs(limit: int = 50, db: Session = Depends(get_db)):
+def view_uplink_logs(
+    limit: int = Query(50, ge=1, le=1000, description="Limite de registros a retornar"),
+    esn: Optional[str] = Query(None, description="Filtrar por ESN do dispositivo"),
+    db: Session = Depends(get_db),
+):
     """
     Rota pública para visualizar os últimos payloads recebidos (capturados pelo Middleware).
+    Permite filtrar por ESN contido no corpo da mensagem (XML ou JSON).
     """
-    logs = db.query(RequestLog).order_by(RequestLog.timestamp.desc()).limit(limit).all()
-    
-    # Retorna uma lista simples
+    query = db.query(RequestLog)
+
+    if esn and esn.strip():
+        clean_esn = esn.strip()
+        if clean_esn.startswith("<esn>") and clean_esn.endswith("</esn>"):
+            clean_esn = clean_esn[5:-6].strip()
+        query = query.filter(RequestLog.raw_body.contains(clean_esn))
+
+    logs = query.order_by(RequestLog.timestamp.desc()).limit(limit).all()
+
+    def _extract_esn(raw_body: Optional[str]) -> Optional[str]:
+        if not raw_body:
+            return None
+        match = re.search(r"<esn>([^<]+)</esn>", raw_body, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+        json_match = re.search(r'["\'](?:esn|ESN)["\']\s*:\s*["\']([^"\']+)["\']', raw_body)
+        if json_match:
+            return json_match.group(1).strip()
+        return None
+
     return [
         {
             "id": l.id,
             "timestamp": l.timestamp,
             "ip": l.client_ip,
+            "esn": _extract_esn(l.raw_body),
             "body": l.raw_body,
-            "message": l.log_message
+            "message": l.log_message,
         }
         for l in logs
     ]

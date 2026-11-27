@@ -11,6 +11,7 @@ primary_region = 'gru'
 [build.args]
 VITE_API_URL = "https://brsense-api-dev.fly.dev"
 VITE_KEYCLOAK_URL = "https://brsense-auth.fly.dev"
+VITE_NDVI_MODE = "live"
 
 [http_service]
 internal_port = 80
